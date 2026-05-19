@@ -5,6 +5,8 @@ version = "0.1.0"
 authors = ["John L. Ries"]
 maintainers = ["John L. Ries <john@theyarnbard.com>"]
 licenses = "GPL-3.0-only"
+website = ""
+tags = ["library", "statistics", "data"]
 
 [[depends-on]]
 zipada = "^61.0.0"
