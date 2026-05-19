@@ -1,0 +1,19 @@
+with "zipada";
+with "xmlada_dom";
+with "xmlada_input";
+with "mathpaqs";
+with "ada_sqlite3";
+
+library project SData_Core is
+   for Library_Name use "sdata_core";
+   for Library_Kind use "static";
+   for Languages use ("Ada", "C");
+   for Source_Dirs use ("src/**");
+   for Object_Dir use "obj";
+   for Library_Dir use "lib";
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+         ("-gnat2012", "-gnatwa", "-gnatwl", "-gnatwu", "-g", "-O2");
+   end Compiler;
+end SData_Core;

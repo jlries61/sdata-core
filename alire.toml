@@ -1,0 +1,23 @@
+name = "sdata_core"
+description = "Shared data-layer and evaluator library for sdata and data-vandal"
+version = "0.1.0"
+
+authors = ["John L. Ries"]
+maintainers = ["John L. Ries <john@theyarnbard.com>"]
+licenses = "GPL-3.0-only"
+
+[[depends-on]]
+zipada = "^61.0.0"
+
+[[depends-on]]
+xmlada = "^26.0.0"
+
+[[depends-on]]
+mathpaqs = "^20260205.0.0"
+
+[[depends-on]]
+ada_sqlite3 = "^0.1.1"
+
+[[actions]]
+type = "pre-build"
+command = ["sh", "scripts/fix-mathpaqs.sh"]
