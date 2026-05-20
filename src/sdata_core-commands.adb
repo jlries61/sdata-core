@@ -194,6 +194,11 @@ package body SData_Core.Commands is
                   end loop;
                   SData_Core.Table.Set_Current_Record_Index (Saved_Physical);
                   SData_Core.Table.Set_Index_Map (Passing (1 .. Count));
+               exception
+                  when others =>
+                     SData_Core.Table.Set_Current_Record_Index
+                        (Saved_Physical);
+                     raise;
                end;
             end;
          end if;
@@ -250,34 +255,28 @@ package body SData_Core.Commands is
       Nscan_Rows  : Natural := 0;
       Is_Mock     : Boolean := False)
    is
-      Expanded : String (1 .. SData_Core.Max_Path_Len);
-      Exp_Len  : Natural := 0;
    begin
       SData_Core.Config.Runtime.Repeat_Active := False;
       SData_Core.Config.Runtime.Repeat_Count  := 0;
 
-      if Is_Mock then
-         Exp_Len := 4;
-         Expanded (1 .. 4) := "MOCK";
-      else
-         declare
-            Full : constant String := Full_Path (File_Name, "USE");
-         begin
-            Exp_Len := Full'Length;
-            Expanded (1 .. Exp_Len) := Full;
-         end;
-      end if;
-
-      SData_Core.File_IO.Open_Input
-        (Expanded (1 .. Exp_Len),
-         Fmt,
-         Sheet_Name,
-         Delimiter,
-         Read_Header,
-         Charset,
-         Skip_Rows,
-         Max_Rows,
-         Nscan_Rows);
+      declare
+         Full : constant String :=
+            (if Is_Mock then "MOCK" else Full_Path (File_Name, "USE"));
+      begin
+         if Full'Length > SData_Core.Max_Path_Len then
+            raise SData_Core.Script_Error with "Path too long: " & Full;
+         end if;
+         SData_Core.File_IO.Open_Input
+           (Full,
+            Fmt,
+            Sheet_Name,
+            Delimiter,
+            Read_Header,
+            Charset,
+            Skip_Rows,
+            Max_Rows,
+            Nscan_Rows);
+      end;
 
       SData_Core.Variables.Refresh_PDV_Names;
    end Execute_USE;
@@ -407,9 +406,13 @@ package body SData_Core.Commands is
    procedure Execute_SELECT
      (Expr : SData_Core.Evaluator.Expression_Access)
    is
+      use type SData_Core.Evaluator.Expression_Access;
       Old : SData_Core.Evaluator.Expression_Access :=
          SData_Core.Config.Runtime.Select_Filter_Expr;
    begin
+      if Old = Expr then
+         return;  --  caller passing back the same expression; nothing to do
+      end if;
       SData_Core.Evaluator.Free_Expression (Old);
       SData_Core.Config.Runtime.Select_Filter_Expr := Expr;
       SData_Core.Table.Clear_Index_Map;
@@ -438,7 +441,8 @@ package body SData_Core.Commands is
          end loop;
          for U of Snapshot loop
             declare
-               Col : constant String := To_String (U);
+               Col : constant String :=
+                  Ada.Characters.Handling.To_Upper (To_String (U));
             begin
                if not Keep.Contains (Col) then
                   SData_Core.Table.Drop_Column (Col);
