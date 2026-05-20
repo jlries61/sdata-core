@@ -130,6 +130,11 @@ package SData_Core.Evaluator is
    type Value_Array is array (Positive range <>) of Value;
    function Call_Function (Name : String; Args : Value_Array) return Value;
 
+   --  Parse an expression from a plain string.  Used by application parsers
+   --  (data-vandal) that do not embed sdata's full lexer.  Raises
+   --  SData_Core.Script_Error with a descriptive message on syntax error.
+   function Parse_Expression (Text : String) return Expression_Access;
+
 private
 
    --  Type infrastructure shared by the parent body and all private child
