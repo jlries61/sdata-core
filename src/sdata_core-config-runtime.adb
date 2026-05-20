@@ -38,6 +38,7 @@ package body SData_Core.Config.Runtime is
       Save_Header      := True;
       Save_Charset     := (others => ' ');
       Save_Charset_Len := 0;
+      SData_Core.Evaluator.Free_Expression (Select_Filter_Expr);
    end Reset;
 
 end SData_Core.Config.Runtime;

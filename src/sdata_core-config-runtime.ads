@@ -9,6 +9,7 @@
 --  explicit.
 
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with SData_Core.Evaluator;
 
 package SData_Core.Config.Runtime is
 
@@ -53,6 +54,12 @@ package SData_Core.Config.Runtime is
    Save_Charset     : String (1 .. SData_Core.Max_Charset_Len) :=
                         (others => ' ');
    Save_Charset_Len : Natural := 0;
+
+   --  Persistent SELECT filter expression.  Set by Execute_SELECT and cleared
+   --  by Reset (NEW command).  Shared between the interpreter and any front
+   --  end that hosts the Commands package; rebuilt into a logical→physical
+   --  index map at the start of each data step.
+   Select_Filter_Expr : SData_Core.Evaluator.Expression_Access := null;
 
    procedure Reset;
 
