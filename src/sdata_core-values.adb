@@ -159,6 +159,8 @@ begin
    --  Float'Last * 2.0 must be computed at runtime to avoid the
    --  static-expression Constraint_Error GNAT raises at compile time.
    --  Big cannot be constant for the same reason; suppress the spurious warning.
+   --  Validity checks are disabled project-wide via -gnatVn (see sdata_core.gpr)
+   --  because this package legitimately stores IEEE 754 infinity in float vars.
    declare
       pragma Warnings (Off, "could be declared constant");
       Big : Float := Float'Last;

@@ -19,6 +19,8 @@ library project SData_Core is
 
    package Compiler is
       for Default_Switches ("Ada") use
-         Sdata_Core_Config.Ada_Compiler_Switches & ("-gnat2012");
+         Sdata_Core_Config.Ada_Compiler_Switches & ("-gnat2012", "-gnatVn");
+         --  -gnatVn disables validity checks: the code predates -gnatVa and
+         --  legitimately stores IEEE 754 infinities in float variables.
    end Compiler;
 end SData_Core;
