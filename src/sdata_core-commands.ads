@@ -131,4 +131,13 @@ package SData_Core.Commands is
    --  per-record processing they perform.
    procedure Execute_RUN;
 
+   ----------------------------------------------------------------
+   --  Execute_Rebuild_Filter — rebuild the SELECT logical→physical index
+   --  map against the current table without flushing a pending SAVE.
+   --  Front ends call this at the *start* of a data step (before iterating
+   --  records) so the filter map is current for the initial record set.
+   --  Execute_RUN rebuilds the map at the *end* of a step (after the output
+   --  table has been committed).  Both paths share the same implementation.
+   procedure Execute_Rebuild_Filter;
+
 end SData_Core.Commands;

@@ -190,10 +190,36 @@ package body SData_Core.Commands is
                      if Is_True (Evaluate (Expr)) then
                         Count := Count + 1;
                         Passing (Count) := R;
+                        if SData_Core.Config.Debug_Level >= 2 then
+                           SData_Core.IO.Put_Line_Error
+                              ("[debug] SELECT: KEPT");
+                        end if;
+                     else
+                        if SData_Core.Config.Debug_Level >= 2 then
+                           SData_Core.IO.Put_Line_Error
+                              ("[debug] SELECT: DROPPED");
+                        end if;
                      end if;
                   end loop;
                   SData_Core.Table.Set_Current_Record_Index (Saved_Physical);
                   SData_Core.Table.Set_Index_Map (Passing (1 .. Count));
+                  if SData_Core.Config.Debug_Level >= 2 then
+                     declare
+                        Count_Img : constant String :=
+                           Natural'Image (Count);
+                        Total_Img : constant String :=
+                           Natural'Image (Total);
+                     begin
+                        SData_Core.IO.Put_Line_Error
+                          ("[debug] SELECT: "
+                           & Count_Img (Count_Img'First + 1
+                                        .. Count_Img'Last)
+                           & " of "
+                           & Total_Img (Total_Img'First + 1
+                                        .. Total_Img'Last)
+                           & " records kept");
+                     end;
+                  end if;
                exception
                   when others =>
                      SData_Core.Table.Set_Current_Record_Index
@@ -510,5 +536,13 @@ package body SData_Core.Commands is
       Rebuild_Filter_Map;
       Flush_Pending_Save;
    end Execute_RUN;
+
+   --------------------------------------------------------------------
+   --  Execute_Rebuild_Filter                                         --
+   --------------------------------------------------------------------
+   procedure Execute_Rebuild_Filter is
+   begin
+      Rebuild_Filter_Map;
+   end Execute_Rebuild_Filter;
 
 end SData_Core.Commands;
