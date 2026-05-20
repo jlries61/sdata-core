@@ -1,0 +1,38 @@
+RUN complete. 5 records and 1 variables processed.
+VANDALIZE complete. 5 records processed.
+RUN complete. 5 records and 2 variables processed.
+SUM(X_V): 10.00000
+MIN(X_V): 10.00000
+MAX(X_V): 10.00000
+SUM(X_V): 20.00000
+MIN(X_V): 20.00000
+MAX(X_V): 20.00000
+SUM(X_V): 30.00000
+MIN(X_V): 30.00000
+MAX(X_V): 30.00000
+SUM(X_V): 40.00000
+MIN(X_V): 40.00000
+MAX(X_V): 40.00000
+SUM(X_V): 50.00000
+MIN(X_V): 50.00000
+MAX(X_V): 50.00000
+RUN complete. 5 records and 2 variables processed.
+RUN complete. 5 records and 1 variables processed.
+VANDALIZE complete. 5 records processed.
+RUN complete. 5 records and 2 variables processed.
+SUM(X_V): 10.00000
+MIN(X_V): 10.00000
+MAX(X_V): 10.00000
+SUM(X_V): 30.00000
+MIN(X_V): 30.00000
+MAX(X_V): 30.00000
+SUM(X_V): 20.00000
+MIN(X_V): 20.00000
+MAX(X_V): 20.00000
+SUM(X_V): 50.00000
+MIN(X_V): 50.00000
+MAX(X_V): 50.00000
+SUM(X_V): 40.00000
+MIN(X_V): 40.00000
+MAX(X_V): 40.00000
+RUN complete. 5 records and 2 variables processed.

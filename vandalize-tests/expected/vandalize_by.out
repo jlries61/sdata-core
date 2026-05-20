@@ -1,0 +1,11 @@
+RUN complete. 6 records and 2 variables processed.
+SORT complete. 6 records and 2 variables processed.
+VANDALIZE complete. 6 records processed.
+RUN complete. 6 records and 3 variables processed.
+1.00000 1.00000 1.00000
+1.00000 2.00000 3.00000
+1.00000 3.00000 2.00000
+2.00000 10.00000 10.00000
+2.00000 20.00000 20.00000
+2.00000 30.00000 30.00000
+RUN complete. 6 records and 3 variables processed.

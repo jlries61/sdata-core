@@ -1,0 +1,30 @@
+RUN complete. 5 records and 1 variables processed.
+VANDALIZE complete. 5 records processed.
+RUN complete. 5 records and 2 variables processed.
+N(X_V) should be 0: 0
+NMISS(X_V) should be 5: 1
+N(X_V) should be 0: 0
+NMISS(X_V) should be 5: 1
+N(X_V) should be 0: 0
+NMISS(X_V) should be 5: 1
+N(X_V) should be 0: 0
+NMISS(X_V) should be 5: 1
+N(X_V) should be 0: 0
+NMISS(X_V) should be 5: 1
+RUN complete. 5 records and 2 variables processed.
+RUN complete. 5 records and 1 variables processed.
+VANDALIZE complete. 5 records processed.
+RUN complete. 5 records and 2 variables processed.
+N(X_V) should be 5: 1
+SUM(X_V) should be 15: 1.00000
+N(X_V) should be 5: 1
+SUM(X_V) should be 15: 2.00000
+N(X_V) should be 5: 1
+SUM(X_V) should be 15: 3.00000
+N(X_V) should be 5: 1
+SUM(X_V) should be 15: 4.00000
+N(X_V) should be 5: 1
+SUM(X_V) should be 15: 5.00000
+RUN complete. 5 records and 2 variables processed.
+RUN complete. 3 records and 1 variables processed.
+Error: VANDALIZE: sum of probabilities exceeds 1.0.

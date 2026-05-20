@@ -1,0 +1,9 @@
+-- Test VANDALIZE without INTO clause (implicit in-place).
+NEW
+REPEAT 5
+LET X = RECNO()
+RUN
+VANDALIZE X /MISS=1.0
+RUN
+PRINT NMISS(X)
+RUN

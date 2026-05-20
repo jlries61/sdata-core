@@ -1,0 +1,16 @@
+RUN complete. 4 records and 3 variables processed.
+VANDALIZE complete. 4 records processed.
+RUN complete. 4 records and 6 variables processed.
+NMISS(Y(1)) should be 4: 1
+NMISS(Y(2)) should be 4: 1
+NMISS(Y(3)) should be 4: 1
+NMISS(Y(1)) should be 4: 1
+NMISS(Y(2)) should be 4: 1
+NMISS(Y(3)) should be 4: 1
+NMISS(Y(1)) should be 4: 1
+NMISS(Y(2)) should be 4: 1
+NMISS(Y(3)) should be 4: 1
+NMISS(Y(1)) should be 4: 1
+NMISS(Y(2)) should be 4: 1
+NMISS(Y(3)) should be 4: 1
+RUN complete. 4 records and 6 variables processed.
