@@ -93,6 +93,12 @@ package SData_Core.Variables is
    -- For Virtual_Array (ARRAY): the constituent variable name at that position.
    function Get_Array_Element_Column (Name : String; Index : Integer) return String;
 
+   --  Scan the current table column names for the pattern base(n) where n is
+   --  a positive integer.  For each unique base name found, register the group
+   --  as a DIM array spanning the minimum and maximum subscript observed.
+   --  Gaps in the numeric sequence are permitted.  Call after Execute_USE.
+   procedure Register_Subscripted_Columns;
+
    -- Hold/Unhold Management
    procedure Set_Hold (Name : String; State : Boolean);
    function Is_Held (Name : String) return Boolean;

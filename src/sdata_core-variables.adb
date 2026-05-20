@@ -752,4 +752,74 @@ package body SData_Core.Variables is
       return To_String (Current_Group_ID);
    end Get_Current_Group_Key;
 
+   -----------------------------------
+   -- Register_Subscripted_Columns  --
+   -----------------------------------
+   procedure Register_Subscripted_Columns is
+      --  Map from upper-cased base name to (Min, Max) subscript pair.
+      type Bounds_Record is record
+         Min_Idx : Integer;
+         Max_Idx : Integer;
+      end record;
+
+      package Bounds_Maps is new Ada.Containers.Indefinite_Hashed_Maps
+        (Key_Type        => String,
+         Element_Type    => Bounds_Record,
+         Hash            => Ada.Strings.Hash,
+         Equivalent_Keys => "=");
+
+      Map : Bounds_Maps.Map;
+
+   begin
+      --  Pass 1: scan column names and record min/max subscript per base name.
+      for I in 1 .. Column_Count loop
+         declare
+            Name : constant String := Column_Name (I);
+            LP   : constant Natural :=
+               Ada.Strings.Fixed.Index (Name, "(");
+            RP   : constant Natural :=
+               Ada.Strings.Fixed.Index (Name, ")");
+         begin
+            if LP > 1 and then RP = Name'Last and then RP > LP + 1 then
+               declare
+                  Idx : Integer;
+               begin
+                  Idx := Integer'Value (Name (LP + 1 .. RP - 1));
+                  if Idx > 0 then
+                     declare
+                        Base : constant String := Name (Name'First .. LP - 1);
+                        Cur  : constant Bounds_Maps.Cursor :=
+                           Map.Find (Base);
+                     begin
+                        if Bounds_Maps.Has_Element (Cur) then
+                           declare
+                              B : Bounds_Record := Bounds_Maps.Element (Cur);
+                           begin
+                              if Idx < B.Min_Idx then B.Min_Idx := Idx; end if;
+                              if Idx > B.Max_Idx then B.Max_Idx := Idx; end if;
+                              Map.Replace (Base, B);
+                           end;
+                        else
+                           Map.Insert (Base, (Min_Idx => Idx, Max_Idx => Idx));
+                        end if;
+                     end;
+                  end if;
+               exception
+                  when Constraint_Error => null;  -- non-integer subscript; skip
+               end;
+            end if;
+         end;
+      end loop;
+
+      --  Pass 2: register each base name as a DIM array.
+      for Pos in Map.Iterate loop
+         declare
+            Base   : constant String       := Bounds_Maps.Key (Pos);
+            Bounds : constant Bounds_Record := Bounds_Maps.Element (Pos);
+         begin
+            Dim_Array (Base, Bounds.Min_Idx, Bounds.Max_Idx, False);
+         end;
+      end loop;
+   end Register_Subscripted_Columns;
+
 end SData_Core.Variables;

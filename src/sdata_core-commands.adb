@@ -279,6 +279,7 @@ package body SData_Core.Commands is
       end;
 
       SData_Core.Variables.Refresh_PDV_Names;
+      SData_Core.Variables.Register_Subscripted_Columns;
    end Execute_USE;
 
    --------------------------------------------------------------------
