@@ -86,6 +86,20 @@ package SData_Core.Commands is
       Charset   : String := "");
 
    ----------------------------------------------------------------
+   --  OUTPUT (table form) — register a default table-output path.
+   --
+   --  Unlike Execute_OUTPUT (which redirects console text), this form
+   --  records the path so that Execute_RUN will write the current table
+   --  there if no explicit SAVE is pending.  Used by front ends such as
+   --  data-vandal where OUTPUT means "save the dataset here" rather than
+   --  "redirect PRINT to here".  An empty File_Name clears any pending
+   --  table output.  The format is inferred from the file extension by
+   --  the underlying writer, with CSV as the default.
+   procedure Execute_OUTPUT_Table
+     (File_Name : String;
+      Fmt       : SData_Core.Config.Format_Type := SData_Core.Config.CSV);
+
+   ----------------------------------------------------------------
    --  SELECT — install (or, with null, clear) the persistent filter
    --  expression that is rebuilt into the logical→physical index map at
    --  the start of every RUN.  Ownership of the passed expression

@@ -26,6 +26,16 @@ package SData_Core.Config.Runtime is
    FPath_Save          : Unbounded_String := Null_Unbounded_String;
    FPath_Submit        : Unbounded_String := Null_Unbounded_String;
    FPath_Output        : Unbounded_String := Null_Unbounded_String;
+   --  Output_Table_* — file path captured by Execute_OUTPUT_Table for
+   --  front ends (e.g. data-vandal) where OUTPUT writes the table itself
+   --  rather than redirecting console output.  Distinct from Save_File_*
+   --  so SAVE-driven and OUTPUT-driven writes do not interfere.
+   Output_Table_Path   : String (1 .. SData_Core.Max_Path_Len) :=
+                           (others => ' ');
+   Output_Table_Len    : Natural := 0;
+   Output_Table_Active : Boolean := False;
+   Output_Table_Fmt    : SData_Core.Config.Format_Type :=
+                           SData_Core.Config.CSV;
    Repeat_Count        : Natural := 0;
    Repeat_Active       : Boolean := False;
    Last_Error_Code     : Natural := 0;

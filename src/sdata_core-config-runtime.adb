@@ -16,6 +16,10 @@ package body SData_Core.Config.Runtime is
       FPath_Save          := Null_Unbounded_String;
       FPath_Submit        := Null_Unbounded_String;
       FPath_Output        := Null_Unbounded_String;
+      Output_Table_Path   := (others => ' ');
+      Output_Table_Len    := 0;
+      Output_Table_Active := False;
+      Output_Table_Fmt    := SData_Core.Config.CSV;
       Repeat_Count        := 0;
       Repeat_Active       := False;
       Last_Error_Code     := 0;

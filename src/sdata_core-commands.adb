@@ -231,6 +231,47 @@ package body SData_Core.Commands is
       end;
    end Rebuild_Filter_Map;
 
+   --  Flush_Pending_Output_Table — if a table-form OUTPUT path is pending
+   --  and no SAVE is also pending, write the current table to that path.
+   --  Used by Execute_RUN so that front ends (e.g. data-vandal) where
+   --  OUTPUT means "save the table here" produce a file at end-of-RUN.
+   --  When both an OUTPUT path and a SAVE are active, SAVE wins and this
+   --  routine is a no-op, mirroring the spec text "if OUTPUT was set
+   --  without an explicit SAVE".
+   procedure Flush_Pending_Output_Table is
+   begin
+      if not SData_Core.Config.Runtime.Output_Table_Active then
+         return;
+      end if;
+      if SData_Core.Config.Runtime.Save_File_Active then
+         --  An explicit SAVE supersedes OUTPUT-as-save; let
+         --  Flush_Pending_Save handle the write.
+         return;
+      end if;
+      begin
+         SData_Core.File_IO.Open_Output
+            (Full_Path
+                (SData_Core.Config.Runtime.Output_Table_Path
+                    (1 .. SData_Core.Config.Runtime.Output_Table_Len),
+                 "OUTPUT"),
+             SData_Core.Config.Runtime.Output_Table_Fmt,
+             "",          -- sheet name (default)
+             ",",         -- delimiter
+             True,        -- write header
+             SData_Core.Config.Runtime.Options_SAVEOVERWRT,
+             SData_Core.Config.Runtime.Options_CHARSET
+                (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
+         if not SData_Core.Config.Quiet_Mode then
+            SData_Core.IO.Put_Line
+              ("Dataset saved: " &
+               SData_Core.Config.Runtime.Output_Table_Path
+                  (1 .. SData_Core.Config.Runtime.Output_Table_Len));
+         end if;
+      exception
+         when SData_Core.File_IO.Save_Refused => null;
+      end;
+   end Flush_Pending_Output_Table;
+
    --  Flush_Pending_Save — if a SAVE is pending, write the current table
    --  out using the parameters captured at SAVE time and clear the
    --  pending flag.  Used by Execute_RUN.
@@ -428,6 +469,33 @@ package body SData_Core.Commands is
    end Execute_OUTPUT;
 
    --------------------------------------------------------------------
+   --  Execute_OUTPUT_Table                                           --
+   --------------------------------------------------------------------
+   procedure Execute_OUTPUT_Table
+     (File_Name : String;
+      Fmt       : SData_Core.Config.Format_Type := SData_Core.Config.CSV)
+   is
+   begin
+      if File_Name'Length = 0 then
+         SData_Core.Config.Runtime.Output_Table_Active := False;
+         SData_Core.Config.Runtime.Output_Table_Len    := 0;
+         return;
+      end if;
+
+      if File_Name'Length > SData_Core.Max_Path_Len then
+         raise SData_Core.Script_Error with
+            "OUTPUT: path too long: " & File_Name;
+      end if;
+
+      SData_Core.Config.Runtime.Output_Table_Path := (others => ' ');
+      SData_Core.Config.Runtime.Output_Table_Path
+         (1 .. File_Name'Length) := File_Name;
+      SData_Core.Config.Runtime.Output_Table_Len := File_Name'Length;
+      SData_Core.Config.Runtime.Output_Table_Fmt := Fmt;
+      SData_Core.Config.Runtime.Output_Table_Active := True;
+   end Execute_OUTPUT_Table;
+
+   --------------------------------------------------------------------
    --  Execute_SELECT                                                 --
    --------------------------------------------------------------------
    procedure Execute_SELECT
@@ -535,6 +603,7 @@ package body SData_Core.Commands is
    begin
       Rebuild_Filter_Map;
       Flush_Pending_Save;
+      Flush_Pending_Output_Table;
    end Execute_RUN;
 
    --------------------------------------------------------------------
