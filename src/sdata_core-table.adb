@@ -365,6 +365,54 @@ package body SData_Core.Table is
       Current_Record := Index;
    end Set_Current_Record_Index;
    
+   ----------------------------------------------------------------
+   --  Sort working storage with deterministic finalization.
+   --
+   --  Sort needs per-criterion value snapshots (Key_Data) and two scratch
+   --  index arrays (Indices, Temp).  These were previously bare `access`
+   --  allocations that leaked on every Sort call -- per-sort cost
+   --  (key_columns + 2) * N * sizeof(Value | Positive), unbounded across
+   --  repeated sorts in long-running sessions.
+   --
+   --  Wrapping each allocation in a Limited_Controlled holder makes the
+   --  free deterministic: Finalize runs on scope exit, including the
+   --  exception-unwind case.  Mirrors the Backing_Store pattern in this
+   --  same package.
+   ----------------------------------------------------------------
+   type Sort_Key_Row is array (Natural range <>) of Value;
+   type Sort_Key_Row_Access is access Sort_Key_Row;
+   procedure Free_Key_Row is new Ada.Unchecked_Deallocation
+      (Sort_Key_Row, Sort_Key_Row_Access);
+
+   type Sort_Key_Holder is new Ada.Finalization.Limited_Controlled with record
+      Ref : Sort_Key_Row_Access := null;
+   end record;
+   overriding procedure Finalize (H : in out Sort_Key_Holder);
+
+   type Sort_Indices_Array is array (Positive range <>) of Natural;
+   type Sort_Indices_Access is access Sort_Indices_Array;
+   procedure Free_Sort_Indices is new Ada.Unchecked_Deallocation
+      (Sort_Indices_Array, Sort_Indices_Access);
+
+   type Sort_Indices_Holder is new Ada.Finalization.Limited_Controlled with record
+      Ref : Sort_Indices_Access := null;
+   end record;
+   overriding procedure Finalize (H : in out Sort_Indices_Holder);
+
+   overriding procedure Finalize (H : in out Sort_Key_Holder) is
+   begin
+      if H.Ref /= null then
+         Free_Key_Row (H.Ref);
+      end if;
+   end Finalize;
+
+   overriding procedure Finalize (H : in out Sort_Indices_Holder) is
+   begin
+      if H.Ref /= null then
+         Free_Sort_Indices (H.Ref);
+      end if;
+   end Finalize;
+
    ----------
    -- Sort --
    ----------
@@ -426,21 +474,20 @@ package body SData_Core.Table is
       end if;
 
       declare
-         type Value_Row     is array (Natural range <>) of Value;
-         type Value_Row_Acc is access Value_Row;
-         Key_Data : array (Criteria'Range) of Value_Row_Acc;
-
-         type Index_Array_Sort is array (Positive range <>) of Natural;
-         type Index_Array_Acc  is access Index_Array_Sort;
-         Indices : Index_Array_Acc;
-         Temp    : Index_Array_Acc;
+         --  Per-criterion value snapshots and scratch index arrays are held
+         --  in Limited_Controlled wrappers so heap allocations are freed on
+         --  scope exit (including exception unwind).  See holder type
+         --  declarations above Sort.
+         Key_Data : array (Criteria'Range) of Sort_Key_Holder;
+         Indices  : Sort_Indices_Holder;
+         Temp     : Sort_Indices_Holder;
 
          function Lt (L, R : Natural) return Boolean is
          begin
             for C in Criteria'Range loop
                declare
-                  VL : Value renames Key_Data (C)(L);
-                  VR : Value renames Key_Data (C)(R);
+                  VL : Value renames Key_Data (C).Ref (L);
+                  VR : Value renames Key_Data (C).Ref (R);
                begin
                   if VL /= VR then
                      if Criteria (C).Dir = Ascending then
@@ -462,17 +509,17 @@ package body SData_Core.Table is
             Mid := Lo + (Hi - Lo) / 2;
             Merge_Sort (Lo, Mid);
             Merge_Sort (Mid + 1, Hi);
-            for X in Lo .. Hi loop Temp (X) := Indices (X); end loop;
+            for X in Lo .. Hi loop Temp.Ref (X) := Indices.Ref (X); end loop;
             I := Lo; J := Mid + 1; K := Lo;
             while I <= Mid and then J <= Hi loop
-               if not Lt (Temp (J), Temp (I)) then
-                  Indices (K) := Temp (I); I := I + 1;
+               if not Lt (Temp.Ref (J), Temp.Ref (I)) then
+                  Indices.Ref (K) := Temp.Ref (I); I := I + 1;
                else
-                  Indices (K) := Temp (J); J := J + 1;
+                  Indices.Ref (K) := Temp.Ref (J); J := J + 1;
                end if;
                K := K + 1;
             end loop;
-            while I <= Mid loop Indices (K) := Temp (I); I := I + 1; K := K + 1; end loop;
+            while I <= Mid loop Indices.Ref (K) := Temp.Ref (I); I := I + 1; K := K + 1; end loop;
          end Merge_Sort;
 
       begin
@@ -480,25 +527,24 @@ package body SData_Core.Table is
             declare
                Col_Name : constant String :=
                   Ada.Characters.Handling.To_Upper (Criteria (C).Name (1 .. Criteria (C).Len));
-               Row_Vals : constant Value_Row_Acc := new Value_Row (0 .. N);
             begin
-               Row_Vals (0) := (Kind => Val_Missing);
+               Key_Data (C).Ref := new Sort_Key_Row (0 .. N);
+               Key_Data (C).Ref (0) := (Kind => Val_Missing);
                if Data_Table.Contains (Col_Name) then
                   for R in 1 .. N loop
-                     Row_Vals (R) := Get_Value_Upper (R, Col_Name);
+                     Key_Data (C).Ref (R) := Get_Value_Upper (R, Col_Name);
                   end loop;
                else
                   for R in 1 .. N loop
-                     Row_Vals (R) := (Kind => Val_Missing);
+                     Key_Data (C).Ref (R) := (Kind => Val_Missing);
                   end loop;
                end if;
-               Key_Data (C) := Row_Vals;
             end;
          end loop;
 
-         Indices := new Index_Array_Sort (1 .. N);
-         Temp    := new Index_Array_Sort (1 .. N);
-         for I in 1 .. N loop Indices (I) := I; end loop;
+         Indices.Ref := new Sort_Indices_Array (1 .. N);
+         Temp.Ref    := new Sort_Indices_Array (1 .. N);
+         for I in 1 .. N loop Indices.Ref (I) := I; end loop;
 
          Merge_Sort (1, N);
 
@@ -513,7 +559,7 @@ package body SData_Core.Table is
                begin
                   New_Data.Reserve_Capacity (Ada.Containers.Count_Type (N));
                   for I in 1 .. N loop
-                     New_Data.Append (Get_Value_Upper (Indices (I), Current_Key));
+                     New_Data.Append (Get_Value_Upper (Indices.Ref (I), Current_Key));
                   end loop;
                   Value_Vectors.Move (Source => New_Data, Target => Old_Data);
                end;
