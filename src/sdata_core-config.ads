@@ -47,31 +47,8 @@ package SData_Core.Config is
    Debug_Level        : Natural := 0;     -- 0=off 1=I/O 2=+record/flow 3=+assignments
    Shell_Timeout_Default : Natural := 0;
 
-   --  Version information
-   Version_Major : constant Natural := 0;
-   Version_Minor : constant Natural := 7;
-   Version_Patch : constant Natural := 1;
-   Version_Str   : constant String :=
-      Natural'Image (Version_Major)(2 .. Natural'Image (Version_Major)'Last) & "." &
-      Natural'Image (Version_Minor)(2 .. Natural'Image (Version_Minor)'Last) & "." &
-      Natural'Image (Version_Patch)(2 .. Natural'Image (Version_Patch)'Last);
-
-   --  Copyright and license information
-   Copyright_Str : constant String :=
-      "Copyright (C) 2026 John L. Ries <john@theyarnbard.com>";
-
-   Copyright_Notice : constant String :=
-      "SData version " & Version_Str & ASCII.LF &
-      Copyright_Str & ASCII.LF & ASCII.LF &
-      "This program is free software: you can redistribute it and/or modify" & ASCII.LF &
-      "it under the terms of the GNU General Public License as published by" & ASCII.LF &
-      "the Free Software Foundation, either version 3 of the License, or" & ASCII.LF &
-      "(at your option) any later version." & ASCII.LF & ASCII.LF &
-      "This program is distributed in the hope that it will be useful," & ASCII.LF &
-      "but WITHOUT ANY WARRANTY; without even the implied warranty of" & ASCII.LF &
-      "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the" & ASCII.LF &
-      "GNU General Public License for more details." & ASCII.LF & ASCII.LF &
-      "You should have received a copy of the GNU General Public License" & ASCII.LF &
-      "along with this program. If not, see <https://www.gnu.org/licenses/>.";
+   --  Application-specific version and copyright constants live in each
+   --  consuming application (e.g., SData.Version in the sdata crate) so
+   --  that sdata-core can evolve its own version independently.
 
 end SData_Core.Config;
