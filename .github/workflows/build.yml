@@ -1,0 +1,44 @@
+name: Build
+
+# sdata-core has no test suite of its own (testing is the consumers'
+# responsibility — see CLAUDE.md).  This workflow is a build-only smoke
+# test that catches compile errors before they reach sdata or data-vandal.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: '2.1.0'
+
+      - name: Cache Alire toolchain and packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/alire
+          key: alire-${{ runner.os }}-${{ hashFiles('alire.toml') }}
+          restore-keys: |
+            alire-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: sudo apt-get update -o Acquire::Languages=none && sudo apt-get install -y --no-install-recommends libsqlite3-dev
+
+      - name: Build library
+        run: alr build
+
+      - name: Verify library archive
+        run: test -f lib/libsdata_core.a
