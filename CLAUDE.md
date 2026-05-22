@@ -1,8 +1,8 @@
 # sdata-core — Shared Data Layer and Evaluator
 
 Ada 2012 Alire library crate. Holds the data layer, expression evaluator, and
-the execution bodies of commands shared between the [sdata](https://github.com/)
-interpreter and the [data-vandal](https://github.com/) application. Not a
+the execution bodies of commands shared between the [sdata](https://github.com/jlries61/sdata)
+interpreter and the [data-vandal](https://github.com/jlries61/data-vandal) application. Not a
 standalone program — no executables, no `make check` at this level.
 
 ## Repository Layout (Important)
