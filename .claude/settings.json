@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/check-build-warnings.py",
+            "timeout": 10,
+            "statusMessage": "Checking for build warnings..."
+          }
+        ]
+      }
+    ]
+  }
+}
