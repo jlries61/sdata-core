@@ -1,0 +1,119 @@
+name: Consumer Tests
+
+# sdata-core has no test suite of its own: testing is the consumers'
+# responsibility (see CLAUDE.md § "Public API — Stability Contract").
+# This workflow runs each consumer's `make check` against the sdata-core
+# checkout under test, so a PR that breaks `SData_Core.Commands.Execute_*`
+# signatures, `Config.Runtime` field shapes, or `Evaluator.Expression`
+# variants is caught before merge.
+#
+# Mirrors the consumers' own workflows in reverse: each consumer's
+# `.github/workflows/test.yml` already clones sdata-core@main as a
+# sibling; this workflow clones each consumer at a pinned SHA as a sibling
+# instead.  SHAs are bumped manually as the consumers evolve — see each
+# `ref:` line below.  Pinning (rather than tracking main) means a broken
+# consumer main does not fail this workflow for unrelated reasons.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: consumer-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdata:
+    name: sdata make check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sdata-core (under test)
+        uses: actions/checkout@v4
+        with:
+          path: sdata-core
+
+      - name: Checkout sdata
+        uses: actions/checkout@v4
+        with:
+          repository: jlries61/sdata
+          # Pinned to jlries61/sdata@main at sdata-core 2026-05-22 (this PR).
+          # Bump as needed: `git -C ../sdata rev-parse origin/main`.
+          ref: e93f77b4728b3e472768b7ce583b29c937c7bfbc
+          path: sdata
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: '2.1.0'
+
+      - name: Cache Alire toolchain and packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/alire
+          key: alire-${{ runner.os }}-sdata-${{ hashFiles('sdata-core/alire.toml', 'sdata/alire.toml') }}
+          restore-keys: |
+            alire-${{ runner.os }}-sdata-
+            alire-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: sudo apt-get update -o Acquire::Languages=none && sudo apt-get install -y --no-install-recommends libsqlite3-dev
+
+      - name: Build sdata
+        working-directory: sdata
+        run: alr build
+
+      - name: Run sdata test suite
+        working-directory: sdata
+        run: alr exec -- make check
+
+      - name: Fuzz corpus regression
+        working-directory: sdata
+        run: alr exec -- make fuzz-corpus
+
+  data-vandal:
+    name: data-vandal make check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sdata-core (under test)
+        uses: actions/checkout@v4
+        with:
+          path: sdata-core
+
+      - name: Checkout data-vandal
+        uses: actions/checkout@v4
+        with:
+          repository: jlries61/data-vandal
+          # Pinned to jlries61/data-vandal@main at sdata-core 2026-05-22 (this PR).
+          # Bump as needed: `git -C ../data-vandal rev-parse origin/main`.
+          ref: ff74419360e994b929d09e5468c4c47e535f9c5f
+          path: data-vandal
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: '2.1.0'
+
+      - name: Cache Alire toolchain and packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/alire
+          key: alire-${{ runner.os }}-data-vandal-${{ hashFiles('sdata-core/alire.toml', 'data-vandal/alire.toml') }}
+          restore-keys: |
+            alire-${{ runner.os }}-data-vandal-
+            alire-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: sudo apt-get update -o Acquire::Languages=none && sudo apt-get install -y --no-install-recommends libsqlite3-dev
+
+      - name: Build data-vandal
+        working-directory: data-vandal
+        run: alr build
+
+      - name: Run data-vandal test suite
+        working-directory: data-vandal
+        run: alr exec -- make check
