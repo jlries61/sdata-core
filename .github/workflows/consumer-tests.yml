@@ -1,0 +1,88 @@
+name: Consumer Tests
+
+# Enforces the public API stability contract defined in CLAUDE.md
+# § "Public API — Stability Contract".  sdata-core has no test suite of
+# its own (testing is the consumers' responsibility), so a PR that breaks
+# `SData_Core.Commands.Execute_*` signatures, `Config.Runtime` field
+# shapes, or `Evaluator.Expression` variants would otherwise merge
+# silently.  This workflow runs the sdata consumer's `make check` against
+# the sdata-core checkout under test to catch such breaks before merge.
+#
+# (Background: post-extraction baseline audit Finding F1 surfaced the
+# absence of this automated gate; this workflow is the response.)
+#
+# Mirrors sdata's own workflow in reverse: sdata's `.github/workflows/test.yml`
+# clones sdata-core@main as a sibling; this workflow clones sdata at a
+# pinned tag as a sibling instead.  Pinning (rather than tracking main)
+# means a broken sdata main does not fail this workflow for unrelated
+# reasons.  Bump the tag as sdata releases — see the `ref:` line below.
+#
+# The other consumer (data-vandal) is intentionally NOT run here.  It is
+# a private repository; authenticating cross-repo checkout (via PAT or
+# deploy key) would leak its build and test output into the public
+# sdata-core Actions logs, partially defeating the privacy decision.
+# data-vandal validation remains a manual gate
+# (`cd ~/Develop/data-vandal && make check`) per CLAUDE.md.  Finding F1
+# is therefore only PARTIALLY closed by this workflow.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: consumer-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdata:
+    name: sdata make check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sdata-core (under test)
+        uses: actions/checkout@v4
+        with:
+          path: sdata-core
+
+      - name: Checkout sdata
+        uses: actions/checkout@v4
+        with:
+          repository: jlries61/sdata
+          # Pinned to sdata's latest release tag.  Bump on each new sdata
+          # release: replace below with the new tag (e.g. v0.8.1) and the
+          # cache key in the next step will rotate automatically.
+          ref: v0.8.0
+          path: sdata
+
+      - name: Set up Alire
+        uses: alire-project/setup-alire@v3
+        with:
+          version: '2.1.0'
+
+      - name: Cache Alire toolchain and packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/alire
+          key: alire-${{ runner.os }}-sdata-${{ hashFiles('sdata-core/alire.toml', 'sdata/alire.toml') }}
+          restore-keys: |
+            alire-${{ runner.os }}-sdata-
+            alire-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: sudo apt-get update -o Acquire::Languages=none && sudo apt-get install -y --no-install-recommends libsqlite3-dev
+
+      - name: Build sdata
+        working-directory: sdata
+        run: alr build
+
+      - name: Run sdata test suite
+        working-directory: sdata
+        run: alr exec -- make check
+
+      - name: Fuzz corpus regression
+        working-directory: sdata
+        run: alr exec -- make fuzz-corpus

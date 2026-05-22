@@ -41,6 +41,28 @@ cd ~/Develop/data-vandal  && make check    # 11 VANDALIZE integration tests
 If either consumer regresses, fix sdata-core (or both consumers, if the change
 is intentional) before committing.
 
+### CI scope
+
+`.github/workflows/build.yml` is a build-only smoke test (`alr build` on every
+push and PR).
+
+`.github/workflows/consumer-tests.yml` automates the `sdata` half of the
+manual validation above: it checks out sdata at a pinned tag as a sibling
+and runs `make check` + `make fuzz-corpus` against the sdata-core SHA under
+test. **`data-vandal` is intentionally not automated** because it is a private
+repository and cross-repo checkout would leak build / test output into
+public sdata-core Actions logs. `data-vandal` validation remains a manual
+step that you must run locally before every commit.
+
+The pinned sdata tag in `consumer-tests.yml` (currently `v0.8.0`) should be
+bumped on each new sdata release:
+
+```bash
+git -C ../sdata tag --sort=-creatordate | head -1   # latest tag
+# Edit .github/workflows/consumer-tests.yml; replace `ref: v0.8.0`
+# with the new tag.  Commit as `ci(consumer-tests): bump sdata pin to vX.Y.Z`.
+```
+
 ## Public API — Stability Contract
 
 The `SData_Core.Commands.Execute_*` procedures and `SData_Core.Config.Runtime`

@@ -2,3 +2,6 @@ alire/
 config/
 obj/
 lib/
+
+# SSD working directory (see .ssd/README.md)
+.ssd/
