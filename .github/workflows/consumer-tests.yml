@@ -2,17 +2,22 @@ name: Consumer Tests
 
 # sdata-core has no test suite of its own: testing is the consumers'
 # responsibility (see CLAUDE.md § "Public API — Stability Contract").
-# This workflow runs each consumer's `make check` against the sdata-core
-# checkout under test, so a PR that breaks `SData_Core.Commands.Execute_*`
-# signatures, `Config.Runtime` field shapes, or `Evaluator.Expression`
-# variants is caught before merge.
+# This workflow runs the sdata consumer's `make check` against the
+# sdata-core checkout under test, so a PR that breaks
+# `SData_Core.Commands.Execute_*` signatures, `Config.Runtime` field
+# shapes, or `Evaluator.Expression` variants is caught before merge.
 #
-# Mirrors the consumers' own workflows in reverse: each consumer's
-# `.github/workflows/test.yml` already clones sdata-core@main as a
-# sibling; this workflow clones each consumer at a pinned SHA as a sibling
-# instead.  SHAs are bumped manually as the consumers evolve — see each
-# `ref:` line below.  Pinning (rather than tracking main) means a broken
-# consumer main does not fail this workflow for unrelated reasons.
+# Mirrors sdata's own workflow in reverse: sdata's `.github/workflows/test.yml`
+# clones sdata-core@main as a sibling; this workflow clones sdata at a
+# pinned SHA as a sibling instead.  Pinning (rather than tracking main)
+# means a broken sdata main does not fail this workflow for unrelated
+# reasons.  Bump the SHA manually as sdata evolves.
+#
+# The other consumer (data-vandal) is intentionally NOT run here: it is
+# a private repository, and authenticating cross-repo checkout would
+# leak its build and test output into the public sdata-core Actions
+# logs.  data-vandal validation remains a manual gate
+# (`cd ~/Develop/data-vandal && make check`) per CLAUDE.md.
 
 on:
   push:
@@ -74,46 +79,3 @@ jobs:
       - name: Fuzz corpus regression
         working-directory: sdata
         run: alr exec -- make fuzz-corpus
-
-  data-vandal:
-    name: data-vandal make check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sdata-core (under test)
-        uses: actions/checkout@v4
-        with:
-          path: sdata-core
-
-      - name: Checkout data-vandal
-        uses: actions/checkout@v4
-        with:
-          repository: jlries61/data-vandal
-          # Pinned to jlries61/data-vandal@main at sdata-core 2026-05-22 (this PR).
-          # Bump as needed: `git -C ../data-vandal rev-parse origin/main`.
-          ref: ff74419360e994b929d09e5468c4c47e535f9c5f
-          path: data-vandal
-
-      - name: Set up Alire
-        uses: alire-project/setup-alire@v3
-        with:
-          version: '2.1.0'
-
-      - name: Cache Alire toolchain and packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/alire
-          key: alire-${{ runner.os }}-data-vandal-${{ hashFiles('sdata-core/alire.toml', 'data-vandal/alire.toml') }}
-          restore-keys: |
-            alire-${{ runner.os }}-data-vandal-
-            alire-${{ runner.os }}-
-
-      - name: Install system dependencies
-        run: sudo apt-get update -o Acquire::Languages=none && sudo apt-get install -y --no-install-recommends libsqlite3-dev
-
-      - name: Build data-vandal
-        working-directory: data-vandal
-        run: alr build
-
-      - name: Run data-vandal test suite
-        working-directory: data-vandal
-        run: alr exec -- make check
