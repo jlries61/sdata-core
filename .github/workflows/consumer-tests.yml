@@ -1,23 +1,29 @@
 name: Consumer Tests
 
-# sdata-core has no test suite of its own: testing is the consumers'
-# responsibility (see CLAUDE.md § "Public API — Stability Contract").
-# This workflow runs the sdata consumer's `make check` against the
-# sdata-core checkout under test, so a PR that breaks
+# Enforces the public API stability contract defined in CLAUDE.md
+# § "Public API — Stability Contract".  sdata-core has no test suite of
+# its own (testing is the consumers' responsibility), so a PR that breaks
 # `SData_Core.Commands.Execute_*` signatures, `Config.Runtime` field
-# shapes, or `Evaluator.Expression` variants is caught before merge.
+# shapes, or `Evaluator.Expression` variants would otherwise merge
+# silently.  This workflow runs the sdata consumer's `make check` against
+# the sdata-core checkout under test to catch such breaks before merge.
+#
+# (Background: post-extraction baseline audit Finding F1 surfaced the
+# absence of this automated gate; this workflow is the response.)
 #
 # Mirrors sdata's own workflow in reverse: sdata's `.github/workflows/test.yml`
 # clones sdata-core@main as a sibling; this workflow clones sdata at a
-# pinned SHA as a sibling instead.  Pinning (rather than tracking main)
+# pinned tag as a sibling instead.  Pinning (rather than tracking main)
 # means a broken sdata main does not fail this workflow for unrelated
-# reasons.  Bump the SHA manually as sdata evolves.
+# reasons.  Bump the tag as sdata releases — see the `ref:` line below.
 #
-# The other consumer (data-vandal) is intentionally NOT run here: it is
-# a private repository, and authenticating cross-repo checkout would
-# leak its build and test output into the public sdata-core Actions
-# logs.  data-vandal validation remains a manual gate
-# (`cd ~/Develop/data-vandal && make check`) per CLAUDE.md.
+# The other consumer (data-vandal) is intentionally NOT run here.  It is
+# a private repository; authenticating cross-repo checkout (via PAT or
+# deploy key) would leak its build and test output into the public
+# sdata-core Actions logs, partially defeating the privacy decision.
+# data-vandal validation remains a manual gate
+# (`cd ~/Develop/data-vandal && make check`) per CLAUDE.md.  Finding F1
+# is therefore only PARTIALLY closed by this workflow.
 
 on:
   push:
@@ -46,9 +52,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: jlries61/sdata
-          # Pinned to jlries61/sdata@main at sdata-core 2026-05-22 (this PR).
-          # Bump as needed: `git -C ../sdata rev-parse origin/main`.
-          ref: e93f77b4728b3e472768b7ce583b29c937c7bfbc
+          # Pinned to sdata's latest release tag.  Bump on each new sdata
+          # release: replace below with the new tag (e.g. v0.8.1) and the
+          # cache key in the next step will rotate automatically.
+          ref: v0.8.0
           path: sdata
 
       - name: Set up Alire
