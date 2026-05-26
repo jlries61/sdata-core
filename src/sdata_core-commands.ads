@@ -154,4 +154,63 @@ package SData_Core.Commands is
    --  table has been committed).  Both paths share the same implementation.
    procedure Execute_Rebuild_Filter;
 
+   ----------------------------------------------------------------
+   --  Interpreter-state mutators (added per audit Findings R1/U2/E2).
+   --
+   --  These wrap the corresponding SData_Core.Config.Runtime field
+   --  writes that consumers previously performed inline.  Each is a
+   --  thin pass-through, except that the String-valued OPTIONS setters
+   --  validate length up-front and raise SData_Core.Script_Error on
+   --  overflow — friendlier than the bare Constraint_Error a direct
+   --  slice assignment would raise.
+   ----------------------------------------------------------------
+
+   ----------------------------------------------------------------
+   --  REPEAT — set or clear the deferred-program repeat state.
+   --
+   --  Count > 0  sets Repeat_Active := True and Repeat_Count := Count.
+   --  Count = 0  clears Repeat_Active and Repeat_Count.
+   procedure Execute_REPEAT (Count : Natural);
+
+   ----------------------------------------------------------------
+   --  NEW — reset all runtime interpreter state to defaults.
+   --
+   --  Delegates to SData_Core.Config.Runtime.Reset.  Host applications
+   --  call this from their Stmt_NEW handler.  Note: this does NOT clear
+   --  the data table, variables, or the active program — those are the
+   --  consumer's responsibility (each is a distinct concern in core).
+   procedure Execute_NEW;
+
+   ----------------------------------------------------------------
+   --  OPTIONS — update one OPTIONS-command runtime setting.
+   --
+   --  Each procedure mirrors a single Options_* field in
+   --  SData_Core.Config.Runtime.  String-valued setters validate
+   --  Value'Length up-front:
+   --    Execute_OPTIONS_CSVDLM rejects empty values (a zero-length
+   --      delimiter is nonsense) and values longer than Max_Delimiter_Len.
+   --    Execute_OPTIONS_TXTFMT rejects empty values and values longer
+   --      than Max_Delimiter_Len (note: the recognised TXTFMT set lives
+   --      in the host application's grammar, not in core).
+   --    Execute_OPTIONS_CHARSET allows empty (meaning "autodetect") and
+   --      rejects values longer than Max_Charset_Len.
+   --  Boolean / Natural setters need no validation beyond the parameter
+   --  type.
+
+   procedure Execute_OPTIONS_CSVDLM        (Value : String);
+   procedure Execute_OPTIONS_Header        (Value : Boolean);
+   procedure Execute_OPTIONS_SAVEOVERWRT   (Value : Boolean);
+   procedure Execute_OPTIONS_TXTFMT        (Value : String);
+   procedure Execute_OPTIONS_CHARSET       (Value : String);
+   procedure Execute_OPTIONS_IEEE_Divide   (Value : Boolean);
+   procedure Execute_OPTIONS_Shell_Timeout (Value : Natural);
+
+   ----------------------------------------------------------------
+   --  Record_Error — set the Last_Error_Code / Last_Error_Line pair
+   --  observed via the ERROR_CODE and ERROR_LINE expression functions.
+   --
+   --  Host applications call this from their per-record exception
+   --  handlers in lieu of writing the Runtime fields directly.
+   procedure Execute_Record_Error (Code : Natural; Line : Natural);
+
 end SData_Core.Commands;

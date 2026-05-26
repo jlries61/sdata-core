@@ -85,7 +85,9 @@ back to the shared evaluator without needing to share AST types (per
 - `SData_Core.Commands` — Execute_USE, Execute_SAVE, Execute_FPATH,
   Execute_OUTPUT, Execute_OUTPUT_Table, Execute_SELECT, Execute_KEEP,
   Execute_DROP, Execute_ARRAY, Execute_DIM, Execute_RUN,
-  Execute_Rebuild_Filter
+  Execute_Rebuild_Filter, Execute_REPEAT, Execute_NEW,
+  Execute_OPTIONS_{CSVDLM, Header, SAVEOVERWRT, TXTFMT, CHARSET,
+  IEEE_Divide, Shell_Timeout}, Execute_Record_Error
 - `SData_Core.Table` — column-store table + SQLite spill
 - `SData_Core.Variables` — PDV, temp/permanent symbols, hold semantics,
   `Register_Subscripted_Columns` (auto-detect arrays from `name(n)` columns at
