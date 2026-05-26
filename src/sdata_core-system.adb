@@ -3,7 +3,6 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with Ada.Environment_Variables;
-with Ada.Real_Time;
 with GNAT.OS_Lib; use GNAT.OS_Lib;
 with Interfaces.C; use type Interfaces.C.int;
 with SData_Core.Config.Runtime;
@@ -99,54 +98,47 @@ package body SData_Core.System is
             Posix : Boolean;
          begin
             Resolve_Shell (Path, Posix);
+            --  Always use blocking Spawn.  GNAT's Non_Blocking_Spawn paired
+            --  with Non_Blocking_Wait_Process does not reliably detect child
+            --  termination on Cygwin/MinGW (the runtime's child-handle table
+            --  appears not to be updated), which caused SYSTEM commands to
+            --  hang for the full timeout in batch mode.  Blocking Spawn takes
+            --  a different OS path (direct _spawnvp(_P_WAIT) on Windows) and
+            --  works correctly there — it is what the interactive (timeout=0)
+            --  path was already using.
+            --
+            --  Timeout enforcement is delegated to the shell-level `timeout(1)`
+            --  utility from GNU coreutils, which is present on Linux, macOS,
+            --  and Cygwin (i.e. wherever a POSIX shell is available).  When
+            --  it kills the inner command it exits with status 124, which we
+            --  translate back into Script_Error to preserve the previous
+            --  contract.  On the cmd.exe path (Windows with no bash on PATH)
+            --  the timeout is not enforced; the prior poll-loop implementation
+            --  was effectively broken there as well, so this is no regression.
             declare
-               Shell_Arg : constant String :=
+               Shell_Arg   : constant String :=
                   (if Posix then "-c" else "/c");
-               Args : GNAT.OS_Lib.Argument_List :=
-                  (new String'(Shell_Arg), new String'(Command));
+               T_Img       : constant String := Timeout_Val'Image;
+               T_Str       : constant String :=
+                  T_Img (T_Img'First + 1 .. T_Img'Last);
+               Use_Timeout : constant Boolean :=
+                  Timeout_Val > 0 and then Posix;
+               Wrapped     : constant String :=
+                  (if Use_Timeout
+                   then "timeout " & T_Str & " " & Command
+                   else Command);
+               Args        : GNAT.OS_Lib.Argument_List :=
+                  (new String'(Shell_Arg), new String'(Wrapped));
+               Status      : Integer;
             begin
-               if Timeout_Val > 0 then
-                  --  Non-blocking spawn with a 1-second poll loop.
-                  --  Kill the child and raise SData_Core.Script_Error if the limit expires.
-                  declare
-                     use Ada.Real_Time;
-                     Pid   : constant GNAT.OS_Lib.Process_Id :=
-                        GNAT.OS_Lib.Non_Blocking_Spawn (Path.all, Args);
-                     Start : constant Time      := Clock;
-                     Limit : constant Time_Span := Seconds (Timeout_Val);
-                     Done  : GNAT.OS_Lib.Process_Id;
-                     OK    : Boolean;
-                  begin
-                     for I in Args'Range loop Free (Args (I)); end loop;
-                     if Pid = GNAT.OS_Lib.Invalid_Pid then
-                        Success := False;
-                     else
-                        loop
-                           delay 0.5;
-                           GNAT.OS_Lib.Non_Blocking_Wait_Process (Done, OK);
-                           exit when Done = Pid;
-                           if Clock - Start >= Limit then
-                              GNAT.OS_Lib.Kill (Pid);
-                              GNAT.OS_Lib.Wait_Process (Done, OK);
-                              declare
-                                 T_Img : constant String := Timeout_Val'Image;
-                                 T_Str : constant String :=
-                                    T_Img (T_Img'First + 1 .. T_Img'Last);
-                              begin
-                                 raise SData_Core.Script_Error with
-                                    "SYSTEM command timed out after "
-                                    & T_Str & " seconds";
-                              end;
-                           end if;
-                        end loop;
-                        Success := OK;
-                     end if;
-                  end;
-               else
-                  --  No timeout: block until the child exits.
-                  GNAT.OS_Lib.Spawn (Path.all, Args, Success);
-                  for I in Args'Range loop Free (Args (I)); end loop;
+               Status := GNAT.OS_Lib.Spawn (Path.all, Args);
+               for I in Args'Range loop Free (Args (I)); end loop;
+               if Use_Timeout and then Status = 124 then
+                  raise SData_Core.Script_Error with
+                     "SYSTEM command timed out after "
+                     & T_Str & " seconds";
                end if;
+               Success := (Status = 0);
             end;
             Free (Path);
          end;
