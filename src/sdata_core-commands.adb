@@ -614,4 +614,130 @@ package body SData_Core.Commands is
       Rebuild_Filter_Map;
    end Execute_Rebuild_Filter;
 
+   --------------------------------------------------------------------
+   --  Interpreter-state mutators                                     --
+   --  (see spec for the rationale and validation contract)           --
+   --------------------------------------------------------------------
+
+   --------------------------------------------------------------------
+   --  Execute_REPEAT                                                 --
+   --------------------------------------------------------------------
+   procedure Execute_REPEAT (Count : Natural) is
+   begin
+      if Count = 0 then
+         SData_Core.Config.Runtime.Repeat_Active := False;
+         SData_Core.Config.Runtime.Repeat_Count  := 0;
+      else
+         SData_Core.Config.Runtime.Repeat_Active := True;
+         SData_Core.Config.Runtime.Repeat_Count  := Count;
+      end if;
+   end Execute_REPEAT;
+
+   --------------------------------------------------------------------
+   --  Execute_NEW                                                    --
+   --------------------------------------------------------------------
+   procedure Execute_NEW is
+   begin
+      SData_Core.Config.Runtime.Reset;
+   end Execute_NEW;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_CSVDLM                                         --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_CSVDLM (Value : String) is
+   begin
+      if Value'Length = 0 then
+         raise SData_Core.Script_Error with
+            "OPTIONS CSVDLM value cannot be empty";
+      end if;
+      if Value'Length > Max_Delimiter_Len then
+         raise SData_Core.Script_Error with
+            "OPTIONS CSVDLM value too long (max" &
+            Natural'Image (Max_Delimiter_Len) & " chars)";
+      end if;
+      SData_Core.Config.Runtime.Options_CSVDLM := (others => ' ');
+      SData_Core.Config.Runtime.Options_CSVDLM
+        (1 .. Value'Length) := Value;
+      SData_Core.Config.Runtime.Options_CSVDLM_Len := Value'Length;
+   end Execute_OPTIONS_CSVDLM;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_Header                                         --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_Header (Value : Boolean) is
+   begin
+      SData_Core.Config.Runtime.Options_Header := Value;
+   end Execute_OPTIONS_Header;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_SAVEOVERWRT                                    --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_SAVEOVERWRT (Value : Boolean) is
+   begin
+      SData_Core.Config.Runtime.Options_SAVEOVERWRT := Value;
+   end Execute_OPTIONS_SAVEOVERWRT;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_TXTFMT                                         --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_TXTFMT (Value : String) is
+   begin
+      if Value'Length = 0 then
+         raise SData_Core.Script_Error with
+            "OPTIONS TXTFMT value cannot be empty";
+      end if;
+      if Value'Length > Max_Delimiter_Len then
+         raise SData_Core.Script_Error with
+            "OPTIONS TXTFMT value too long (max" &
+            Natural'Image (Max_Delimiter_Len) & " chars)";
+      end if;
+      SData_Core.Config.Runtime.Options_TXTFMT := (others => ' ');
+      SData_Core.Config.Runtime.Options_TXTFMT
+        (1 .. Value'Length) := Value;
+      SData_Core.Config.Runtime.Options_TXTFMT_Len := Value'Length;
+   end Execute_OPTIONS_TXTFMT;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_CHARSET                                        --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_CHARSET (Value : String) is
+   begin
+      if Value'Length > Max_Charset_Len then
+         raise SData_Core.Script_Error with
+            "OPTIONS CHARSET value too long (max" &
+            Natural'Image (Max_Charset_Len) & " chars)";
+      end if;
+      SData_Core.Config.Runtime.Options_CHARSET := (others => ' ');
+      if Value'Length > 0 then
+         SData_Core.Config.Runtime.Options_CHARSET
+           (1 .. Value'Length) := Value;
+      end if;
+      SData_Core.Config.Runtime.Options_CHARSET_Len := Value'Length;
+   end Execute_OPTIONS_CHARSET;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_IEEE_Divide                                    --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_IEEE_Divide (Value : Boolean) is
+   begin
+      SData_Core.Config.Runtime.IEEE_Divide := Value;
+   end Execute_OPTIONS_IEEE_Divide;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_Shell_Timeout                                  --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_Shell_Timeout (Value : Natural) is
+   begin
+      SData_Core.Config.Runtime.Options_Shell_Timeout := Value;
+   end Execute_OPTIONS_Shell_Timeout;
+
+   --------------------------------------------------------------------
+   --  Execute_Record_Error                                           --
+   --------------------------------------------------------------------
+   procedure Execute_Record_Error (Code : Natural; Line : Natural) is
+   begin
+      SData_Core.Config.Runtime.Last_Error_Code := Code;
+      SData_Core.Config.Runtime.Last_Error_Line := Line;
+   end Execute_Record_Error;
+
 end SData_Core.Commands;
