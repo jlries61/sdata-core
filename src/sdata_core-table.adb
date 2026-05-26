@@ -346,11 +346,14 @@ package body SData_Core.Table is
       Table_Row_Count := Table_Row_Count - 1;
       while Column_Maps.Has_Element (Position) loop
          declare
-            Col : Column := Column_Maps.Element (Position);
+            --  Mutate the column's Vector in place via a Reference view.
+            --  Avoids the prior Element-copy + Replace_Element round-trip
+            --  (each of which copied the full Value_Vectors.Vector).
+            Data_Ref : Value_Vectors.Vector renames
+               Data_Table.Reference (Position).Element.all.Data;
          begin
-            if Index <= Positive (Col.Data.Length) then
-               Col.Data.Delete (Index);
-               Data_Table.Replace_Element (Position, Col);
+            if Index <= Positive (Data_Ref.Length) then
+               Data_Ref.Delete (Index);
             end if;
          end;
          Column_Maps.Next (Position);
