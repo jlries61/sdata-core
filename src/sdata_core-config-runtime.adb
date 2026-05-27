@@ -42,7 +42,12 @@ package body SData_Core.Config.Runtime is
       Save_Header      := True;
       Save_Charset     := (others => ' ');
       Save_Charset_Len := 0;
-      SData_Core.Evaluator.Free_Expression (Select_Filter_Expr);
+      Clear_Select_Filter;
    end Reset;
+
+   procedure Clear_Select_Filter is
+   begin
+      SData_Core.Evaluator.Free_Expression (Select_Filter_Expr);
+   end Clear_Select_Filter;
 
 end SData_Core.Config.Runtime;

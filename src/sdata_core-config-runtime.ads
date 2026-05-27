@@ -73,4 +73,19 @@ package SData_Core.Config.Runtime is
 
    procedure Reset;
 
+   ----------------------------------------------------------------
+   --  Clear_Select_Filter — free any installed persistent SELECT
+   --  filter expression and reset the field to null.
+   --
+   --  Encapsulates the ownership transfer that consumers previously
+   --  performed by calling Evaluator.Free_Expression on
+   --  Select_Filter_Expr directly.  Required as a precondition for
+   --  privatizing the Runtime field surface (audit item #5): once
+   --  Select_Filter_Expr becomes a read-only accessor, the direct
+   --  Free_Expression call no longer compiles (cannot pass a
+   --  function result as an in-out parameter).
+   --
+   --  Idempotent — safe to call when no filter is installed.
+   procedure Clear_Select_Filter;
+
 end SData_Core.Config.Runtime;
