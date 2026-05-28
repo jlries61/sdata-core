@@ -732,6 +732,14 @@ package body SData_Core.Commands is
    end Execute_OPTIONS_Shell_Timeout;
 
    --------------------------------------------------------------------
+   --  Execute_OPTIONS_Join_Warn_Threshold                            --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_Join_Warn_Threshold (Value : Natural) is
+   begin
+      SData_Core.Config.Runtime.Options_Join_Warn_Threshold := Value;
+   end Execute_OPTIONS_Join_Warn_Threshold;
+
+   --------------------------------------------------------------------
    --  Execute_Record_Error                                           --
    --------------------------------------------------------------------
    procedure Execute_Record_Error (Code : Natural; Line : Natural) is

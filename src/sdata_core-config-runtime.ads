@@ -55,6 +55,7 @@ package SData_Core.Config.Runtime is
    Options_CHARSET_Len   : Natural := 0;
    IEEE_Divide           : Boolean := False;
    Options_Shell_Timeout : Natural := 0;
+   Options_Join_Warn_Threshold : Natural := 1_000_000;
 
    --  Effective delimiter/header/charset saved at SAVE time for use at write
    Save_DLM         : String (1 .. SData_Core.Max_Delimiter_Len) :=
