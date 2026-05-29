@@ -30,6 +30,11 @@ package SData_Core.Table is
    --  Checks if a column with the given name (case-insensitive) exists.
    function Has_Column (Name : String) return Boolean;
 
+   --  Returns the declared Column_Type for the named column. Raises
+   --  Constraint_Error if the column does not exist (caller should test
+   --  Has_Column first when uncertainty is possible).
+   function Get_Column_Type (Name : String) return Column_Type;
+
    --  Returns the number of columns in the table.
    function Column_Count return Natural;
 

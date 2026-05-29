@@ -206,6 +206,12 @@ package SData_Core.Commands is
    procedure Execute_OPTIONS_Shell_Timeout (Value : Natural);
 
    ----------------------------------------------------------------
+   --  OPTIONS JOIN_WARN_THRESHOLD — set the per-BY-group product
+   --  threshold above which /JOIN merges emit a warning.  Value 0
+   --  disables the warning entirely.
+   procedure Execute_OPTIONS_Join_Warn_Threshold (Value : Natural);
+
+   ----------------------------------------------------------------
    --  Record_Error — set the Last_Error_Code / Last_Error_Line pair
    --  observed via the ERROR_CODE and ERROR_LINE expression functions.
    --

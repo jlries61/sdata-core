@@ -148,6 +148,20 @@ package body SData_Core.Table is
       return Data_Table.Contains (Ada.Characters.Handling.To_Upper (Name));
    end Has_Column;
 
+   ---------------------
+   -- Get_Column_Type --
+   ---------------------
+   function Get_Column_Type (Name : String) return Column_Type is
+      Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
+      Cursor : constant Column_Maps.Cursor := Data_Table.Find (Upper_Name);
+   begin
+      if not Column_Maps.Has_Element (Cursor) then
+         raise Constraint_Error with
+           "Get_Column_Type: column not found: " & Upper_Name;
+      end if;
+      return Column_Maps.Element (Cursor).Typ;
+   end Get_Column_Type;
+
    ------------------
    -- Column_Count --
    ------------------
