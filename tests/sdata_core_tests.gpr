@@ -1,0 +1,34 @@
+--  Test driver project for sdata-core.
+--
+--  Builds a small set of standalone Ada programs that exercise the pure
+--  subset of sdata-core's public API (Values, Parse_Expression,
+--  Call_Function).  Each Main is a self-contained procedure with inline
+--  assertions; no test framework is required.
+--
+--  Build:  alr exec -- gprbuild -P tests/sdata_core_tests.gpr
+--  Run:    tests/run-tests.sh
+--
+--  These tests do NOT replace the consumer integration suites; they are
+--  a fast sanity gate (Beck B1 from the post-extraction baseline audit).
+with "../sdata_core.gpr";
+
+project SData_Core_Tests is
+
+   for Source_Dirs use (".");
+   for Object_Dir use "obj";
+   for Exec_Dir use "bin";
+   for Main use ("values_tests.adb",
+                 "parse_expression_tests.adb",
+                 "call_function_tests.adb");
+   for Languages use ("Ada");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+         SData_Core.Compiler'Default_Switches ("Ada");
+   end Compiler;
+
+   package Builder is
+      for Default_Switches ("Ada") use ("-g");
+   end Builder;
+
+end SData_Core_Tests;
