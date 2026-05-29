@@ -1,8 +1,10 @@
 name: Build
 
-# sdata-core has no test suite of its own (testing is the consumers'
-# responsibility — see CLAUDE.md).  This workflow is a build-only smoke
-# test that catches compile errors before they reach sdata or data-vandal.
+# Smoke build of the sdata-core library plus the in-crate test driver
+# (Values, Parse_Expression, Call_Function — the pure-function subset
+# of the public API, per audit Finding Beck B1).  Integration testing
+# remains the consumers' responsibility and is automated separately
+# in consumer-tests.yml.
 
 on:
   push:
@@ -42,3 +44,6 @@ jobs:
 
       - name: Verify library archive
         run: test -f lib/libsdata_core.a
+
+      - name: Run in-crate test driver
+        run: tests/run-tests.sh

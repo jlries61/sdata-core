@@ -136,11 +136,20 @@ package body SData_Core.Values is
 
       if L.Kind = Val_Numeric or L.Kind = Val_Integer then
          declare
-            FL : constant Float := (if L.Kind = Val_Numeric then L.Num_Val else Float (L.Int_Val));
-            FR : constant Float := (if R.Kind = Val_Numeric then R.Num_Val else Float (R.Int_Val));
+            FL : constant Float :=
+               (if L.Kind = Val_Numeric then L.Num_Val else Float (L.Int_Val));
          begin
             if R.Kind = Val_Numeric or R.Kind = Val_Integer then
-               return FL < FR;
+               declare
+                  --  FR is only safe to compute once R is known to be
+                  --  Numeric or Integer; computing it earlier would fail
+                  --  the discriminant check for R = String.
+                  FR : constant Float :=
+                     (if R.Kind = Val_Numeric then R.Num_Val
+                                              else Float (R.Int_Val));
+               begin
+                  return FL < FR;
+               end;
             else
                return True; -- Numeric < String (arbitrary but consistent)
             end if;

@@ -24,7 +24,15 @@ patch_gpr () {
         return 0
     fi
 
-    sed -i "s|^${PROJECT_DECL}\$|${PROJECT_DECL}\n   for Externally_Built use \"True\";|" "$GPR"
+    TMP=$(mktemp)
+    awk -v decl="$PROJECT_DECL" '
+        $0 == decl {
+            print
+            print "   for Externally_Built use \"True\";"
+            next
+        }
+        { print }
+    ' "$GPR" > "$TMP" && mv "$TMP" "$GPR"
     echo "fix-mathpaqs.sh: patched $GPR" >&2
 }
 

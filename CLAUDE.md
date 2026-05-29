@@ -41,10 +41,23 @@ cd ~/Develop/data-vandal  && make check    # 11 VANDALIZE integration tests
 If either consumer regresses, fix sdata-core (or both consumers, if the change
 is intentional) before committing.
 
+### In-crate test driver
+
+`tests/` contains a small set of standalone Ada drivers (Values, Parse_Expression,
+Call_Function) covering the pure-function subset of the public API. They are
+NOT a replacement for the consumer suites — they're a seconds-scale sanity
+gate per audit Finding Beck B1. Run with:
+
+```bash
+tests/run-tests.sh
+```
+
+See `tests/README.md` for what's in scope.
+
 ### CI scope
 
 `.github/workflows/build.yml` is a build-only smoke test (`alr build` on every
-push and PR).
+push and PR), plus the in-crate test driver run (`tests/run-tests.sh`).
 
 `.github/workflows/consumer-tests.yml` automates the `sdata` half of the
 manual validation above: it checks out sdata at a pinned tag as a sibling
@@ -138,10 +151,18 @@ change.
 
 ## Reference Documents
 
-Authoritative context lives in the sdata repository (until sdata-core grows its
-own enough to warrant separate copies):
+### sdata-core's own ADRs
 
-- **`../sdata/doc/adrs.md`** — Architecture Decision Records.
+Decisions made **inside** sdata-core (after extraction) live in
+[`docs/decisions/`](docs/decisions/README.md). The index there lists every
+ADR with status and date. New decisions go here.
+
+### Inherited from sdata
+
+Decisions about the extraction itself and the boundary contract still live in
+the sdata repository:
+
+- **`../sdata/doc/adrs.md`** — pre-extraction and boundary ADRs.
   ADR-039 covers this crate's extraction; ADR-040 the no-lexer/AST/parser
   rationale; ADR-041 the subscripted-column auto-detection; ADR-042 the
   `Execute_OUTPUT_Table` parallel entry point; ADR-043 per-application
