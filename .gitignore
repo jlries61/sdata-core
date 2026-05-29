@@ -3,5 +3,9 @@ config/
 obj/
 lib/
 
+# Test driver build output (see tests/README.md)
+tests/obj/
+tests/bin/
+
 # SSD working directory (see .ssd/README.md)
 .ssd/
