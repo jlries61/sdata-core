@@ -7,6 +7,7 @@ with Ada.Containers.Indefinite_Hashed_Sets;
 with Ada.Strings.Hash;
 with Ada.Strings.Unbounded;          use Ada.Strings.Unbounded;
 with SData_Core.Config.Runtime;
+with SData_Core.Config.Runtime.Internal;
 with SData_Core.File_IO;
 with SData_Core.IO;
 with SData_Core.Values;              use SData_Core.Values;
@@ -304,7 +305,7 @@ package body SData_Core.Commands is
       exception
          when SData_Core.File_IO.Save_Refused => null;
       end;
-      SData_Core.Config.Runtime.Save_File_Active := False;
+      SData_Core.Config.Runtime.Clear_Pending_Save;
    end Flush_Pending_Save;
 
    --------------------------------------------------------------------
@@ -323,8 +324,7 @@ package body SData_Core.Commands is
       Is_Mock     : Boolean := False)
    is
    begin
-      SData_Core.Config.Runtime.Repeat_Active := False;
-      SData_Core.Config.Runtime.Repeat_Count  := 0;
+      SData_Core.Config.Runtime.End_Repeat;
 
       declare
          Full : constant String :=
@@ -362,51 +362,26 @@ package body SData_Core.Commands is
    is
    begin
       if File_Name'Length = 0 then
-         SData_Core.Config.Runtime.Save_File_Active := False;
-         SData_Core.Config.Runtime.Save_File_Len    := 0;
+         SData_Core.Config.Runtime.Clear_Pending_Save;
+         SData_Core.Config.Runtime.Internal.Clear_Save_File_Path;
          return;
       end if;
 
       declare
          Full : constant String := Full_Path (File_Name, "SAVE");
-         SLen : constant Natural := Sheet_Name'Length;
-         DLen : constant Natural := Delimiter'Length;
-         CLen : constant Natural := Charset'Length;
       begin
-         SData_Core.Config.Runtime.Save_File_Path := (others => ' ');
-         SData_Core.Config.Runtime.Save_File_Path (1 .. Full'Length) := Full;
-         SData_Core.Config.Runtime.Save_File_Len := Full'Length;
-         SData_Core.Config.Runtime.Save_File_Fmt := Fmt;
-
-         SData_Core.Config.Runtime.Save_Sheet_Name := (others => ' ');
-         if SLen > 0 then
-            SData_Core.Config.Runtime.Save_Sheet_Name (1 .. SLen) :=
-               Sheet_Name;
-         end if;
-         SData_Core.Config.Runtime.Save_Sheet_Name_Len := SLen;
-
-         SData_Core.Config.Runtime.Save_File_Active := True;
-
-         SData_Core.Config.Runtime.Save_DLM := (others => ' ');
-         if DLen > 0 then
-            SData_Core.Config.Runtime.Save_DLM (1 .. DLen) := Delimiter;
-            SData_Core.Config.Runtime.Save_DLM_Len := DLen;
+         SData_Core.Config.Runtime.Internal.Set_Save_File_Path (Full);
+         SData_Core.Config.Runtime.Internal.Set_Save_File_Fmt (Fmt);
+         SData_Core.Config.Runtime.Internal.Set_Save_Sheet_Name (Sheet_Name);
+         SData_Core.Config.Runtime.Internal.Set_Save_File_Active (True);
+         SData_Core.Config.Runtime.Internal.Set_Save_DLM (Delimiter);
+         SData_Core.Config.Runtime.Internal.Set_Save_Header (Write_Header);
+         if Charset'Length > 0 then
+            SData_Core.Config.Runtime.Internal.Set_Save_Charset (Charset);
          else
-            SData_Core.Config.Runtime.Save_DLM (1) := ',';
-            SData_Core.Config.Runtime.Save_DLM_Len := 1;
-         end if;
-
-         SData_Core.Config.Runtime.Save_Header := Write_Header;
-
-         SData_Core.Config.Runtime.Save_Charset := (others => ' ');
-         if CLen > 0 then
-            SData_Core.Config.Runtime.Save_Charset (1 .. CLen) := Charset;
-            SData_Core.Config.Runtime.Save_Charset_Len := CLen;
-         else
-            SData_Core.Config.Runtime.Save_Charset :=
-               SData_Core.Config.Runtime.Options_CHARSET;
-            SData_Core.Config.Runtime.Save_Charset_Len :=
-               SData_Core.Config.Runtime.Options_CHARSET_Len;
+            SData_Core.Config.Runtime.Internal.Set_Save_Charset
+              (SData_Core.Config.Runtime.Options_CHARSET
+                  (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
          end if;
       end;
    end Execute_SAVE;
@@ -426,16 +401,16 @@ package body SData_Core.Commands is
       P : constant Unbounded_String := To_Unbounded_String (Path);
    begin
       if Reset_All or else Use_Flag    then
-         SData_Core.Config.Runtime.FPath_Use    := P;
+         SData_Core.Config.Runtime.Internal.Set_FPath_Use    (P);
       end if;
       if Reset_All or else Save_Flag   then
-         SData_Core.Config.Runtime.FPath_Save   := P;
+         SData_Core.Config.Runtime.Internal.Set_FPath_Save   (P);
       end if;
       if Reset_All or else Submit_Flag then
-         SData_Core.Config.Runtime.FPath_Submit := P;
+         SData_Core.Config.Runtime.Internal.Set_FPath_Submit (P);
       end if;
       if Reset_All or else Output_Flag then
-         SData_Core.Config.Runtime.FPath_Output := P;
+         SData_Core.Config.Runtime.Internal.Set_FPath_Output (P);
       end if;
    end Execute_FPATH;
 
@@ -455,16 +430,10 @@ package body SData_Core.Commands is
          SData_Core.IO.Open_Output (Full_Path (File_Name, "OUTPUT"));
       end if;
       if TXTFMT'Length > 0 then
-         SData_Core.Config.Runtime.Options_TXTFMT := (others => ' ');
-         SData_Core.Config.Runtime.Options_TXTFMT (1 .. TXTFMT'Length) :=
-            TXTFMT;
-         SData_Core.Config.Runtime.Options_TXTFMT_Len := TXTFMT'Length;
+         SData_Core.Config.Runtime.Internal.Set_Options_TXTFMT (TXTFMT);
       end if;
       if Charset'Length > 0 then
-         SData_Core.Config.Runtime.Options_CHARSET := (others => ' ');
-         SData_Core.Config.Runtime.Options_CHARSET (1 .. Charset'Length) :=
-            Charset;
-         SData_Core.Config.Runtime.Options_CHARSET_Len := Charset'Length;
+         SData_Core.Config.Runtime.Internal.Set_Options_CHARSET (Charset);
       end if;
    end Execute_OUTPUT;
 
@@ -477,8 +446,8 @@ package body SData_Core.Commands is
    is
    begin
       if File_Name'Length = 0 then
-         SData_Core.Config.Runtime.Output_Table_Active := False;
-         SData_Core.Config.Runtime.Output_Table_Len    := 0;
+         SData_Core.Config.Runtime.Internal.Set_Output_Table_Active (False);
+         SData_Core.Config.Runtime.Internal.Set_Output_Table_Path ("");
          return;
       end if;
 
@@ -487,12 +456,9 @@ package body SData_Core.Commands is
             "OUTPUT: path too long: " & File_Name;
       end if;
 
-      SData_Core.Config.Runtime.Output_Table_Path := (others => ' ');
-      SData_Core.Config.Runtime.Output_Table_Path
-         (1 .. File_Name'Length) := File_Name;
-      SData_Core.Config.Runtime.Output_Table_Len := File_Name'Length;
-      SData_Core.Config.Runtime.Output_Table_Fmt := Fmt;
-      SData_Core.Config.Runtime.Output_Table_Active := True;
+      SData_Core.Config.Runtime.Internal.Set_Output_Table_Path (File_Name);
+      SData_Core.Config.Runtime.Internal.Set_Output_Table_Fmt (Fmt);
+      SData_Core.Config.Runtime.Internal.Set_Output_Table_Active (True);
    end Execute_OUTPUT_Table;
 
    --------------------------------------------------------------------
@@ -509,7 +475,7 @@ package body SData_Core.Commands is
          return;  --  caller passing back the same expression; nothing to do
       end if;
       SData_Core.Evaluator.Free_Expression (Old);
-      SData_Core.Config.Runtime.Select_Filter_Expr := Expr;
+      SData_Core.Config.Runtime.Internal.Set_Select_Filter (Expr);
       SData_Core.Table.Clear_Index_Map;
    end Execute_SELECT;
 
@@ -625,11 +591,9 @@ package body SData_Core.Commands is
    procedure Execute_REPEAT (Count : Natural) is
    begin
       if Count = 0 then
-         SData_Core.Config.Runtime.Repeat_Active := False;
-         SData_Core.Config.Runtime.Repeat_Count  := 0;
+         SData_Core.Config.Runtime.End_Repeat;
       else
-         SData_Core.Config.Runtime.Repeat_Active := True;
-         SData_Core.Config.Runtime.Repeat_Count  := Count;
+         SData_Core.Config.Runtime.Internal.Set_Repeat (Count);
       end if;
    end Execute_REPEAT;
 
@@ -655,10 +619,7 @@ package body SData_Core.Commands is
             "OPTIONS CSVDLM value too long (max" &
             Natural'Image (Max_Delimiter_Len) & " chars)";
       end if;
-      SData_Core.Config.Runtime.Options_CSVDLM := (others => ' ');
-      SData_Core.Config.Runtime.Options_CSVDLM
-        (1 .. Value'Length) := Value;
-      SData_Core.Config.Runtime.Options_CSVDLM_Len := Value'Length;
+      SData_Core.Config.Runtime.Internal.Set_Options_CSVDLM (Value);
    end Execute_OPTIONS_CSVDLM;
 
    --------------------------------------------------------------------
@@ -666,7 +627,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_OPTIONS_Header (Value : Boolean) is
    begin
-      SData_Core.Config.Runtime.Options_Header := Value;
+      SData_Core.Config.Runtime.Internal.Set_Options_Header (Value);
    end Execute_OPTIONS_Header;
 
    --------------------------------------------------------------------
@@ -674,7 +635,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_OPTIONS_SAVEOVERWRT (Value : Boolean) is
    begin
-      SData_Core.Config.Runtime.Options_SAVEOVERWRT := Value;
+      SData_Core.Config.Runtime.Internal.Set_Options_SAVEOVERWRT (Value);
    end Execute_OPTIONS_SAVEOVERWRT;
 
    --------------------------------------------------------------------
@@ -691,10 +652,7 @@ package body SData_Core.Commands is
             "OPTIONS TXTFMT value too long (max" &
             Natural'Image (Max_Delimiter_Len) & " chars)";
       end if;
-      SData_Core.Config.Runtime.Options_TXTFMT := (others => ' ');
-      SData_Core.Config.Runtime.Options_TXTFMT
-        (1 .. Value'Length) := Value;
-      SData_Core.Config.Runtime.Options_TXTFMT_Len := Value'Length;
+      SData_Core.Config.Runtime.Internal.Set_Options_TXTFMT (Value);
    end Execute_OPTIONS_TXTFMT;
 
    --------------------------------------------------------------------
@@ -707,12 +665,7 @@ package body SData_Core.Commands is
             "OPTIONS CHARSET value too long (max" &
             Natural'Image (Max_Charset_Len) & " chars)";
       end if;
-      SData_Core.Config.Runtime.Options_CHARSET := (others => ' ');
-      if Value'Length > 0 then
-         SData_Core.Config.Runtime.Options_CHARSET
-           (1 .. Value'Length) := Value;
-      end if;
-      SData_Core.Config.Runtime.Options_CHARSET_Len := Value'Length;
+      SData_Core.Config.Runtime.Internal.Set_Options_CHARSET (Value);
    end Execute_OPTIONS_CHARSET;
 
    --------------------------------------------------------------------
@@ -720,7 +673,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_OPTIONS_IEEE_Divide (Value : Boolean) is
    begin
-      SData_Core.Config.Runtime.IEEE_Divide := Value;
+      SData_Core.Config.Runtime.Internal.Set_IEEE_Divide (Value);
    end Execute_OPTIONS_IEEE_Divide;
 
    --------------------------------------------------------------------
@@ -728,7 +681,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_OPTIONS_Shell_Timeout (Value : Natural) is
    begin
-      SData_Core.Config.Runtime.Options_Shell_Timeout := Value;
+      SData_Core.Config.Runtime.Internal.Set_Options_Shell_Timeout (Value);
    end Execute_OPTIONS_Shell_Timeout;
 
    --------------------------------------------------------------------
@@ -736,7 +689,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_OPTIONS_Join_Warn_Threshold (Value : Natural) is
    begin
-      SData_Core.Config.Runtime.Options_Join_Warn_Threshold := Value;
+      SData_Core.Config.Runtime.Internal.Set_Options_Join_Warn_Threshold (Value);
    end Execute_OPTIONS_Join_Warn_Threshold;
 
    --------------------------------------------------------------------
@@ -744,8 +697,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_Record_Error (Code : Natural; Line : Natural) is
    begin
-      SData_Core.Config.Runtime.Last_Error_Code := Code;
-      SData_Core.Config.Runtime.Last_Error_Line := Line;
+      SData_Core.Config.Runtime.Internal.Set_Last_Error (Code, Line);
    end Execute_Record_Error;
 
 end SData_Core.Commands;
