@@ -89,4 +89,27 @@ package SData_Core.Config.Runtime is
    --  Idempotent — safe to call when no filter is installed.
    procedure Clear_Select_Filter;
 
+   ----------------------------------------------------------------
+   --  End_Repeat — clear an active REPEAT state (Repeat_Active and
+   --  Repeat_Count) once the controlled loop has finished iterating.
+   --
+   --  Companion to Execute_REPEAT, which sets the same fields at the
+   --  start of a loop.  Provides a privatization-compatible entry
+   --  point for the post-loop cleanup that consumers currently
+   --  perform by writing the fields directly.
+   --
+   --  Idempotent — safe to call when no REPEAT is active.
+   procedure End_Repeat;
+
+   ----------------------------------------------------------------
+   --  Clear_Pending_Save — cancel any pending SAVE target by
+   --  clearing Save_File_Active.  Mirrors the "empty SAVE clears
+   --  everything" semantics that consumers currently express by
+   --  writing Save_File_Active := False directly.
+   --
+   --  Does NOT clear the path/format/sheet fields: leaving them
+   --  intact preserves Reset's existing scope (only Reset blanks the
+   --  full SAVE descriptor).  Idempotent.
+   procedure Clear_Pending_Save;
+
 end SData_Core.Config.Runtime;

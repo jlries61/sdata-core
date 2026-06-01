@@ -51,4 +51,15 @@ package body SData_Core.Config.Runtime is
       SData_Core.Evaluator.Free_Expression (Select_Filter_Expr);
    end Clear_Select_Filter;
 
+   procedure End_Repeat is
+   begin
+      Repeat_Active := False;
+      Repeat_Count  := 0;
+   end End_Repeat;
+
+   procedure Clear_Pending_Save is
+   begin
+      Save_File_Active := False;
+   end Clear_Pending_Save;
+
 end SData_Core.Config.Runtime;
