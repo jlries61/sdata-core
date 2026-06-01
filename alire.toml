@@ -4,7 +4,7 @@ version = "0.1.2"
 
 authors = ["John L. Ries"]
 maintainers = ["John L. Ries <john@theyarnbard.com>"]
-licenses = "GPL-3.0-only"
+licenses = "GPL-3.0-only WITH GCC-exception-3.1"
 website = ""
 tags = ["library", "statistics", "data"]
 

@@ -1,5 +1,5 @@
 --  Copyright (C) 2026 John L. Ries <john@theyarnbard.com>
---  License: GNU General Public License v3 or later
+--  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 
 --  Root package for the sdata-core shared library.
 package SData_Core is
