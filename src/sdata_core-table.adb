@@ -224,13 +224,14 @@ package body SData_Core.Table is
    end Get_Value;
 
    function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value is
+      Cur : constant Column_Maps.Cursor := Data_Table.Find (Upper_Name);
    begin
-      if not Data_Table.Contains (Upper_Name) then
+      if not Column_Maps.Has_Element (Cur) then
          return (Kind => Val_Missing);
       end if;
       declare
          Ref : constant Column_Maps.Constant_Reference_Type :=
-            Data_Table.Constant_Reference (Upper_Name);
+            Data_Table.Constant_Reference (Cur);
          Len : constant Natural := Natural (Ref.Element.all.Data.Length);
       begin
          if Row >= Current_Segment_Start and then Row < Current_Segment_Start + Len then
@@ -290,12 +291,13 @@ package body SData_Core.Table is
    end Coerce_Value;
 
    procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value) is
+      Cur : constant Column_Maps.Cursor := Data_Table.Find (Upper_Name);
    begin
-      if not Data_Table.Contains (Upper_Name) then
+      if not Column_Maps.Has_Element (Cur) then
          return;
       end if;
       declare
-         Ref : constant Column_Maps.Reference_Type := Data_Table.Reference (Upper_Name);
+         Ref : constant Column_Maps.Reference_Type := Data_Table.Reference (Cur);
          Col : Column renames Ref.Element.all;
       begin
          if Row > Table_Row_Count then
@@ -313,10 +315,13 @@ package body SData_Core.Table is
    procedure Rename_Column (Old_Name, New_Name : String) is
       Upper_Old : constant String := Ada.Characters.Handling.To_Upper (Old_Name);
       Upper_New : constant String := Ada.Characters.Handling.To_Upper (New_Name);
+      Old_Pos   : Column_Maps.Cursor := Data_Table.Find (Upper_Old);
    begin
-      if Data_Table.Contains (Upper_Old) and then not Data_Table.Contains (Upper_New) then
+      if Column_Maps.Has_Element (Old_Pos)
+         and then not Data_Table.Contains (Upper_New)
+      then
          declare
-            Col : Column := Data_Table.Element (Upper_Old);
+            Col : Column := Column_Maps.Element (Old_Pos);
          begin
             Col.Name := (others => ' ');
             if Upper_New'Length > Max_Name_Len then
@@ -324,7 +329,7 @@ package body SData_Core.Table is
             else
                Col.Name (1 .. Upper_New'Length) := Upper_New;
             end if;
-            Data_Table.Delete (Upper_Old);
+            Data_Table.Delete (Old_Pos);
             Data_Table.Insert (Upper_New, Col);
             
             --  Data_Table is an unordered hash map, so Column_Order is the
@@ -347,9 +352,10 @@ package body SData_Core.Table is
    -----------------
    procedure Drop_Column (Name : String) is
       Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
+      Pos : Column_Maps.Cursor := Data_Table.Find (Upper_Name);
    begin
-      if Data_Table.Contains (Upper_Name) then
-         Data_Table.Delete (Upper_Name);
+      if Column_Maps.Has_Element (Pos) then
+         Data_Table.Delete (Pos);
          for I in 1 .. Natural (Column_Order.Length) loop
             if Ada.Strings.Unbounded.To_String (Column_Order.Element (I)) = Upper_Name then
                Column_Order.Delete (I);
@@ -779,13 +785,14 @@ package body SData_Core.Table is
    end Add_Output_Row;
 
    procedure Set_Output_Value_Upper (Row : Positive; Upper_Name : String; Val : Value) is
+      Cur : constant Column_Maps.Cursor := Output_Data_Table.Find (Upper_Name);
    begin
-      if not Output_Data_Table.Contains (Upper_Name) then
+      if not Column_Maps.Has_Element (Cur) then
          return;
       end if;
       declare
          Ref : constant Column_Maps.Reference_Type :=
-            Output_Data_Table.Reference (Upper_Name);
+            Output_Data_Table.Reference (Cur);
          Col : Column renames Ref.Element.all;
       begin
          Col.Data.Replace_Element (Row - Output_Segment_Start + 1, Coerce_Value (Val, Col.Typ, Upper_Name));
