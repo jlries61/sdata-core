@@ -14,6 +14,33 @@
 --  with the same names as the old public variables, plus the lifecycle
 --  procedures below.  All writes go through SData_Core.Config.Runtime.
 --  Internal, which is callable only by SData_Core.Commands.
+--
+--  Ownership protocol (audit item #6).  There are exactly three roles:
+--
+--    * Front ends (sdata, data-vandal) READ state through the accessor
+--      functions below and CHANGE it only by calling the
+--      SData_Core.Commands.Execute_* procedures (and the lifecycle
+--      procedures in this spec).  A front end must never `with`
+--      SData_Core.Config.Runtime.Internal, and must not mutate Runtime
+--      state by any other route.
+--
+--    * SData_Core.Commands is the sole writer of record: each Execute_*
+--      procedure translates one command into calls on the Internal child.
+--      This read-vs-write split is the public stability contract named in
+--      CLAUDE.md; honouring it is what lets the private state shape change
+--      without breaking either consumer.
+--
+--    * This package body and the Internal child are the only code that
+--      touches the private _Value variables directly.
+--
+--  SELECT-filter heap ownership.  Select_Filter_Expr is an access value
+--  the runtime OWNS.  Execute_SELECT takes ownership of the expression
+--  handed to it and frees the one it replaces; Reset and
+--  Clear_Select_Filter free the field and reset it to null.  Never call
+--  Free_Expression on the value returned by the Select_Filter_Expr
+--  accessor -- doing so would dangle the field and double-free at the
+--  next Execute_SELECT or Reset.  (Before privatization a consumer freed
+--  this field directly; Clear_Select_Filter exists so it no longer must.)
 
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core.Evaluator;
