@@ -17,6 +17,16 @@ package body SData_Core.Table is
 
    use type Ada.Containers.Count_Type;
 
+   --  Strip the leading space Integer'Image prepends for non-negative values
+   --  so diagnostic strings read "rows=123" rather than "rows= 123".  Used
+   --  only when building the structured context appended to spill / backing-
+   --  store error messages.
+   function Img (N : Integer) return String is
+      S : constant String := Integer'Image (N);
+   begin
+      return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
+   end Img;
+
    procedure Clear_Fetch_Cache is
    begin
       Seg_Cache.Clear;
@@ -484,7 +494,9 @@ package body SData_Core.Table is
          exception
             when E : SQLite_Error =>
                raise Script_Error with
-                  "could not sort spilled dataset (disk full?): "
+                  "could not sort spilled dataset (disk full?)"
+                  & " [rows=" & Img (Table_Row_Count)
+                  & ", sort_keys=" & Img (Criteria'Length) & "]: "
                   & Ada.Exceptions.Exception_Message (E);
          end;
          return;
@@ -827,7 +839,9 @@ package body SData_Core.Table is
    exception
       when E : SQLite_Error =>
          raise Script_Error with
-            "could not commit data step output to disk (disk full?): "
+            "could not commit data step output to disk (disk full?)"
+            & " [output_rows=" & Img (Output_Table_Row_Count)
+            & ", spilled=" & (if Output_Spilled then "yes" else "no") & "]: "
             & Ada.Exceptions.Exception_Message (E);
    end Commit_Output_Table;
 
@@ -916,7 +930,9 @@ package body SData_Core.Table is
    exception
       when E : SQLite_Error =>
          raise Script_Error with
-            "could not create disk backing store for dataset: "
+            "could not create disk backing store for dataset"
+            & " [temp_path="
+            & Ada.Strings.Unbounded.To_String (Store.Temp_Path) & "]: "
             & Ada.Exceptions.Exception_Message (E);
    end Initialize_Backing_Store;
 
@@ -999,7 +1015,10 @@ package body SData_Core.Table is
    exception
       when E : SQLite_Error =>
          raise Script_Error with
-            "could not write dataset to disk (disk full?): "
+            "could not write dataset to disk (disk full?)"
+            & " [table=" & Table_Name
+            & ", rows=" & Img (Memory_Rows)
+            & ", segment_start=" & Img (Start_Idx) & "]: "
             & Ada.Exceptions.Exception_Message (E);
    end Spill_Table_To_Disk;
 
@@ -1102,7 +1121,10 @@ package body SData_Core.Table is
    exception
       when E : SQLite_Error =>
          raise Script_Error with
-            "could not read dataset from disk (backing store corrupted or missing?): "
+            "could not read dataset from disk "
+            & "(backing store corrupted or missing?)"
+            & " [row=" & Img (Row)
+            & ", column=" & U_Col & "]: "
             & Ada.Exceptions.Exception_Message (E);
    end Fetch_From_Disk;
 
