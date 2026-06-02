@@ -183,7 +183,9 @@ package body SData_Core.File_IO.CSV is
          N_Cols       : constant Natural := Natural (Col_Names.Length);
          Warned_Extra : Boolean := False;
       begin
-         if Max_Rows > 0 and then Rows_Written >= Max_Rows then return; end if;
+         if Max_Rows > 0 and then Rows_Written >= Max_Rows then
+            return;
+         end if;
          Rows_Written := Rows_Written + 1;
          Add_Row;
          loop
@@ -384,7 +386,9 @@ package body SData_Core.File_IO.CSV is
             while not Ada.Text_IO.End_Of_File (File) loop
                exit when Max_Rows > 0 and then Rows_Written >= Max_Rows;
                Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
-               if Needs_ASCII_Chk then Validate_ASCII (Line_Buf (1 .. Line_Last)); end if;
+               if Needs_ASCII_Chk then
+                  Validate_ASCII (Line_Buf (1 .. Line_Last));
+               end if;
                Process_Line_Direct (Line_Buf (1 .. Line_Last));
             end loop;
          end if;
@@ -455,7 +459,9 @@ package body SData_Core.File_IO.CSV is
          for I in 1 .. Skip_Rows loop
             exit when Ada.Text_IO.End_Of_File (File);
             Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
-            if Needs_ASCII_Chk then Validate_ASCII (Line_Buf (1 .. Line_Last)); end if;
+            if Needs_ASCII_Chk then
+               Validate_ASCII (Line_Buf (1 .. Line_Last));
+            end if;
          end loop;
 
          while not Ada.Text_IO.End_Of_File (File)
@@ -481,11 +487,15 @@ package body SData_Core.File_IO.CSV is
       end if;
 
       Free_Buf (Line_Buf);
-      if Ada.Text_IO.Is_Open (File) then Ada.Text_IO.Close (File); end if;
+      if Ada.Text_IO.Is_Open (File) then
+         Ada.Text_IO.Close (File);
+      end if;
    exception
       when others =>
          Free_Buf (Line_Buf);
-         if Ada.Text_IO.Is_Open (File) then Ada.Text_IO.Close (File); end if;
+         if Ada.Text_IO.Is_Open (File) then
+            Ada.Text_IO.Close (File);
+         end if;
          raise;
    end Parse_CSV;
 
@@ -609,7 +619,9 @@ package body SData_Core.File_IO.CSV is
          if Write_Header then
             for I in 1 .. N loop
                Write_String (CSV_Quote (Column_Name (I)));
-               if I /= N then Write_String (D_Str); end if;
+               if I /= N then
+                  Write_String (D_Str);
+               end if;
             end loop;
             Write_String (EOL);
          end if;
@@ -630,7 +642,9 @@ package body SData_Core.File_IO.CSV is
                      Write_String (CSV_Quote (SData_Core.Values.To_String (Val)));
                   end if;
                end;
-               if C /= N then Write_String (D_Str); end if;
+               if C /= N then
+                  Write_String (D_Str);
+               end if;
             end loop;
             Write_String (EOL);
          end loop;
