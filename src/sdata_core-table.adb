@@ -939,6 +939,38 @@ package body SData_Core.Table is
    ---------------------------
    -- Spill_Table_To_Disk --
    ---------------------------
+   --  Write every in-memory row of T to the [Table_Name] SQLite table in a
+   --  single transaction, then clear the in-memory column vectors.  Shared
+   --  by Spill_To_Disk ("data") and Spill_Output_To_Disk ("output_data").
+   --
+   --  Atomicity / failure contract -- this is an all-or-nothing operation
+   --  with a deliberate CLEAN-ABORT guarantee:
+   --
+   --    * Success: rows are committed, then the in-memory Data vectors are
+   --      cleared (the "for Pos in T.Iterate ... Data.Clear" below) and the
+   --      caller advances Current_Segment_Start past the spilled segment.
+   --
+   --    * SQLite_Error (e.g. disk full) anywhere in BEGIN..COMMIT: SQLite
+   --      rolls back the uncommitted transaction, so nothing reaches disk;
+   --      the in-memory Clear is SKIPPED, so memory still holds every row;
+   --      and the caller (Add_Row / Commit_Output_Table) unwinds before
+   --      touching Current_Segment_Start or Table_Row_Count.  The net
+   --      result is the exact pre-call state -- the table stays fully
+   --      readable from memory -- with the failure surfaced as Script_Error.
+   --
+   --  WARNING: do NOT "fix" this by forcing the in-memory Clear to run on
+   --  the exception path (e.g. wrapping it in a controlled type).  Binding
+   --  only READS the Value vectors; on failure they are the sole surviving
+   --  copy of the data.  Clearing them after a failed write would discard
+   --  live rows -- turning a recoverable disk-full into data loss.
+   --
+   --  A failed FIRST spill leaves Store.Is_Active = True (set by
+   --  Initialize_Backing_Store before the write).  This is benign and is
+   --  intentionally NOT unwound: reads still hit the in-memory segment,
+   --  Initialize_Backing_Store is idempotent so no temp file leaks, the
+   --  temp file is registered for cleanup, and freeing Store.DB here would
+   --  court the ada_sqlite3 double-finalize crash that Finalize deliberately
+   --  avoids (see :91-92).
    procedure Spill_Table_To_Disk (T : aliased in out Column_Maps.Map; Table_Name : String; Start_Idx : Positive) is
       SQL : Ada.Strings.Unbounded.Unbounded_String;
       Memory_Rows : Natural := 0;
