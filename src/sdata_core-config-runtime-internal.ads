@@ -13,7 +13,6 @@
 --  pair stays consistent).  Privatization (audit item #5) replaces 58
 --  direct field writes in Commands.adb with calls into this package.
 
-with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core.Evaluator;
 
 package SData_Core.Config.Runtime.Internal is
