@@ -89,8 +89,13 @@ package body SData_Core.Table is
          Path : constant String := Ada.Strings.Unbounded.To_String (S.Temp_Path);
       begin
          --  We avoid manually freeing S.DB here: doing so triggers a
-         --  double-finalization crash inside the Ada_Sqlite3 library.
-         --  The OS reclaims the memory; we only need to remove the file.
+         --  double-finalization crash inside Ada_Sqlite3 (observed with
+         --  ada_sqlite3 0.1.1 -- the only published version; upstream
+         --  github.com/gtnoble/ada-sqlite3 @ 2edbceb).  No upstream issue
+         --  is filed as of 2026-06-02 and no fixed release exists.  The OS
+         --  reclaims the memory; we only need to remove the file.  REVISIT
+         --  when bumping ada_sqlite3 past 0.1.1 (see alire.toml): re-test
+         --  whether freeing S.DB is safe and, if so, drop this leak.
          GNAT.OS_Lib.Delete_File (Path, Success);
       end;
       Seg_Cache.Clear;

@@ -17,6 +17,12 @@ xmlada = "^26.0.0"
 [[depends-on]]
 mathpaqs = "^20260205.0.0"
 
+# SData_Core.Table.Backing_Store.Finalize deliberately does NOT free its
+# sqlite handle, to dodge a double-finalization crash in ada_sqlite3 0.1.1
+# (the only published version).  When a newer ada_sqlite3 lets this
+# constraint resolve past 0.1.1, re-test that workaround and drop the
+# deliberate leak if fixed -- see the REVISIT note in
+# src/sdata_core-table.adb (Backing_Store.Finalize).
 [[depends-on]]
 ada_sqlite3 = "^0.1.1"
 
