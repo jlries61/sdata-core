@@ -290,6 +290,16 @@ package body SData_Core.Variables is
                Typ := Col_Integer;
             elsif V.Kind = Val_String then
                Typ := Col_String;
+            elsif V.Kind = Val_Missing
+              and then SData_Core.Table.Has_Column (Name)
+            then
+               --  A leading missing value carries no type information.  Use
+               --  the source column's declared type so a column that is
+               --  missing in its first row(s) but populated (e.g. with a
+               --  character value) later is not locked to Numeric on the
+               --  first flush.  Add_Output_Column ignores the type on every
+               --  call after the first, so the first row decides it.
+               Typ := SData_Core.Table.Get_Column_Type (Name);
             end if;
             SData_Core.Table.Add_Output_Column (Name, Typ);
          end;
