@@ -138,11 +138,21 @@ package SData_Core.Commands is
       Is_Temp   : Boolean := False);
 
    ----------------------------------------------------------------
-   --  RUN — perform the end-of-step actions shared by every front end:
-   --  rebuild the SELECT filter map against the current table and, if a
-   --  SAVE is pending, write the table out.  Hosts call this from their
-   --  data-step loop after iterating records, in addition to whatever
-   --  per-record processing they perform.
+   --  Execute_Commit_Step — perform the end-of-step actions shared by
+   --  every front end: rebuild the SELECT filter map against the current
+   --  table and, if a SAVE or table-output is pending, write the table
+   --  out.  Call this wherever a step's results must be committed and the
+   --  filter map refreshed — at the end of a data step, or after a SORT
+   --  reorders the table.  This is the intention-revealing name for that
+   --  work; Execute_RUN below is a thin alias for front ends whose RUN
+   --  statement maps directly onto it.
+   procedure Execute_Commit_Step;
+
+   ----------------------------------------------------------------
+   --  RUN — the user-issued RUN statement.  Currently identical to the
+   --  end-of-step commit: it delegates to Execute_Commit_Step.  The two
+   --  are kept distinct so a host's "the user typed RUN" dispatch and its
+   --  internal "commit this step" calls read differently at the call site.
    procedure Execute_RUN;
 
    ----------------------------------------------------------------

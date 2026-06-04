@@ -563,13 +563,21 @@ package body SData_Core.Commands is
    end Execute_DIM;
 
    --------------------------------------------------------------------
-   --  Execute_RUN                                                    --
+   --  Execute_Commit_Step                                            --
    --------------------------------------------------------------------
-   procedure Execute_RUN is
+   procedure Execute_Commit_Step is
    begin
       Rebuild_Filter_Map;
       Flush_Pending_Save;
       Flush_Pending_Output_Table;
+   end Execute_Commit_Step;
+
+   --------------------------------------------------------------------
+   --  Execute_RUN                                                    --
+   --------------------------------------------------------------------
+   procedure Execute_RUN is
+   begin
+      Execute_Commit_Step;
    end Execute_RUN;
 
    --------------------------------------------------------------------
