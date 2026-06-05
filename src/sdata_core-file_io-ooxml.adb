@@ -291,7 +291,7 @@ package body SData_Core.File_IO.OOXML is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
          begin
-            Apply_Dollar_Override (Col_Name_Vec, Col_Types);
+            Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
             if Row1_Present then
                declare
                   Data_Cells : DOM.Core.Node_List :=
@@ -301,7 +301,10 @@ package body SData_Core.File_IO.OOXML is
                   for J in 0 .. Length (Data_Cells) - 1 loop
                      Col_Idx := Col_Idx + 1;
                      exit when Col_Idx > N;
-                     if Get_Cell_Value (Item (Data_Cells, J)).Kind = Val_String then
+                     if Col_Types (Col_Idx) /= Col_Integer
+                        and then Get_Cell_Value (Item (Data_Cells, J)).Kind
+                                 = Val_String
+                     then
                         Col_Types (Col_Idx) := Col_String;
                      end if;
                   end loop;
@@ -347,6 +350,21 @@ package body SData_Core.File_IO.OOXML is
                               V : constant Value :=
                                  Get_Cell_Value (Item (Cells, J));
                            begin
+                              if V.Kind = Val_Numeric
+                                 and then Get_Column_Type
+                                    (Column_Name (J + 1)) = Col_Integer
+                                 and then V.Num_Val
+                                    /= Float'Truncation (V.Num_Val)
+                                 and then
+                                    not SData_Core.Config.Quiet_Mode
+                              then
+                                 Put_Line_Error
+                                    ("Warning: OOXML import, row" &
+                                     Row_Count'Image &
+                                     ", column """ &
+                                     Column_Name (J + 1) &
+                                     """: non-integer value truncated");
+                              end if;
                               if V.Kind /= Val_Missing then
                                  Set_Value (Row_Count, Column_Name (J + 1), V);
                               end if;
