@@ -15,7 +15,7 @@ private package SData_Core.File_IO.Helpers is
 
    function Get_Text (N : DOM.Core.Node) return String;
    function Detect_Inf (S : String) return Value;
-   procedure Apply_Dollar_Override
+   procedure Apply_Name_Suffix_Types
       (Col_Name_Vec : Name_Vecs.Vector;
        Col_Types    : in out Column_Type_Array);
    function Safe_Name (S : String; Default : String) return String;

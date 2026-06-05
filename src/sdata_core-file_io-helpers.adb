@@ -61,7 +61,7 @@ package body SData_Core.File_IO.Helpers is
       return (Kind => Val_Missing);
    end Detect_Inf;
 
-   procedure Apply_Dollar_Override
+   procedure Apply_Name_Suffix_Types
       (Col_Name_Vec : Name_Vecs.Vector;
        Col_Types    : in out Column_Type_Array) is
    begin
@@ -71,10 +71,12 @@ package body SData_Core.File_IO.Helpers is
          begin
             if Raw'Length > 0 and then Raw (Raw'Last) = '$' then
                Col_Types (I) := Col_String;
+            elsif Raw'Length > 0 and then Raw (Raw'Last) = '%' then
+               Col_Types (I) := Col_Integer;
             end if;
          end;
       end loop;
-   end Apply_Dollar_Override;
+   end Apply_Name_Suffix_Types;
 
    function Safe_Name (S : String; Default : String) return String is
       T : constant String := Trim (S, Ada.Strings.Both);
