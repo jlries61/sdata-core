@@ -221,6 +221,16 @@ package body SData_Core.File_IO.CSV is
                      if F = "" or else F = "." then
                         Val := (Kind => Val_Missing);
                      elsif Try_Fast_Float (F, Num) then
+                        if Col_Types (Field_Count) = Col_Integer
+                           and then Num /= Float'Truncation (Num)
+                        then
+                           SData_Core.IO.Put_Line_Error
+                              ("Warning: """ & File_Name & """, data row" &
+                               Natural'Image (Rows_Written) & ", column """ &
+                               Col_Names (Field_Count).all &
+                               """: non-integer value """ & F &
+                               """ in integer column -- truncated");
+                        end if;
                         Val := (Kind => Val_Numeric, Num_Val => Num);
                      else
                         --  Non-numeric value in a column inferred as numeric:
@@ -233,6 +243,14 @@ package body SData_Core.File_IO.CSV is
                                Col_Names (Field_Count).all &
                                """: non-numeric value """ & F &
                                """ in numeric column -- stored as missing");
+                           Val := (Kind => Val_Missing);
+                        elsif Col_Types (Field_Count) = Col_Integer then
+                           SData_Core.IO.Put_Line_Error
+                              ("Warning: """ & File_Name & """, data row" &
+                               Natural'Image (Rows_Written) & ", column """ &
+                               Col_Names (Field_Count).all &
+                               """: non-numeric value """ & F &
+                               """ in integer column -- stored as missing");
                            Val := (Kind => Val_Missing);
                         else
                            Val := (Kind    => Val_String,
@@ -301,6 +319,9 @@ package body SData_Core.File_IO.CSV is
                   begin
                      if Raw'Length > 0 and then Raw (Raw'Last) = '$' then
                         Col_Types.Replace_Element (I, Col_String);
+                        Col_Determined (I) := True;
+                     elsif Raw'Length > 0 and then Raw (Raw'Last) = '%' then
+                        Col_Types.Replace_Element (I, Col_Integer);
                         Col_Determined (I) := True;
                      end if;
                   end;
