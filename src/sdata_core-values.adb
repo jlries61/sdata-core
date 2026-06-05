@@ -17,6 +17,36 @@ package body SData_Core.Values is
       return F > Float'Last or else F < Float'First;
    end Is_Inf;
 
+   -------------------
+   -- Convert_Value --
+   -------------------
+   function Convert_Value (V : Value; Target : Value_Kind) return Value is
+   begin
+      if V.Kind = Val_Missing or else V.Kind = Target then
+         return V;
+      end if;
+      case Target is
+         when Val_Numeric =>
+            if V.Kind = Val_Integer then
+               return (Kind => Val_Numeric, Num_Val => Float (V.Int_Val));
+            end if;
+            raise Conversion_Error
+              with "cannot convert string value to numeric";
+         when Val_Integer =>
+            if V.Kind = Val_Numeric then
+               return (Kind    => Val_Integer,
+                       Int_Val => Integer (Float'Truncation (V.Num_Val)));
+            end if;
+            raise Conversion_Error
+              with "cannot convert string value to integer";
+         when Val_String =>
+            raise Conversion_Error
+              with "cannot convert numeric value to string";
+         when Val_Missing =>
+            return (Kind => Val_Missing);
+      end case;
+   end Convert_Value;
+
    ------------------
    -- To_String --
    ------------------
