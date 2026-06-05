@@ -32,3 +32,38 @@ int sdata_is_system_account (void)
     return geteuid () == 0;
 }
 #endif
+
+/* Signal-mask reset for spawned subprocesses.
+
+   The GNAT runtime blocks most asynchronous signals (SIGALRM, SIGTERM, ...)
+   in every task and dispatches them through a dedicated signal-handling task.
+   A process forked from such a task inherits that blocked mask across exec,
+   so a child like timeout(1) can neither receive SIGALRM (its own deadline)
+   nor deliver SIGTERM to the command it wraps -- SYSTEM-command timeouts then
+   silently fail to fire.  We clear the calling thread's mask immediately
+   before GNAT.OS_Lib.Spawn so the child inherits an empty mask, and restore
+   it afterwards.  SYSTEM execution is synchronous, so a single saved-mask
+   slot suffices. */
+
+#ifndef _WIN32
+#  include <signal.h>
+#  include <pthread.h>
+
+static sigset_t sdata_saved_mask;
+
+void sdata_clear_sigmask (void)
+{
+    sigset_t empty;
+    sigemptyset (&empty);
+    pthread_sigmask (SIG_SETMASK, &empty, &sdata_saved_mask);
+}
+
+void sdata_restore_sigmask (void)
+{
+    pthread_sigmask (SIG_SETMASK, &sdata_saved_mask, NULL);
+}
+#else
+/* Windows has no POSIX signal mask; these are no-ops. */
+void sdata_clear_sigmask (void) { }
+void sdata_restore_sigmask (void) { }
+#endif
