@@ -233,9 +233,9 @@ package body SData_Core.File_IO.CSV is
                         end if;
                         Val := (Kind => Val_Numeric, Num_Val => Num);
                      else
-                        --  Non-numeric value in a column inferred as numeric:
-                        --  store as missing rather than as a string so that
-                        --  arithmetic on the column stays well-typed.
+                        --  Non-numeric value in a column typed numeric or
+                        --  integer: store as missing rather than as a string
+                        --  so that arithmetic on the column stays well-typed.
                         if Col_Types (Field_Count) = Col_Numeric then
                            SData_Core.IO.Put_Line_Error
                               ("Warning: """ & File_Name & """, data row" &
@@ -257,7 +257,28 @@ package body SData_Core.File_IO.CSV is
                                    Str_Val => To_Unbounded_String (F));
                         end if;
                      end if;
-                     Set_Value_Upper (Row_Count, Col_Names (Field_Count).all, Val);
+                     begin
+                        Set_Value_Upper
+                           (Row_Count, Col_Names (Field_Count).all, Val);
+                     exception
+                        when Constraint_Error =>
+                           --  Out-of-range value for a % (integer) column:
+                           --  warn and store missing rather than aborting the
+                           --  load.  (Other column kinds re-raise as before.)
+                           if Col_Types (Field_Count) = Col_Integer then
+                              SData_Core.IO.Put_Line_Error
+                                 ("Warning: """ & File_Name & """, data row" &
+                                  Natural'Image (Rows_Written) & ", column """ &
+                                  Col_Names (Field_Count).all &
+                                  """: value """ & F &
+                                  """ out of integer range -- stored as missing");
+                              Set_Value_Upper
+                                 (Row_Count, Col_Names (Field_Count).all,
+                                  (Kind => Val_Missing));
+                           else
+                              raise;
+                           end if;
+                     end;
                   elsif not Warned_Extra then
                      SData_Core.IO.Put_Line_Error
                         ("Warning: """ & File_Name & """, data row" &

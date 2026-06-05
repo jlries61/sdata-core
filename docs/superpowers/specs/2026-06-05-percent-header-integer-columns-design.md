@@ -51,14 +51,23 @@ The suffix typing is **authoritative**: a `%`-forced `Col_Integer` (like a
 |---|---|
 | integer, e.g. `5` | `Val_Integer (5)` (renders as a plain integer) |
 | non-integer numeric, e.g. `1.5` | **truncate toward zero → `Val_Integer (1)`, and emit a per-cell warning** |
+| numeric out of `Integer` range, e.g. `3000000000` | **warn and store `Val_Missing`** (the value cannot be represented as an `Integer`) |
 | non-numeric, e.g. `abc` | **warn and store `Val_Missing`** (mirrors a non-numeric value in a numeric column) |
 | empty or `.` | `Val_Missing` |
 
 Truncation is toward zero (`Integer (Float'Truncation (x))`), consistent with
-the existing `Coerce_Value` (`sdata_core-table.adb:272`). The non-numeric→missing
-behavior is required: without it, a string value flowing into a `Col_Integer`
-column reaches `Coerce_Value`, which raises `Type_Mismatch_Error` and aborts the
-whole load.
+the existing `Coerce_Value` (`sdata_core-table.adb:272`). Two coercion hazards
+must be handled at the loader so the load does not abort:
+- A **string** value flowing into a `Col_Integer` column reaches `Coerce_Value`,
+  which raises `Type_Mismatch_Error` — so the loader detects the non-numeric
+  case up front and stores missing (with a warning) instead.
+- A **numeric value outside `Integer` range** reaches `Coerce_Value`'s
+  `Integer (Float'Truncation (x))` and raises `Constraint_Error`. Because a
+  float-range pre-check is unreliable at the exact `Integer'Last` boundary
+  (float rounding), the CSV loader wraps the integer-column store in a
+  `Constraint_Error` handler that warns and stores missing. (The ODF/OOXML
+  data-row loaders already wrap `Set_Value` in a `when E : others` handler, so
+  they warn + skip such a cell without extra code.)
 
 ### 2.3 Output / round-trip
 
@@ -88,6 +97,10 @@ columns are never produced by data inference (only by the explicit suffix).
     gated on `Col_Types (…) = Col_Numeric`) to also cover `Col_Integer`, so a
     non-numeric field in an integer column is stored missing rather than
     raising `Type_Mismatch_Error`.
+  - Wrap the `Set_Value_Upper` call in a `Constraint_Error` handler: for a
+    `Col_Integer` column an out-of-`Integer`-range numeric otherwise raises in
+    `Coerce_Value` and aborts the load; instead warn and store missing. Other
+    column kinds re-raise unchanged.
 
 ### 3.2 ODF / OOXML — `sdata_core-file_io-odf.adb`, `…-ooxml.adb`, `…-helpers.adb`
 
