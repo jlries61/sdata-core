@@ -44,12 +44,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sdata-core (under test)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: sdata-core
 
       - name: Checkout sdata
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: jlries61/sdata
           # Pinned to sdata's latest release tag.  Bump on each new sdata
