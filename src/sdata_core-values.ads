@@ -44,6 +44,18 @@ package SData_Core.Values is
    --  Like To_String, but respects global precision settings for Floats.
    function To_String_Formatted (V : Value) return String;
 
+   --  Convert V to the requested numeric-family kind.
+   --  Val_Numeric <-> Val_Integer convert (Numeric -> Integer truncates
+   --  toward zero, matching LET coercion); Val_Missing passes through; a
+   --  Value already of kind Target is returned unchanged.  Raises
+   --  Conversion_Error if a string is involved on either side (string value
+   --  with a numeric Target, or string Target with a numeric value), i.e.
+   --  the numeric/character boundary, which this routine does not cross.
+   function Convert_Value (V : Value; Target : Value_Kind) return Value;
+
+   --  Raised by Convert_Value for an unsupported string <-> numeric crossing.
+   Conversion_Error : exception;
+
    --  Determines the boolean truth of a value. 
    function Is_True (V : Value) return Boolean;
 

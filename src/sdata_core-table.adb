@@ -264,12 +264,12 @@ package body SData_Core.Table is
       end if;
       if Col_Typ = Col_Numeric and then Val.Kind /= Val_Numeric then
          if Val.Kind = Val_Integer then
-            return (Kind => Val_Numeric, Num_Val => Float (Val.Int_Val));
+            return Convert_Value (Val, Val_Numeric);
          end if;
          raise Type_Mismatch_Error with "Expected Numeric for column " & Col_Name;
       elsif Col_Typ = Col_Integer and then Val.Kind /= Val_Integer then
          if Val.Kind = Val_Numeric then
-            return (Kind => Val_Integer, Int_Val => Integer (Float'Truncation (Val.Num_Val)));
+            return Convert_Value (Val, Val_Integer);
          end if;
          raise Type_Mismatch_Error with "Expected Integer for column " & Col_Name;
       elsif Col_Typ = Col_String and then Val.Kind /= Val_String then
