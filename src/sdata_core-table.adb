@@ -174,7 +174,16 @@ package body SData_Core.Table is
          raise Constraint_Error with
            "Get_Column_Type: column not found: " & Upper_Name;
       end if;
-      return Column_Maps.Element (Cursor).Typ;
+      --  Read Typ through a Constant_Reference so the whole Column (and its
+      --  entire Data vector) is not deep-copied just to read one enum field.
+      --  Element () would copy every row, making per-record callers O(rows)
+      --  and the overall data step O(rows^2).
+      declare
+         Ref : constant Column_Maps.Constant_Reference_Type :=
+            Data_Table.Constant_Reference (Cursor);
+      begin
+         return Ref.Element.all.Typ;
+      end;
    end Get_Column_Type;
 
    ------------------
@@ -475,7 +484,7 @@ package body SData_Core.Table is
             for I in 1 .. N loop
                declare
                   Name  : constant String := Column_Name (I);  --  already upper-cased
-                  Typ   : constant Column_Type := Data_Table.Element (Name).Typ;
+                  Typ   : constant Column_Type := Get_Column_Type (Name);
                   SQL_T : constant String := (if Typ = Col_Numeric then "REAL"
                                               elsif Typ = Col_Integer then "INTEGER"
                                               else "TEXT");
