@@ -52,8 +52,9 @@ package SData_Core.Table is
    function Get_Value (Row : Positive; Column_Name : String) return Value;
    function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value;
 
-   --  Updates the value at a specific row and column. 
-   --  Raises Type_Mismatch_Error if the value kind doesn't match the column type.
+   --  Updates the value at a specific row and column.
+   --  Raises SData_Core.Script_Error if the value kind doesn't match the
+   --  column type.
    procedure Set_Value (Row : Positive; Column_Name : String; Val : Value);
    procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);
 
@@ -127,8 +128,6 @@ package SData_Core.Table is
 
    --  Package to store lists of column names.
    package Name_Vectors is new Ada.Containers.Vectors (Index_Type => Positive, Element_Type => Unbounded_String);
-
-   Type_Mismatch_Error : exception;
 
 private
    --  Vector of values for a single column.

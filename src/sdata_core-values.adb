@@ -30,17 +30,17 @@ package body SData_Core.Values is
             if V.Kind = Val_Integer then
                return (Kind => Val_Numeric, Num_Val => Float (V.Int_Val));
             end if;
-            raise Conversion_Error
+            raise SData_Core.Script_Error
               with "cannot convert string value to numeric";
          when Val_Integer =>
             if V.Kind = Val_Numeric then
                return (Kind    => Val_Integer,
                        Int_Val => Integer (Float'Truncation (V.Num_Val)));
             end if;
-            raise Conversion_Error
+            raise SData_Core.Script_Error
               with "cannot convert string value to integer";
          when Val_String =>
-            raise Conversion_Error
+            raise SData_Core.Script_Error
               with "cannot convert numeric value to string";
          when Val_Missing =>
             return (Kind => Val_Missing);
