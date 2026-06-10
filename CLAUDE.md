@@ -34,8 +34,8 @@ There is no test suite in this crate — testing is the consumers' responsibilit
 suites before committing:**
 
 ```bash
-cd ~/Develop/sdata        && make check    # 140 integration + unit tests
-cd ~/Develop/data-vandal  && make check    # 11 VANDALIZE integration tests
+cd ~/Develop/sdata        && make check    # 197 integration + unit tests
+cd ~/Develop/data-vandal  && make check    # 44 VANDALIZE integration tests
 ```
 
 If either consumer regresses, fix sdata-core (or both consumers, if the change
