@@ -11,6 +11,15 @@ package SData_Core.IO is
    procedure Put_Error (Item : String);
    procedure Put_Line_Error (Item : String);
 
+   --  Emit a throttled record-count progress line to stderr when
+   --  SData_Core.Config.Progress is set (no-op otherwise).  Callers pass the
+   --  running Count each iteration; a line is written every 10,000 records and
+   --  whenever Final is True.  Phase labels the operation ("USE", "RUN",
+   --  "SORT").  Uses a carriage return so the counter updates in place on a
+   --  terminal; Final terminates the line with a newline.
+   procedure Show_Progress
+     (Phase : String; Count : Natural; Final : Boolean := False);
+
    procedure Open_Output (Filename : String);
    procedure Close_Output;
    function Is_Redirected return Boolean;

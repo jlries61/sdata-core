@@ -7,6 +7,7 @@ with Ada.Containers;
 with Ada.Exceptions;
 with SData_Core.Config;
 with SData_Core.Signals;
+with SData_Core.IO;
 
 with GNAT.OS_Lib;
 with GNAT.Strings;
@@ -467,6 +468,10 @@ package body SData_Core.Table is
       N : constant Natural := Table_Row_Count;
    begin
       if N <= 1 or else Criteria'Length = 0 then return; end if;
+
+      --  One-shot progress note (sort is atomic from the caller's view);
+      --  no-op unless --progress is set.
+      SData_Core.IO.Show_Progress ("SORT", N, Final => True);
 
       Clear_Fetch_Cache;
 

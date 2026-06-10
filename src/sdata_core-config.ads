@@ -44,6 +44,7 @@ package SData_Core.Config is
    Disable_Submit     : Boolean := False;
    Continue_On_Error  : Boolean := False;
    Ignore_Math_Errors : Boolean := False; -- If True, domain errors return Val_Missing instead of halting.
+   Progress           : Boolean := False; -- If True, emit record-count progress to stderr for long USE/RUN/SORT runs.
    Debug_Level        : Natural := 0;     -- 0=off 1=I/O 2=+record/flow 3=+assignments
    Shell_Timeout_Default : Natural := 0;
 

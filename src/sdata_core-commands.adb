@@ -345,6 +345,11 @@ package body SData_Core.Commands is
             Nscan_Rows);
       end;
 
+      --  Final progress total for the load (per-row ticks are emitted inside
+      --  each format reader); no-op unless --progress is set.
+      SData_Core.IO.Show_Progress
+        ("USE", SData_Core.Table.Row_Count, Final => True);
+
       SData_Core.Variables.Refresh_PDV_Names;
       SData_Core.Variables.Register_Subscripted_Columns;
    end Execute_USE;
