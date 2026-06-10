@@ -188,6 +188,7 @@ package body SData_Core.File_IO.CSV is
          end if;
          Rows_Written := Rows_Written + 1;
          Add_Row;
+         SData_Core.IO.Show_Progress ("USE", Rows_Written);
          loop
             declare
                Delim_Pos : constant Natural :=

@@ -214,6 +214,7 @@ package body SData_Core.File_IO.ODF is
                         exit when Max_Rows > 0 and then Rows_Written >= Max_Rows;
                         Rows_Written := Rows_Written + 1;
                         Add_Row;
+                        SData_Core.IO.Show_Progress ("USE", Rows_Written);
                         declare
                            Cells   : DOM.Core.Node_List :=
                               Get_Elements_By_Tag_Name

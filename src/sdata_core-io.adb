@@ -269,6 +269,29 @@ package body SData_Core.IO is
       Ada.Text_IO.Put_Line (Ada.Text_IO.Standard_Error, Item);
    end Put_Line_Error;
 
+   procedure Show_Progress
+     (Phase : String; Count : Natural; Final : Boolean := False)
+   is
+      Interval : constant := 10_000;
+      Img      : constant String := Count'Image;  --  leading space when >= 0
+      Num      : constant String := Img (Img'First + 1 .. Img'Last);
+   begin
+      if not SData_Core.Config.Progress then
+         return;
+      end if;
+      --  Progress goes only to stderr (never the redirected output stream), so
+      --  it cannot corrupt piped/saved data.
+      if Final or else Count mod Interval = 0 then
+         Ada.Text_IO.Put
+           (Ada.Text_IO.Standard_Error,
+            ASCII.CR & Phase & ": " & Num & " records");
+         if Final then
+            Ada.Text_IO.New_Line (Ada.Text_IO.Standard_Error);
+         end if;
+         Ada.Text_IO.Flush (Ada.Text_IO.Standard_Error);
+      end if;
+   end Show_Progress;
+
    procedure Open_Output (Filename : String) is
    begin
       if Redirected then

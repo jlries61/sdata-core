@@ -339,6 +339,7 @@ package body SData_Core.File_IO.OOXML is
                else
                   Rows_Written := Rows_Written + 1;
                   Add_Row;
+                  SData_Core.IO.Show_Progress ("USE", Rows_Written);
                   declare
                      Cells : DOM.Core.Node_List :=
                         Get_Elements_By_Tag_Name
