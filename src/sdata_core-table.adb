@@ -768,7 +768,8 @@ package body SData_Core.Table is
       Rebuild_Output_Cache;
    end Initialize_Output_Table;
 
-   procedure Add_Output_Column (Name : String; Col_Type : Column_Type) is
+   procedure Add_Output_Column
+     (Name : String; Col_Type : Column_Type; From_Missing : Boolean := False) is
       Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
       New_Col : Column;
    begin
@@ -776,6 +777,7 @@ package body SData_Core.Table is
       New_Col.Name := (others => ' ');
       New_Col.Name (1 .. Upper_Name'Length) := Upper_Name;
       New_Col.Typ := Col_Type;
+      New_Col.Type_Is_Placeholder := From_Missing;
 
       for I in 1 .. Output_Table_Row_Count loop
          New_Col.Data.Append ((Kind => Val_Missing));
@@ -803,6 +805,24 @@ package body SData_Core.Table is
       end loop;
    end Add_Output_Row;
 
+   --  Upgrade a placeholder output-column type (inferred from a leading missing
+   --  value of a derived column) to the first non-missing value's kind, then
+   --  clear the placeholder flag.  No-op for non-placeholder columns or missing
+   --  values, so a deliberately-typed column is never downgraded (issue #24).
+   procedure Upgrade_Placeholder_Type (Col : in out Column; Val : Value) is
+   begin
+      if not Col.Type_Is_Placeholder or else Val.Kind = Val_Missing then
+         return;
+      end if;
+      case Val.Kind is
+         when Val_Numeric => Col.Typ := Col_Numeric;
+         when Val_Integer => Col.Typ := Col_Integer;
+         when Val_String  => Col.Typ := Col_String;
+         when Val_Missing => null;  --  unreachable (guarded above)
+      end case;
+      Col.Type_Is_Placeholder := False;
+   end Upgrade_Placeholder_Type;
+
    procedure Set_Output_Value_Upper (Row : Positive; Upper_Name : String; Val : Value) is
       Cur : constant Column_Maps.Cursor := Output_Data_Table.Find (Upper_Name);
    begin
@@ -814,6 +834,7 @@ package body SData_Core.Table is
             Output_Data_Table.Reference (Cur);
          Col : Column renames Ref.Element.all;
       begin
+         Upgrade_Placeholder_Type (Col, Val);
          Col.Data.Replace_Element (Row - Output_Segment_Start + 1, Coerce_Value (Val, Col.Typ, Upper_Name));
       end;
    end Set_Output_Value_Upper;
@@ -914,6 +935,7 @@ package body SData_Core.Table is
             Output_Data_Table.Reference (Cur);
          Col : Column renames Ref.Element.all;
       begin
+         Upgrade_Placeholder_Type (Col, Val);
          Col.Data.Replace_Element
            (Row - Output_Segment_Start + 1,
             Coerce_Value (Val, Col.Typ, Column_Maps.Key (Cur)));
