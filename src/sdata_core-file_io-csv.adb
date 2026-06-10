@@ -669,6 +669,7 @@ package body SData_Core.File_IO.CSV is
             Write_String (EOL);
          end if;
          for R in 1 .. Row_Count loop
+            SData_Core.IO.Show_Progress ("SAVE", R);
             for C in 1 .. N loop
                declare
                   Val : constant Value := Get_Value_Upper (R, Column_Name (C));
@@ -691,6 +692,7 @@ package body SData_Core.File_IO.CSV is
             end loop;
             Write_String (EOL);
          end loop;
+         SData_Core.IO.Show_Progress ("SAVE", Row_Count, Final => True);
       end if;
       Ada.Streams.Stream_IO.Close (File);
    exception
