@@ -554,6 +554,7 @@ package body SData_Core.File_IO.OOXML is
          Append (S1, "</row>" & ASCII.LF);
 
          for R in 1 .. Row_Count loop
+            SData_Core.IO.Show_Progress ("SAVE", R);
             Append (S1,
                "<row r=""" & Trim (Integer (R + 1)'Img, Ada.Strings.Both) &
                """>");
@@ -600,6 +601,7 @@ package body SData_Core.File_IO.OOXML is
             end loop;
             Append (S1, "</row>" & ASCII.LF);
          end loop;
+         SData_Core.IO.Show_Progress ("SAVE", Row_Count, Final => True);
 
          Append (S1, "</sheetData>" & ASCII.LF);
          Append (S1, "</worksheet>");
