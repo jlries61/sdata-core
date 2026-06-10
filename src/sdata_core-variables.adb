@@ -284,7 +284,8 @@ package body SData_Core.Variables is
          declare
             Name : constant String := To_String (PDV_Names.Element (I));
             V    : constant Value  := PDV_Vec.Element (I);
-            Typ  : Column_Type := Col_Numeric;
+            Typ          : Column_Type := Col_Numeric;
+            From_Missing : Boolean := False;
          begin
             if V.Kind = Val_Integer then
                Typ := Col_Integer;
@@ -300,8 +301,15 @@ package body SData_Core.Variables is
                --  first flush.  Add_Output_Column ignores the type on every
                --  call after the first, so the first row decides it.
                Typ := SData_Core.Table.Get_Column_Type (Name);
+            elsif V.Kind = Val_Missing then
+               --  Derived column (no table backing), missing on this leading
+               --  record: the Numeric default is only a placeholder.  Mark it
+               --  so the first non-missing value upgrades the output column's
+               --  type instead of locking it to Numeric (issue #24).
+               From_Missing := True;
             end if;
-            SData_Core.Table.Add_Output_Column (Name, Typ);
+            SData_Core.Table.Add_Output_Column
+              (Name, Typ, From_Missing => From_Missing);
          end;
       end loop;
 

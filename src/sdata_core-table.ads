@@ -96,7 +96,14 @@ package SData_Core.Table is
 
    --  Output Table Management
    procedure Initialize_Output_Table;
-   procedure Add_Output_Column (Name : String; Col_Type : Column_Type);
+   --  From_Missing => True marks the column's type as a placeholder inferred
+   --  from a leading missing value of a non-table (derived) column.  Such a
+   --  placeholder is upgraded to the first non-missing value's kind on write
+   --  (see Set_Output_Value*), so a missing-first-then-character derived column
+   --  is not locked to Numeric.  A deliberately-typed column (From_Missing
+   --  False) is never upgraded.
+   procedure Add_Output_Column
+     (Name : String; Col_Type : Column_Type; From_Missing : Boolean := False);
    procedure Add_Output_Row;
    procedure Set_Output_Value (Row : Positive; Column_Name : String; Val : Value);
    procedure Set_Output_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);
@@ -139,6 +146,10 @@ private
       Name : String (1 .. Max_Name_Len); -- Padded name
       Typ  : Column_Type;      -- Enforced type
       Data : Value_Vectors.Vector; -- List of values (one per row)
+      --  Output columns only: True when Typ was a placeholder inferred from a
+      --  leading missing value of a derived column; cleared (and Typ set) on
+      --  the first non-missing write.  See Add_Output_Column / Set_Output_Value*.
+      Type_Is_Placeholder : Boolean := False;
    end record;
    
    --  Map from column name (String) to Column record.
