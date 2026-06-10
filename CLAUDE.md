@@ -34,12 +34,17 @@ There is no test suite in this crate — testing is the consumers' responsibilit
 suites before committing:**
 
 ```bash
-cd ~/Develop/sdata        && make check    # 197 integration + unit tests
-cd ~/Develop/data-vandal  && make check    # 44 VANDALIZE integration tests
+cd ~/Develop/sdata        && make check    # sdata's integration + unit suites
+cd ~/Develop/data-vandal  && make check    # data-vandal's VANDALIZE integration suite
 ```
 
 If either consumer regresses, fix sdata-core (or both consumers, if the change
 is intentional) before committing.
+
+**Documentation-only commits** — changes confined to `CLAUDE.md`, `tests/README.md`,
+and similar non-build prose — do **not** require the consumer-suite validation above;
+nothing buildable changed. The exemption does **not** apply once a commit touches
+`src/`, the `tests/` drivers, `*.gpr`, `alire.toml`, or the `.github/workflows/` files.
 
 ### In-crate test driver
 
@@ -67,13 +72,14 @@ repository and cross-repo checkout would leak build / test output into
 public sdata-core Actions logs. `data-vandal` validation remains a manual
 step that you must run locally before every commit.
 
-The pinned sdata tag in `consumer-tests.yml` (currently `v0.8.0`) should be
-bumped on each new sdata release:
+The pinned sdata tag in `consumer-tests.yml` should be bumped on each new sdata
+release, so the stability gate validates a *current* consumer (it silently lags
+otherwise — keep this in step with sdata's releases):
 
 ```bash
-git -C ../sdata tag --sort=-creatordate | head -1   # latest tag
-# Edit .github/workflows/consumer-tests.yml; replace `ref: v0.8.0`
-# with the new tag.  Commit as `ci(consumer-tests): bump sdata pin to vX.Y.Z`.
+git -C ../sdata tag --sort=-creatordate | head -1   # latest sdata tag
+# Edit .github/workflows/consumer-tests.yml: set the `ref:` to that tag.
+# Commit as `ci(consumer-tests): bump sdata pin to vX.Y.Z`.
 ```
 
 ## Public API — Stability Contract
