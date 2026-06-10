@@ -10,6 +10,7 @@ of sdata-core's public API.
 | `values_tests.adb` | `Is_Inf`, `To_String`, `Is_True`, `"="`, `"<"` across every `Value_Kind` permutation |
 | `parse_expression_tests.adb` | `Parse_Expression` round-trips for each `Expression_Kind` plus malformed inputs |
 | `call_function_tests.adb` | `Call_Function` against one representative from each registered family (Numeric, String, Aggregate, Misc) plus unknown-name handling |
+| `statistics_tests.adb` | `SData_Core.Statistics` — all 14 distributions (PDF/PMF, CDF, IDF, RNG): canonical reference values, CDF boundaries + monotonicity, IDF round-trips, symmetry, PDF non-negativity, seeded-RNG support membership |
 
 Each driver is a plain Ada main with inline assertions — no framework. A
 failing assertion prints `FAIL: <name>` and the driver exits non-zero.
@@ -27,7 +28,7 @@ concerns that legitimately belong in the consumer test suites
 tests/run-tests.sh
 ```
 
-Builds and runs all three drivers; exits 0 if every assertion in every
+Builds and runs all four drivers; exits 0 if every assertion in every
 driver passes.
 
 ## Rationale

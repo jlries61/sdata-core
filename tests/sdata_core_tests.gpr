@@ -19,7 +19,8 @@ project SData_Core_Tests is
    for Exec_Dir use "bin";
    for Main use ("values_tests.adb",
                  "parse_expression_tests.adb",
-                 "call_function_tests.adb");
+                 "call_function_tests.adb",
+                 "statistics_tests.adb");
    for Languages use ("Ada");
 
    package Compiler is
