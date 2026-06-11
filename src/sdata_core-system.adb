@@ -17,6 +17,18 @@ package body SData_Core.System is
    --  Clear/restore the calling thread's signal mask around Spawn so that
    --  forked subprocesses do not inherit the GNAT runtime's blocked signal
    --  set (which otherwise breaks timeout(1)'s SIGALRM/SIGTERM delivery).
+   --
+   --  INVARIANT — one spawn at a time.  The C side (sdata_privilege.c) saves
+   --  the prior mask into a *single static slot* (sdata_saved_mask).  Every
+   --  C_Clear_Sigmask must therefore be matched by a C_Restore_Sigmask before
+   --  the next C_Clear_Sigmask: the bracket must wrap exactly one synchronous
+   --  Spawn and must never overlap, nest, or run from more than one task
+   --  concurrently.  SYSTEM/SHELL execution here is synchronous (blocking
+   --  Spawn) and single-threaded, so the invariant holds.  If you ever add a
+   --  background, nested, or concurrent spawn, a second Clear will clobber the
+   --  saved slot before the first Restore reads it, and the outer Restore will
+   --  then install the wrong mask — make sdata_saved_mask a per-call parameter
+   --  before doing so.
    procedure C_Clear_Sigmask;
    pragma Import (C, C_Clear_Sigmask, "sdata_clear_sigmask");
    procedure C_Restore_Sigmask;
