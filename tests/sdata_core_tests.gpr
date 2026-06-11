@@ -2,7 +2,8 @@
 --
 --  Builds a small set of standalone Ada programs that exercise the pure
 --  subset of sdata-core's public API (Values, Parse_Expression,
---  Call_Function).  Each Main is a self-contained procedure with inline
+--  Call_Function, Statistics) plus the Runtime-stateful command seam
+--  (Commands).  Each Main is a self-contained procedure with inline
 --  assertions; no test framework is required.
 --
 --  Build:  alr exec -- gprbuild -P tests/sdata_core_tests.gpr
@@ -20,7 +21,8 @@ project SData_Core_Tests is
    for Main use ("values_tests.adb",
                  "parse_expression_tests.adb",
                  "call_function_tests.adb",
-                 "statistics_tests.adb");
+                 "statistics_tests.adb",
+                 "commands_tests.adb");
    for Languages use ("Ada");
 
    package Compiler is

@@ -1,7 +1,8 @@
 # sdata-core in-crate tests
 
 A small set of standalone Ada drivers covering the pure-function subset
-of sdata-core's public API.
+of sdata-core's public API, plus the in-process Runtime-stateful command
+seam that the `Config.Runtime` privatization made testable in isolation.
 
 ## What's covered
 
@@ -11,16 +12,20 @@ of sdata-core's public API.
 | `parse_expression_tests.adb` | `Parse_Expression` round-trips for each `Expression_Kind` plus malformed inputs |
 | `call_function_tests.adb` | `Call_Function` against one representative from each registered family (Numeric, String, Aggregate, Misc) plus unknown-name handling |
 | `statistics_tests.adb` | `SData_Core.Statistics` — all 14 distributions (PDF/PMF, CDF, IDF, RNG): canonical reference values, CDF boundaries + monotonicity, IDF round-trips, symmetry, PDF non-negativity, seeded-RNG support membership |
+| `commands_tests.adb` | `SData_Core.Commands` Runtime-stateful surface — OPTIONS setters (incl. length-validation raises), `Execute_REPEAT`, `Execute_Record_Error`, `Execute_NEW` reset, and `Resolve_Use_Defaults` fallback/passthrough — each driven via `Execute_*` and read back through the `Config.Runtime` accessors |
 
 Each driver is a plain Ada main with inline assertions — no framework. A
 failing assertion prints `FAIL: <name>` and the driver exits non-zero.
 
 ## What's NOT covered
 
-Anything that requires interpreter state (`Variables`, `Table`, `Config.Runtime`)
-or external I/O (`File_IO`, `IO`, `System`, `Signals`). Those are integration
-concerns that legitimately belong in the consumer test suites
-(`sdata make check`, `data-vandal make check`).
+The `Variables` and `Table` data structures, and external I/O (`File_IO`,
+`IO`, `System`, `Signals`). The `Config.Runtime` *command* seam is now
+covered (above) — but the `Execute_*` paths that load or write data
+(`Execute_USE`, `Execute_SAVE`, the data step) are not, since they require a
+populated table and the filesystem. Those remain integration concerns that
+belong in the consumer test suites (`sdata make check`,
+`data-vandal make check`).
 
 ## Running
 
@@ -28,7 +33,7 @@ concerns that legitimately belong in the consumer test suites
 tests/run-tests.sh
 ```
 
-Builds and runs all four drivers; exits 0 if every assertion in every
+Builds and runs all five drivers; exits 0 if every assertion in every
 driver passes.
 
 ## Rationale

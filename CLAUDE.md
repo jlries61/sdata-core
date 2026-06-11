@@ -49,9 +49,10 @@ nothing buildable changed. The exemption does **not** apply once a commit touche
 ### In-crate test driver
 
 `tests/` contains a small set of standalone Ada drivers (Values, Parse_Expression,
-Call_Function) covering the pure-function subset of the public API. They are
+Call_Function, Statistics, Commands) covering the pure-function subset of the
+public API plus the Runtime-stateful command seam. They are
 NOT a replacement for the consumer suites — they're a seconds-scale sanity
-gate per audit Finding Beck B1. Run with:
+gate per audit Findings Beck B1/B2. Run with:
 
 ```bash
 tests/run-tests.sh
