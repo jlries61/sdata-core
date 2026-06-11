@@ -934,6 +934,16 @@ package body SData_Core.Table is
    -- Get_Value_By_Col --
    -----------------------
    function Get_Value_By_Col (Row : Positive; Col_Pos : Positive) return Value is
+      --  The cursor cache must be current: a schema mutation that changed
+      --  Data_Table without calling Rebuild_Column_Cache would leave stale or
+      --  dangling cursors here.  Convert that by-convention invariant into a
+      --  checked one (no-op unless assertions are enabled).  See Kleppmann K3.
+      pragma Assert
+        (Natural (Column_Cursor_Cache.Length) = Column_Count,
+         "Column_Cursor_Cache stale (length"
+         & Natural'Image (Natural (Column_Cursor_Cache.Length))
+         & " /= Column_Count" & Natural'Image (Column_Count)
+         & "); a schema mutation skipped Rebuild_Column_Cache");
       Cur : constant Column_Maps.Cursor := Column_Cursor_Cache.Element (Col_Pos);
    begin
       if not Column_Maps.Has_Element (Cur) then
@@ -958,6 +968,17 @@ package body SData_Core.Table is
    -- Set_Output_Value_By_Col --
    ------------------------------
    procedure Set_Output_Value_By_Col (Row : Positive; Col_Pos : Positive; Val : Value) is
+      --  Output analogue of the Get_Value_By_Col cache-currency check: a new
+      --  Output_* mutator that forgets Rebuild_Output_Cache would corrupt
+      --  silently.  See Kleppmann K3.
+      pragma Assert
+        (Natural (Output_Cursor_Cache.Length)
+           = Natural (Output_Data_Table.Length),
+         "Output_Cursor_Cache stale (length"
+         & Natural'Image (Natural (Output_Cursor_Cache.Length))
+         & " /= Output_Data_Table length"
+         & Natural'Image (Natural (Output_Data_Table.Length))
+         & "); a schema mutation skipped Rebuild_Output_Cache");
       Cur : constant Column_Maps.Cursor := Output_Cursor_Cache.Element (Col_Pos);
    begin
       if not Column_Maps.Has_Element (Cur) then
