@@ -355,6 +355,46 @@ package body SData_Core.Commands is
    end Execute_USE;
 
    --------------------------------------------------------------------
+   --  Resolve_Use_Defaults                                           --
+   --------------------------------------------------------------------
+   function Resolve_Use_Defaults
+     (Delimiter           : String  := "";
+      Delimiter_Specified : Boolean := False;
+      Read_Header         : Boolean := True;
+      Header_Specified    : Boolean := False;
+      Charset             : String  := "";
+      Charset_Specified   : Boolean := False) return Use_Defaults
+   is
+      Eff_DLM : constant String :=
+        (if Delimiter_Specified then Delimiter
+         else SData_Core.Config.Runtime.Options_CSVDLM
+                (1 .. SData_Core.Config.Runtime.Options_CSVDLM_Len));
+      Eff_Charset : constant String :=
+        (if Charset_Specified then Charset
+         else SData_Core.Config.Runtime.Options_CHARSET
+                (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
+      Result : Use_Defaults;
+   begin
+      if Eff_DLM'Length > Max_Delimiter_Len then
+         raise SData_Core.Script_Error
+           with "USE delimiter too long: " & Eff_DLM;
+      end if;
+      if Eff_Charset'Length > Max_Charset_Len then
+         raise SData_Core.Script_Error
+           with "USE charset name too long: " & Eff_Charset;
+      end if;
+
+      Result.Delimiter (1 .. Eff_DLM'Length) := Eff_DLM;
+      Result.Delimiter_Len := Eff_DLM'Length;
+      Result.Read_Header :=
+        (if Header_Specified then Read_Header
+         else SData_Core.Config.Runtime.Options_Header);
+      Result.Charset (1 .. Eff_Charset'Length) := Eff_Charset;
+      Result.Charset_Len := Eff_Charset'Length;
+      return Result;
+   end Resolve_Use_Defaults;
+
+   --------------------------------------------------------------------
    --  Execute_SAVE                                                   --
    --------------------------------------------------------------------
    procedure Execute_SAVE

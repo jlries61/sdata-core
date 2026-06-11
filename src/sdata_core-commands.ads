@@ -47,6 +47,40 @@ package SData_Core.Commands is
       Is_Mock     : Boolean := False);
 
    ----------------------------------------------------------------
+   --  Resolve_Use_Defaults — the single authority for the
+   --  "specified on the USE statement, else fall back to OPTIONS state"
+   --  merge that consumers previously open-coded.  Front ends parse the
+   --  surface syntax, then call this to obtain the effective delimiter /
+   --  header / charset to hand to Execute_USE, so the merge rule lives in
+   --  one place rather than drifting between consumers (per ADR; closes
+   --  the Evans "two authorities for USE defaults" finding).
+   --
+   --  Each *_Specified flag MUST be supplied by the caller and MUST NOT be
+   --  inferred from emptiness: an empty Charset is a legal explicit value
+   --  ("autodetect") distinct from "charset unspecified".  When a flag is
+   --  False the corresponding SData_Core.Config.Runtime.Options_* accessor
+   --  supplies the value.  The Delimiter passed in must already be decoded
+   --  to its literal form (e.g. TAB -> HT); the OPTIONS fallback is used
+   --  verbatim.  Raises SData_Core.Script_Error if an effective delimiter
+   --  or charset exceeds its bound (Max_Delimiter_Len / Max_Charset_Len) —
+   --  friendlier than the bare Constraint_Error a slice assignment raises.
+   type Use_Defaults is record
+      Delimiter     : String (1 .. Max_Delimiter_Len) := (others => ' ');
+      Delimiter_Len : Natural := 0;
+      Read_Header   : Boolean := True;
+      Charset       : String (1 .. Max_Charset_Len)   := (others => ' ');
+      Charset_Len   : Natural := 0;
+   end record;
+
+   function Resolve_Use_Defaults
+     (Delimiter           : String  := "";
+      Delimiter_Specified : Boolean := False;
+      Read_Header         : Boolean := True;
+      Header_Specified    : Boolean := False;
+      Charset             : String  := "";
+      Charset_Specified   : Boolean := False) return Use_Defaults;
+
+   ----------------------------------------------------------------
    --  SAVE — register a pending output dataset.
    --
    --  When File_Name is empty, any pending SAVE is cancelled.  Otherwise the

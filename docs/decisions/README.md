@@ -30,6 +30,7 @@ decision X *after* extraction?"
 | [ADR-0003](ADR-0003-exclude-data-vandal-from-ci.md) | Exclude data-vandal from consumer-tests CI | Accepted | 2026-05-22 |
 | [ADR-0004](ADR-0004-commands-encapsulates-runtime-mutations.md) | Commands package is the sole write surface for Config.Runtime | Accepted | 2026-05-26 |
 | [ADR-0005](ADR-0005-options-validation-length-only-in-core.md) | OPTIONS validation: length in core, semantics in consumers | Accepted | 2026-05-26 |
+| [ADR-0006](ADR-0006-resolve-use-defaults-in-core.md) | USE-default resolution centralized in core via Resolve_Use_Defaults | Accepted | 2026-06-11 |
 
 ## Numbering
 
