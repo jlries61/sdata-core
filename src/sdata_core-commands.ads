@@ -113,7 +113,8 @@ package SData_Core.Commands is
    --
    --  An empty File_Name closes any active redirection without opening a
    --  new one.  TXTFMT and CHARSET parameters update OPTIONS state when
-   --  non-empty.
+   --  non-empty, with the same length validation as the OPTIONS command
+   --  (raising SData_Core.Script_Error on overflow).
    procedure Execute_OUTPUT
      (File_Name : String;
       TXTFMT    : String := "";
