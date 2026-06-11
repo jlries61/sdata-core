@@ -336,17 +336,52 @@ package body SData_Core.Table is
          and then not Data_Table.Contains (Upper_New)
       then
          declare
-            Col : Column := Column_Maps.Element (Old_Pos);
+            Old_Typ  : Column_Type;
+            Old_Plc  : Boolean;
+            New_Name : String (1 .. Max_Name_Len) := (others => ' ');
+            New_Pos  : Column_Maps.Cursor;
+            Inserted : Boolean;
          begin
-            Col.Name := (others => ' ');
+            --  Snapshot the old column's metadata (cheap; no Data copy).
+            declare
+               Old_CR : constant Column_Maps.Constant_Reference_Type :=
+                 Data_Table.Constant_Reference (Old_Pos);
+            begin
+               Old_Typ := Old_CR.Typ;
+               Old_Plc := Old_CR.Type_Is_Placeholder;
+            end;
+
             if Upper_New'Length > Max_Name_Len then
-               Col.Name := Upper_New (Upper_New'First .. Upper_New'First + Max_Name_Len - 1);
+               New_Name :=
+                 Upper_New (Upper_New'First .. Upper_New'First + Max_Name_Len - 1);
             else
-               Col.Name (1 .. Upper_New'Length) := Upper_New;
+               New_Name (1 .. Upper_New'Length) := Upper_New;
             end if;
-            Data_Table.Delete (Old_Pos);
-            Data_Table.Insert (Upper_New, Col);
-            
+
+            --  Insert a shell column with empty Data under the new key, then
+            --  MOVE the value vector across rather than copying it.  The prior
+            --  code copied the whole Data vector twice (once on Element, again
+            --  on Insert) — O(rows) per rename.  Re-find the old key after the
+            --  Insert so the move is robust against any rehash.
+            Data_Table.Insert
+              (Upper_New,
+               Column'(Name                => New_Name,
+                       Typ                 => Old_Typ,
+                       Data                => Value_Vectors.Empty_Vector,
+                       Type_Is_Placeholder => Old_Plc),
+               New_Pos, Inserted);
+            declare
+               Old_Ref : constant Column_Maps.Reference_Type :=
+                 Data_Table.Reference (Data_Table.Find (Upper_Old));
+               New_Ref : constant Column_Maps.Reference_Type :=
+                 Data_Table.Reference (New_Pos);
+            begin
+               Value_Vectors.Move
+                 (Target => New_Ref.Data, Source => Old_Ref.Data);
+            end;
+            Data_Table.Delete (Upper_Old);
+
+
             --  Data_Table is an unordered hash map, so Column_Order is the
             --  sole record of user-visible column sequence.  Patch the name
             --  in place rather than delete/re-append to preserve position.
@@ -851,13 +886,11 @@ package body SData_Core.Table is
       if Output_Table_Row_Count = 0 and then Output_Data_Table.Is_Empty
         and then not Data_Table.Is_Empty
       then
+         --  Clear each column's data in place through a Reference view; the
+         --  prior Element + Replace_Element copied the whole Column out and
+         --  back just to empty its Data vector.
          for Pos in Data_Table.Iterate loop
-            declare
-               Col : Column := Column_Maps.Element (Pos);
-            begin
-               Col.Data.Clear;
-               Data_Table.Replace_Element (Pos, Col);
-            end;
+            Data_Table.Reference (Pos).Data.Clear;
          end loop;
          Table_Row_Count := 0;
          if Store.Is_Active then
