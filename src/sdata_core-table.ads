@@ -45,7 +45,23 @@ package SData_Core.Table is
    --  Returns the number of rows (records) in the table.
    function Row_Count return Natural;
 
-   --  Appends a new empty row to the table (all values initialized to Val_Missing).
+   --  Appends a new empty row to the table (all values initialized to
+   --  Val_Missing).
+   --
+   --  Spill / cost-class contract: when Config.Max_Table_Cells > 0, Add_Row
+   --  transparently spills the current in-memory segment to the SQLite backing
+   --  store once it fills -- i.e. when
+   --  (rows-in-segment * Column_Count) >= Max_Table_Cells -- so at most
+   --  Max_Table_Cells / Column_Count rows are resident at a time.  This makes
+   --  the table larger-than-RAM at the price of a read-cost transition: a row
+   --  in the live (unspilled) segment reads in O(1) by vector index, but a row
+   --  in a spilled segment costs O(segment) on first access -- one SQL query
+   --  materializes the whole segment into the prefetch cache (see
+   --  Fetch_From_Disk) -- and O(1) thereafter while that segment stays cached.
+   --  Sequential scans pay one fetch per segment; random access across segments
+   --  thrashes the single-segment cache (Seg_Cache holds one segment, no LRU).
+   --  Max_Table_Cells = 0 disables spilling: every row stays in memory, always
+   --  O(1).  See Spill_Table_To_Disk for the all-or-nothing write contract.
    procedure Add_Row;
 
    --  Retrieves the value for a specific row and column.
@@ -103,6 +119,11 @@ package SData_Core.Table is
    --  False) is never upgraded.
    procedure Add_Output_Column
      (Name : String; Col_Type : Column_Type; From_Missing : Boolean := False);
+
+   --  Appends an empty row to the output table.  Carries the same spill /
+   --  cost-class contract as Add_Row -- threshold Config.Max_Table_Cells,
+   --  O(1) live-segment vs O(segment) disk-backed reads -- applied to the
+   --  independent Output_* segment (Output_Segment_Start, Spill_Output_To_Disk).
    procedure Add_Output_Row;
    procedure Set_Output_Value (Row : Positive; Column_Name : String; Val : Value);
    procedure Set_Output_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);
