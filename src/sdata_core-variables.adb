@@ -14,18 +14,19 @@ package body SData_Core.Variables is
    ---------------------------
    -- Array_Definition_Type --
    ---------------------------
-   function "=" (Left, Right : Array_Definition_Type) return Boolean is
+   overriding function "=" (Left, Right : Array_Definition_Type)
+     return Boolean is
    begin
       if Left.Kind /= Right.Kind then return False; end if;
       if Left.Is_Temporary /= Right.Is_Temporary then return False; end if;
       if Left.Start_Index /= Right.Start_Index then return False; end if;
       if Left.End_Index /= Right.End_Index then return False; end if;
-      -- Only compare constituents if it's a virtual array
+      --  Only compare constituents if it's a virtual array
       if Left.Kind = Virtual_Array then
          return SData_Core.Table.Name_Vectors."=" (Left.Constituents, Right.Constituents);
       else -- Real_Array
-         -- Real arrays are defined by their bounds and temporary status, not explicit constituents list
-         return True; 
+         --  Real arrays are defined by their bounds and temporary status, not explicit constituents list
+         return True;
       end if;
    end "=";
 
@@ -35,7 +36,7 @@ package body SData_Core.Variables is
    function Get_Real_Var_Name (Array_Name : String; Index : Integer) return String is
    begin
       --  Converts "MYARRAY" and 5 to "MYARRAY(5)"
-      return Array_Name & "(" & Ada.Strings.Fixed.Trim(Integer'Image(Index), Ada.Strings.Both) & ")";
+      return Array_Name & "(" & Ada.Strings.Fixed.Trim (Integer'Image (Index), Ada.Strings.Both) & ")";
    end Get_Real_Var_Name;
 
    -------------------
@@ -53,9 +54,9 @@ package body SData_Core.Variables is
       if Temp_Symbols.Contains (Upper_Name) then
          Temp_Symbols.Replace (Upper_Name, Val);
       else
-         -- Check limit if set
+         --  Check limit if set
          if SData_Core.Config.Max_Temp_Vars > 0 and then Natural (Temp_Symbols.Length) >= SData_Core.Config.Max_Temp_Vars then
-            raise Program_Error with "Temporary variable limit (" & Integer'Image(SData_Core.Config.Max_Temp_Vars) & ") exceeded.";
+            raise Program_Error with "Temporary variable limit (" & Integer'Image (SData_Core.Config.Max_Temp_Vars) & ") exceeded.";
          end if;
          Temp_Symbols.Insert (Upper_Name, Val);
       end if;
@@ -143,8 +144,8 @@ package body SData_Core.Variables is
    procedure Clear_Temporary is
    begin
       Temp_Symbols.Clear;
-      -- Permanent_Symbols are NOT cleared here. They are managed by the Data Step loop.
-      -- (i.e., Reset_PDV_Non_Held and Load_PDV_From_Table)
+      --  Permanent_Symbols are NOT cleared here. They are managed by the Data Step loop.
+      --  (i.e., Reset_PDV_Non_Held and Load_PDV_From_Table)
       declare
          Cursor : Array_Table_Pkg.Cursor := Array_Symbols.First;
       begin
@@ -171,7 +172,7 @@ package body SData_Core.Variables is
                      end loop;
                   end if;
                   Array_Table_Pkg.Delete (Array_Symbols, Cursor);
-                  -- Note: Restart scan as map might have reordered due to deletion.
+                  --  Note: Restart scan as map might have reordered due to deletion.
                   Cursor := Array_Symbols.First;
                else
                   Array_Table_Pkg.Next (Cursor);
@@ -387,7 +388,7 @@ package body SData_Core.Variables is
       Arr_Def.Kind := Virtual_Array;
       Arr_Def.Is_Temporary := False; -- Virtual arrays are always permanent aliases
       Arr_Def.Start_Index := 1;      -- Virtual arrays are always 1-based
-      Arr_Def.End_Index := Integer(Constituents'Length);
+      Arr_Def.End_Index := Integer (Constituents'Length);
       for I in Constituents'Range loop
          Arr_Def.Constituents.Append (To_Unbounded_String (To_Upper (Constituents (I).all)));
       end loop;
@@ -408,7 +409,7 @@ package body SData_Core.Variables is
       Arr_Def.Kind := Virtual_Array;
       Arr_Def.Is_Temporary := False;
       Arr_Def.Start_Index := 1;
-      Arr_Def.End_Index := Integer(Constituents.Length);
+      Arr_Def.End_Index := Integer (Constituents.Length);
       Arr_Def.Constituents := Constituents; -- Copy the vector
       if Array_Symbols.Contains (Upper_Name) then
          Array_Symbols.Replace (Upper_Name, Arr_Def);
@@ -470,29 +471,29 @@ package body SData_Core.Variables is
          SData_Core.IO.Put_Line ("(no virtual arrays defined)");
       end if;
    end List_Virtual_Arrays;
-   
+
    -------------------------
    -- Create_Real_Elements --
    -------------------------
    procedure Create_Real_Elements (Arr_Def : in out Array_Definition_Type) is
-      -- This procedure constructs the actual variable names and, if permanent, adds them as columns.
-      -- Assumes Arr_Def.Constituents only contains the base array name (e.g., "X")
+      --  This procedure constructs the actual variable names and, if permanent, adds them as columns.
+      --  Assumes Arr_Def.Constituents only contains the base array name (e.g., "X")
       Name_Prefix : constant String := To_String (Arr_Def.Constituents.First_Element); -- Base name like "X"
       Old_Constituents : constant Name_Vectors.Vector := Arr_Def.Constituents; -- Temporarily hold base name
    begin
       Arr_Def.Constituents.Clear;
-      -- Put base name back in Constituent[0] for easy access by Get_Real_Var_Name
+      --  Put base name back in Constituent[0] for easy access by Get_Real_Var_Name
       Arr_Def.Constituents.Append (Old_Constituents.First_Element);
 
       for I in Arr_Def.Start_Index .. Arr_Def.End_Index loop
          declare
             Var_Name : constant String := Get_Real_Var_Name (Name_Prefix, I);
          begin
-            Arr_Def.Constituents.Append (To_Unbounded_String(Var_Name));
-            
-            -- If not temporary, create as permanent column if it doesn't exist
+            Arr_Def.Constituents.Append (To_Unbounded_String (Var_Name));
+
+            --  If not temporary, create as permanent column if it doesn't exist
             if not Arr_Def.Is_Temporary and then not SData_Core.Table.Has_Column (Var_Name) then
-               -- Type based on suffix of Name_Prefix if available, else numeric
+               --  Type based on suffix of Name_Prefix if available, else numeric
                declare
                   Typ : SData_Core.Table.Column_Type := SData_Core.Table.Col_Numeric;
                begin
@@ -528,18 +529,18 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
       Arr_Def : Array_Definition_Type;
    begin
-      -- Validate indices
+      --  Validate indices
       if Start_Idx > End_Idx then
-         raise Program_Error with "DIM array lower bound " & Integer'Image(Start_Idx) & " cannot be greater than upper bound " & Integer'Image(End_Idx);
+         raise Program_Error with "DIM array lower bound " & Integer'Image (Start_Idx) & " cannot be greater than upper bound " & Integer'Image (End_Idx);
       end if;
 
       Arr_Def.Kind := Real_Array;
       Arr_Def.Is_Temporary := Is_Temp;
       Arr_Def.Start_Index := Start_Idx;
       Arr_Def.End_Index := End_Idx;
-      Arr_Def.Constituents.Append (To_Unbounded_String(Upper_Name)); -- Base name at Constituents[0]
+      Arr_Def.Constituents.Append (To_Unbounded_String (Upper_Name)); -- Base name at Constituents[0]
 
-      -- Handle Redefinition/Resizing
+      --  Handle Redefinition/Resizing
       if Array_Symbols.Contains (Upper_Name) then
          declare
             Existing_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
@@ -547,23 +548,23 @@ package body SData_Core.Variables is
             if Existing_Def.Kind = Virtual_Array then
                raise Program_Error with "Cannot redefine virtual array '" & Upper_Name & "' as real array with DIM.";
             elsif Existing_Def.Kind = Real_Array then
-               -- Check for temporary status change
+               --  Check for temporary status change
                if Existing_Def.Is_Temporary /= Is_Temp then
                   raise Program_Error with "Cannot change temporary status of existing real array '" & Upper_Name & "'.";
                end if;
-               
-               -- Drop orphaned columns (outside new range); kept columns and their data are preserved.
+
+               --  Drop orphaned columns (outside new range); kept columns and their data are preserved.
                for I in Existing_Def.Start_Index .. Existing_Def.End_Index loop
-                  -- Delete variable from system if it was part of this real array
+                  --  Delete variable from system if it was part of this real array
                   declare
-                     Var_Name : constant String := Get_Real_Var_Name (To_String(Existing_Def.Constituents.First_Element), I);
+                     Var_Name : constant String := Get_Real_Var_Name (To_String (Existing_Def.Constituents.First_Element), I);
                   begin
                      if not Existing_Def.Is_Temporary and then SData_Core.Table.Has_Column (Var_Name)
                         and then (I < Start_Idx or else I > End_Idx)
                      then
                         SData_Core.Table.Drop_Column (Var_Name);
                      end if;
-                     -- For temporary elements, clear from Temp_Symbols
+                     --  For temporary elements, clear from Temp_Symbols
                      if Existing_Def.Is_Temporary and then Temp_Symbols.Contains (Var_Name) then
                         Symbol_Table_Pkg.Delete (Temp_Symbols, Var_Name);
                      end if;
@@ -573,7 +574,7 @@ package body SData_Core.Variables is
          end;
       end if;
 
-      -- Create new elements / Add elements for expansion
+      --  Create new elements / Add elements for expansion
       Create_Real_Elements (Arr_Def);
 
       if Array_Symbols.Contains (Upper_Name) then
@@ -592,7 +593,7 @@ package body SData_Core.Variables is
       if not Array_Symbols.Contains (Upper_Name) then
          return (Kind => Val_Missing);
       end if;
-      
+
       declare
          Arr_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
       begin
@@ -601,18 +602,18 @@ package body SData_Core.Variables is
          end if;
 
          if Arr_Def.Kind = Virtual_Array then
-            -- Lookup from constituents list
+            --  Lookup from constituents list
             declare
                Offset : constant Positive := Index - Arr_Def.Start_Index + 1; -- Virtual arrays are 1-based internally
             begin
-               if Offset > Integer(Arr_Def.Constituents.Length) then
+               if Offset > Integer (Arr_Def.Constituents.Length) then
                   return (Kind => Val_Missing); -- Should not happen if array correctly defined
                end if;
                return Get (To_String (Arr_Def.Constituents.Element (Offset)));
             end;
          else -- Real_Array
-            -- Construct name like ARRAY_NAME(INDEX)
-            return Get (Get_Real_Var_Name (To_String(Arr_Def.Constituents.First_Element), Index));
+            --  Construct name like ARRAY_NAME(INDEX)
+            return Get (Get_Real_Var_Name (To_String (Arr_Def.Constituents.First_Element), Index));
          end if;
       end;
    end Get_Array_Element;
@@ -624,8 +625,8 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
    begin
       if not Array_Symbols.Contains (Upper_Name) then
-         -- Implicit creation if array does not exist and it's a permanent Real_Array
-         -- For now, error if not defined. DIM must define it explicitly.
+         --  Implicit creation if array does not exist and it's a permanent Real_Array
+         --  For now, error if not defined. DIM must define it explicitly.
          raise Program_Error with "Array '" & Upper_Name & "' not defined.";
       end if;
 
@@ -640,21 +641,21 @@ package body SData_Core.Variables is
             Var_Name_Str : Unbounded_String;
          begin
             if Arr_Def.Kind = Virtual_Array then
-               -- Lookup from constituents list
+               --  Lookup from constituents list
                declare
                   Offset : constant Positive := Index - Arr_Def.Start_Index + 1;
                begin
-                  if Offset > Integer(Arr_Def.Constituents.Length) then
+                  if Offset > Integer (Arr_Def.Constituents.Length) then
                      raise Program_Error with "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
                   end if;
                   Var_Name_Str := To_Unbounded_String (To_String (Arr_Def.Constituents.Element (Offset)));
                end;
             else -- Real_Array
-               -- Construct name like ARRAY_NAME(INDEX)
-               Var_Name_Str := To_Unbounded_String (Get_Real_Var_Name (To_String(Arr_Def.Constituents.First_Element), Index));
+               --  Construct name like ARRAY_NAME(INDEX)
+               Var_Name_Str := To_Unbounded_String (Get_Real_Var_Name (To_String (Arr_Def.Constituents.First_Element), Index));
             end if;
 
-            -- Set the value using appropriate scope (temporary or permanent)
+            --  Set the value using appropriate scope (temporary or permanent)
             if Arr_Def.Is_Temporary then
                Set_Temporary (To_String (Var_Name_Str), Val);
             else

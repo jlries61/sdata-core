@@ -29,10 +29,22 @@ library project SData_Core is
          Assert_Switches := ("-gnata");
    end case;
 
+   --  Relax two -gnaty style checks that conflict with this crate's
+   --  established house style, so the build stays clean and a genuinely new
+   --  warning stands out (Beck B3 in the milestone audit).  These are
+   --  appended after the Alire-generated config switch set, so GNAT honours
+   --  the later (disabling) form -- the generated config is left untouched.
+   --    -gnaty-m : drop the 79-char max-line-length check.  The license
+   --               header alone is 91 chars in every file; ~819 lines exceed.
+   --    -gnaty-S : allow a statement after THEN on the same line.  The crate
+   --               uses inline guard clauses (`if Cond then return; end if;`)
+   --               deliberately and pervasively (~313 sites).
+   Style_Switches := ("-gnaty-m", "-gnaty-S");
+
    package Compiler is
       for Default_Switches ("Ada") use
          Sdata_Core_Config.Ada_Compiler_Switches
-         & ("-gnat2012", "-gnatVn") & Assert_Switches;
+         & ("-gnat2012", "-gnatVn") & Assert_Switches & Style_Switches;
          --  -gnatVn disables validity checks: the code predates -gnatVa and
          --  legitimately stores IEEE 754 infinities in float variables.
    end Compiler;

@@ -56,11 +56,11 @@ package SData_Core.Values is
    --  Raised by Convert_Value for an unsupported string <-> numeric crossing.
    Conversion_Error : exception;
 
-   --  Determines the boolean truth of a value. 
+   --  Determines the boolean truth of a value.
    function Is_True (V : Value) return Boolean;
 
    --  Comparison functions
-   function "=" (L, R : Value) return Boolean;
+   overriding function "=" (L, R : Value) return Boolean;
    function "<" (L, R : Value) return Boolean;
 
 end SData_Core.Values;

@@ -34,7 +34,7 @@ package SData_Core.Variables is
    --  Removes all temporary variables (called by NEW).
    procedure Clear_Temporary;
 
-   -- PDV Management (PDV stands for Program Data Vector)
+   --  PDV Management (PDV stands for Program Data Vector)
    procedure Initialize_PDV;
    --  Load all table columns for Row into the PDV.
    procedure Load_PDV_From_Table (Row : Positive);
@@ -56,41 +56,41 @@ package SData_Core.Variables is
       Hash           => Ada.Strings.Hash,
       Equivalent_Keys => "=");
 
-   -- Flushes the current PDV to the Output Table
+   --  Flushes the current PDV to the Output Table
    procedure Flush_PDV_To_Output;
 
    function Get_Type (Name : String) return Value_Kind;
-   
+
    function Get_PDV_Names return GNAT.Strings.String_List_Access;
 
    function Get_Session_Names return GNAT.Strings.String_List_Access;
 
-   -- Array Management
-   -- Defines a virtual array (maps existing variables)
+   --  Array Management
+   --  Defines a virtual array (maps existing variables)
    procedure Define_Array (Name : String; Constituents : GNAT.Strings.String_List);
    procedure Define_Array (Name : String; Constituents : Name_Vectors.Vector); -- For internal use
    procedure Define_Array_Access (Name : String; Constituents : GNAT.Strings.String_List_Access);
 
-   -- Removes a virtual array definition by name (no effect on constituent variables or real arrays)
+   --  Removes a virtual array definition by name (no effect on constituent variables or real arrays)
    procedure Undefine_Virtual_Array (Name : String);
 
-   -- Prints all currently defined virtual arrays to console output
+   --  Prints all currently defined virtual arrays to console output
    procedure List_Virtual_Arrays;
 
-   -- Creates or resizes a real array (generates numbered variables)
+   --  Creates or resizes a real array (generates numbered variables)
    procedure Dim_Array (Name : String; Start_Idx, End_Idx : Integer; Is_Temp : Boolean);
 
    function Get_Array_Element (Name : String; Index : Integer) return Value;
    procedure Set_Array_Element (Name : String; Index : Integer; Val : Value);
    function Has_Array (Name : String) return Boolean;
    function Is_Temporary_Array (Name : String) return Boolean;
-   
-   -- Returns the bounds of an array if it exists.
+
+   --  Returns the bounds of an array if it exists.
    procedure Get_Array_Bounds (Name : String; Start_Idx, End_Idx : out Integer);
 
-   -- Returns the physical table column name for element Index of the named array.
-   -- For Real_Array (DIM): "NAME(Index)".
-   -- For Virtual_Array (ARRAY): the constituent variable name at that position.
+   --  Returns the physical table column name for element Index of the named array.
+   --  For Real_Array (DIM): "NAME(Index)".
+   --  For Virtual_Array (ARRAY): the constituent variable name at that position.
    function Get_Array_Element_Column (Name : String; Index : Integer) return String;
 
    --  Scan the current table column names for the pattern base(n) where n is
@@ -99,16 +99,16 @@ package SData_Core.Variables is
    --  Gaps in the numeric sequence are permitted.  Call after Execute_USE.
    procedure Register_Subscripted_Columns;
 
-   -- Hold/Unhold Management
+   --  Hold/Unhold Management
    procedure Set_Hold (Name : String; State : Boolean);
    function Is_Held (Name : String) return Boolean;
 
-   -- Group Management
+   --  Group Management
    procedure Set_Current_Group_Key (Key : String);
    function Get_Current_Group_Key return String;
 
 private
-   -- Defines an array, whether virtual or real
+   --  Defines an array, whether virtual or real
    type Array_Kind is (Virtual_Array, Real_Array);
 
    type Array_Definition_Type is record
@@ -118,12 +118,13 @@ private
       End_Index   : Integer := 0;      -- For Real_Array: Derived from dimension or custom
       Constituents : Name_Vectors.Vector; -- For Virtual_Array: names of members; For Real_Array: generated names
    end record;
-   function "=" (Left, Right : Array_Definition_Type) return Boolean; -- Declare equality operator
+   overriding function "=" (Left, Right : Array_Definition_Type)
+     return Boolean; -- Declare equality operator
 
-   -- Holds only temporary variables created with SET.
+   --  Holds only temporary variables created with SET.
    Temp_Symbols : Symbol_Table_Pkg.Map;
 
-   -- Holds array definitions (virtual or real).
+   --  Holds array definitions (virtual or real).
    package Array_Table_Pkg is new Ada.Containers.Indefinite_Hashed_Maps
      (Key_Type        => String,
       Element_Type    => Array_Definition_Type,
@@ -132,7 +133,7 @@ private
       "="             => "=");
    Array_Symbols : Array_Table_Pkg.Map;
 
-   -- Tracks held status.
+   --  Tracks held status.
    package Hold_Table_Pkg is new Ada.Containers.Indefinite_Hashed_Maps
      (Key_Type        => String,
       Element_Type    => Boolean,

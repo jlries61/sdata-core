@@ -391,7 +391,8 @@ package body SData_Core.Evaluator is
                               "ERR" | "ERL" |
                               "MAXLEN" | "MAXLVL" | "MAXINT" | "MAXNUM" |
                               "MININT" | "MINNUM" |
-                              "FALSE" | "TRUE" then
+                              "FALSE" | "TRUE"
+                  then
                      return Evaluate_Function (VName, null);
                   end if;
                end if;
@@ -450,14 +451,14 @@ package body SData_Core.Evaluator is
                L : constant Value := Evaluate (Expr.Left);
                R : constant Value := Evaluate (Expr.Right);
             begin
-               if L.Kind = Val_Missing or R.Kind = Val_Missing then
+               if L.Kind = Val_Missing or else R.Kind = Val_Missing then
                   return (Kind => Val_Missing);
                end if;
 
-               if (L.Kind = Val_Numeric or L.Kind = Val_Integer) and
-                  (R.Kind = Val_Numeric or R.Kind = Val_Integer)
+               if (L.Kind = Val_Numeric or else L.Kind = Val_Integer) and then
+                  (R.Kind = Val_Numeric or else R.Kind = Val_Integer)
                then
-                  if L.Kind = Val_Integer and R.Kind = Val_Integer then
+                  if L.Kind = Val_Integer and then R.Kind = Val_Integer then
                      declare
                         L64   : constant Interfaces.Integer_64 := Interfaces.Integer_64 (L.Int_Val);
                         R64   : constant Interfaces.Integer_64 := Interfaces.Integer_64 (R.Int_Val);
@@ -482,8 +483,8 @@ package body SData_Core.Evaluator is
                            when Op_Le  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val <= R.Int_Val then 1 else 0));
                            when Op_Gt  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val > R.Int_Val  then 1 else 0));
                            when Op_Ge  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val >= R.Int_Val then 1 else 0));
-                           when Op_And => return (Kind => Val_Integer, Int_Val => (if L.Int_Val /= 0 and R.Int_Val /= 0 then 1 else 0));
-                           when Op_Or  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val /= 0 or  R.Int_Val /= 0 then 1 else 0));
+                           when Op_And => return (Kind => Val_Integer, Int_Val => (if L.Int_Val /= 0 and then R.Int_Val /= 0 then 1 else 0));
+                           when Op_Or  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val /= 0 or else R.Int_Val /= 0 then 1 else 0));
                            when Op_Xor => return (Kind => Val_Integer, Int_Val => (if (L.Int_Val /= 0) /= (R.Int_Val /= 0) then 1 else 0));
                         end case;
                         if Expr.Op in Op_Add .. Op_Mul then
@@ -519,14 +520,14 @@ package body SData_Core.Evaluator is
                            when Op_Le  => return (Kind => Val_Integer, Int_Val => (if FL <= FR then 1 else 0));
                            when Op_Gt  => return (Kind => Val_Integer, Int_Val => (if FL > FR  then 1 else 0));
                            when Op_Ge  => return (Kind => Val_Integer, Int_Val => (if FL >= FR then 1 else 0));
-                           when Op_And => return (Kind => Val_Integer, Int_Val => (if FL /= 0.0 and FR /= 0.0 then 1 else 0));
-                           when Op_Or  => return (Kind => Val_Integer, Int_Val => (if FL /= 0.0 or  FR /= 0.0 then 1 else 0));
+                           when Op_And => return (Kind => Val_Integer, Int_Val => (if FL /= 0.0 and then FR /= 0.0 then 1 else 0));
+                           when Op_Or  => return (Kind => Val_Integer, Int_Val => (if FL /= 0.0 or else FR /= 0.0 then 1 else 0));
                            when Op_Xor => return (Kind => Val_Integer, Int_Val => (if (FL /= 0.0) /= (FR /= 0.0) then 1 else 0));
                         end case;
                      end;
                   end if;
 
-               elsif L.Kind = Val_String and R.Kind = Val_String then
+               elsif L.Kind = Val_String and then R.Kind = Val_String then
                   case Expr.Op is
                      when Op_Add =>
                         declare
@@ -602,7 +603,6 @@ package body SData_Core.Evaluator is
       end case;
    end Evaluate;
    pragma Annotate (GNATcheck, Exempt_Off, "Recursive_Subprograms");
-
 
    ---------------------------------------------------------------------------
    --  Parse_Expression — string-based expression parser (internal mini-lexer)

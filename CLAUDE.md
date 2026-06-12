@@ -139,6 +139,17 @@ checks are disabled because this crate legitimately stores IEEE 754 infinity in
 invalid. Don't re-enable validity checks without first removing the infinity
 usage from `SData_Core.Values`.
 
+`sdata_core.gpr` also appends `-gnaty-m -gnaty-S`, disabling exactly two of the
+otherwise-full `-gnaty…` style set: the 79-char max-line check (`-gnatym`) and
+the no-statement-after-`then` check (`-gnatyS`). The crate's house style uses
+lines past 79 (the license header alone is 91) and inline guard clauses
+(`if Cond then return; end if;`) deliberately and pervasively; conforming the
+code would be large, risky churn for no behavioural gain. Every other `-gnaty`
+check stays on and the tree builds clean against them, so a genuinely new style
+warning still stands out (Beck B3 in the milestone audit). The two switches are
+appended in `sdata_core.gpr` (project-owned) rather than edited into the
+Alire-generated `config/sdata_core_config.gpr`, which is left untouched.
+
 A pre-build hook (`scripts/fix-mathpaqs.sh`) marks the upstream `mathpaqs`
 project as `Externally_Built` because mathpaqs' generic specs are incompatible
 with GNAT library projects. The script is idempotent.

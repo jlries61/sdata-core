@@ -305,7 +305,7 @@ package body SData_Core.Evaluator.Misc_Fns is
    --  Uses Halley's method; typically converges in 5-10 iterations.
    function Handle_Ltw (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
-      E_Inv : constant Float := 1.0 / Ada.Numerics.E;
+      E_Inv : constant Float := 1.0 / Ada.Numerics.e;
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       declare
@@ -320,7 +320,7 @@ package body SData_Core.Evaluator.Misc_Fns is
          if X >= 0.0 then
             W := Log (1.0 + X);
          else
-            W := -1.0 + Sqrt (2.0 * (1.0 + Ada.Numerics.E * X));
+            W := -1.0 + Sqrt (2.0 * (1.0 + Ada.Numerics.e * X));
          end if;
          for I in 1 .. 100 loop
             EW  := Exp (W);

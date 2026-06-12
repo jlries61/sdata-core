@@ -2,7 +2,7 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
---  Package SData_Core.File_IO implements the File I/O Layer. It provides the capability 
+--  Package SData_Core.File_IO implements the File I/O Layer. It provides the capability
 --  to read from and write to various dataset formats: CSV, ODS, and XLSX.
 --  It supports automatic format detection and utilizes external utilities (ssconvert)
 --  or native logic for specific file types.
