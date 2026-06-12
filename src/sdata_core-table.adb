@@ -216,6 +216,10 @@ package body SData_Core.Table is
    -------------
    procedure Add_Row is
    begin
+      --  Spill the current in-memory segment to disk once it reaches
+      --  Max_Table_Cells (rows-in-segment * columns), then start a fresh
+      --  segment.  This is the O(1)->O(segment) read-cost transition documented
+      --  on Add_Row in table.ads; Spill_Table_To_Disk holds the write contract.
       if SData_Core.Config.Max_Table_Cells > 0 and then
          (Table_Row_Count - Current_Segment_Start + 1)
             * Natural (Data_Table.Length) >= SData_Core.Config.Max_Table_Cells
@@ -825,6 +829,8 @@ package body SData_Core.Table is
 
    procedure Add_Output_Row is
    begin
+      --  Same segment-spill trigger as Add_Row (see table.ads for the
+      --  O(1)->O(segment) read-cost contract), against the Output_* segment.
       if SData_Core.Config.Max_Table_Cells > 0 and then
          (Output_Table_Row_Count - Output_Segment_Start + 1)
             * Natural (Output_Data_Table.Length) >= SData_Core.Config.Max_Table_Cells
