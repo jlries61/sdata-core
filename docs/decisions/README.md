@@ -31,6 +31,7 @@ decision X *after* extraction?"
 | [ADR-0004](ADR-0004-commands-encapsulates-runtime-mutations.md) | Commands package is the sole write surface for Config.Runtime | Accepted | 2026-05-26 |
 | [ADR-0005](ADR-0005-options-validation-length-only-in-core.md) | OPTIONS validation: length in core, semantics in consumers | Accepted | 2026-05-26 |
 | [ADR-0006](ADR-0006-resolve-use-defaults-in-core.md) | USE-default resolution centralized in core via Resolve_Use_Defaults | Accepted | 2026-06-11 |
+| [ADR-0007](ADR-0007-decompose-table-package.md) | Decompose SData_Core.Table behind an unchanged facade (Columns + Backing_Store + Sorting + Grouping) | Accepted | 2026-06-12 |
 
 ## Numbering
 
