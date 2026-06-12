@@ -26,7 +26,7 @@ package body SData_Core.File_IO is
       Ext_Idx    : Natural := 0;
       U_Name     : constant String := To_Upper (File_Name);
    begin
-      if U_Name = "MOCK" or U_Name = "MOCK_DATA" then
+      if U_Name = "MOCK" or else U_Name = "MOCK_DATA" then
          Clear;
          Add_Column ("ID",     Col_Integer);
          Add_Column ("NAME$",  Col_String);
@@ -67,9 +67,9 @@ package body SData_Core.File_IO is
          begin
             if Ext = "csv" then
                Actual_Fmt := SData_Core.Config.CSV;
-            elsif Ext = "ods" or Ext = "odf" then
+            elsif Ext = "ods" or else Ext = "odf" then
                Actual_Fmt := SData_Core.Config.ODF;
-            elsif Ext = "xlsx" or Ext = "ooxml" then
+            elsif Ext = "xlsx" or else Ext = "ooxml" then
                Actual_Fmt := SData_Core.Config.OOXML;
             end if;
          end;
@@ -118,9 +118,9 @@ package body SData_Core.File_IO is
          begin
             if Ext = "csv" then
                Actual_Fmt := SData_Core.Config.CSV;
-            elsif Ext = "ods" or Ext = "odf" then
+            elsif Ext = "ods" or else Ext = "odf" then
                Actual_Fmt := SData_Core.Config.ODF;
-            elsif Ext = "xlsx" or Ext = "ooxml" then
+            elsif Ext = "xlsx" or else Ext = "ooxml" then
                Actual_Fmt := SData_Core.Config.OOXML;
             end if;
          end;

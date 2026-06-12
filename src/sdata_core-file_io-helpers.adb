@@ -14,7 +14,7 @@ package body SData_Core.File_IO.Helpers is
    function File_Base (File_Name : String) return String is
    begin
       for I in reverse File_Name'Range loop
-         if File_Name (I) = '/' or File_Name (I) = '\' then
+         if File_Name (I) = '/' or else File_Name (I) = '\' then
             return File_Name (I + 1 .. File_Name'Last);
          end if;
       end loop;

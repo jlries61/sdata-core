@@ -113,7 +113,7 @@ package body SData_Core.Statistics is
       end G_CF;
 
    begin
-      if X < 0.0 or A <= 0.0 then return 0.0; end if;
+      if X < 0.0 or else A <= 0.0 then return 0.0; end if;
       if X < A + 1.0 then
          return G_Series (A, X);
       else
@@ -147,7 +147,7 @@ package body SData_Core.Statistics is
    --  which uses a rational approximation (Beasley-Springer-Moro or equivalent).
    function Z_IDF (P : Float) return Float is
    begin
-      if P <= 0.0 or P >= 1.0 then raise Constraint_Error with "Probability must be in (0,1)"; end if;
+      if P <= 0.0 or else P >= 1.0 then raise Constraint_Error with "Probability must be in (0,1)"; end if;
       return Float (Long_Phi.Inverse_Phi (Long_Float (P)));
    end Z_IDF;
 
@@ -198,7 +198,8 @@ package body SData_Core.Statistics is
    function Uniform_PDF (X, Lower, Upper : Float) return Float is
    begin
       if Lower >= Upper then raise Constraint_Error with "Lower bound must be less than Upper bound"; end if;
-      return (if X >= Lower and X <= Upper then 1.0 / (Upper - Lower) else 0.0);
+      return (if X >= Lower and then X <= Upper then 1.0 / (Upper - Lower)
+              else 0.0);
    end Uniform_PDF;
 
    -----------------
@@ -252,7 +253,7 @@ package body SData_Core.Statistics is
    function Exponential_IDF (P, Rate : Float) return Float is
    begin
       if Rate <= 0.0 then raise Constraint_Error with "Rate must be positive"; end if;
-      if P < 0.0 or P >= 1.0 then raise Constraint_Error with "P must be in [0,1)"; end if;
+      if P < 0.0 or else P >= 1.0 then raise Constraint_Error with "P must be in [0,1)"; end if;
       return Float (-Log (1.0 - Long_Float (P)) / Long_Float (Rate));
    end Exponential_IDF;
 
@@ -270,10 +271,11 @@ package body SData_Core.Statistics is
    --------------
    function Beta_PDF (X, Alpha, Beta : Float) return Float is
    begin
-      if Alpha <= 0.0 or Beta <= 0.0 then raise Constraint_Error with
+      if Alpha <= 0.0 or else Beta <= 0.0 then raise Constraint_Error with
          "Beta distribution: shape parameters must be positive (a=" &
-         Float'Image (Alpha) & ", b=" & Float'Image (Beta) & ")"; end if;
-      if X < 0.0 or X > 1.0 then return 0.0; end if;
+         Float'Image (Alpha) & ", b=" & Float'Image (Beta) & ")";
+      end if;
+      if X < 0.0 or else X > 1.0 then return 0.0; end if;
       return Float ((Long_Float (X)**(Long_Float (Alpha) - 1.0) * (1.0 - Long_Float (X))**(Long_Float (Beta) - 1.0)) / Long_Beta.Beta (Long_Float (Alpha), Long_Float (Beta)));
    end Beta_PDF;
 
@@ -348,9 +350,10 @@ package body SData_Core.Statistics is
    ---------------
    function Gamma_PDF (X, Alpha, Beta : Float) return Float is
    begin
-      if Alpha <= 0.0 or Beta <= 0.0 then raise Constraint_Error with
+      if Alpha <= 0.0 or else Beta <= 0.0 then raise Constraint_Error with
          "Gamma distribution: shape and rate must be positive (shape=" &
-         Float'Image (Alpha) & ", rate=" & Float'Image (Beta) & ")"; end if;
+         Float'Image (Alpha) & ", rate=" & Float'Image (Beta) & ")";
+      end if;
       if X <= 0.0 then return 0.0; end if;
       return Float (Exp (Long_Float (Alpha) * Log (Long_Float (Beta)) + (Long_Float (Alpha) - 1.0) * Log (Long_Float (X)) - Long_Float (Beta) * Long_Float (X) - Long_Gamma.Log_Gamma (Long_Float (Alpha))));
    end Gamma_PDF;
@@ -483,13 +486,15 @@ package body SData_Core.Statistics is
       NI : constant Long_Float := Long_Float (Float'Floor (N));
       PF : constant Long_Float := Long_Float (P);
    begin
-      if PF < 0.0 or PF > 1.0 or NI < 0.0 then raise Constraint_Error with
+      if PF < 0.0 or else PF > 1.0 or else NI < 0.0 then
+         raise Constraint_Error with
          "Binomial PMF: n must be non-negative and prob must be in [0,1] (n=" &
-         Float'Image (N) & ", prob=" & Float'Image (P) & ")"; end if;
-      if KI < 0.0 or KI > NI then return 0.0; end if;
+         Float'Image (N) & ", prob=" & Float'Image (P) & ")";
+      end if;
+      if KI < 0.0 or else KI > NI then return 0.0; end if;
       if PF = 0.0 then return (if KI = 0.0 then 1.0 else 0.0); end if;
       if PF = 1.0 then return (if KI = NI then 1.0 else 0.0); end if;
-      
+
       return Float (Exp (Long_Gamma.Log_Gamma (NI + 1.0) - Long_Gamma.Log_Gamma (KI + 1.0) - Long_Gamma.Log_Gamma (NI - KI + 1.0) +
                          KI * Log (PF) + (NI - KI) * Log (1.0 - PF)));
    end Binomial_PMF;
@@ -504,9 +509,11 @@ package body SData_Core.Statistics is
       NI : constant Long_Float := Long_Float (Float'Floor (N));
       PF : constant Long_Float := Long_Float (P);
    begin
-      if PF < 0.0 or PF > 1.0 or NI < 0.0 then raise Constraint_Error with
+      if PF < 0.0 or else PF > 1.0 or else NI < 0.0 then
+         raise Constraint_Error with
          "Binomial CDF: n must be non-negative and prob must be in [0,1] (n=" &
-         Float'Image (N) & ", prob=" & Float'Image (P) & ")"; end if;
+         Float'Image (N) & ", prob=" & Float'Image (P) & ")";
+      end if;
       if KI < 0.0 then return 0.0; elsif KI >= NI then return 1.0; end if;
       return Float (Long_Beta.Regularized_Beta (1.0 - PF, NI - KI, KI + 1.0));
    end Binomial_CDF;
@@ -552,7 +559,7 @@ package body SData_Core.Statistics is
       L  : constant Long_Float := Long_Float (Scale);
       K  : constant Long_Float := Long_Float (Shape);
    begin
-      if L <= 0.0 or K <= 0.0 then raise Constraint_Error with "Scale and Shape must be positive"; end if;
+      if L <= 0.0 or else K <= 0.0 then raise Constraint_Error with "Scale and Shape must be positive"; end if;
       if XF < 0.0 then return 0.0; end if;
       return Float ((K / L) * (XF / L)**(K - 1.0) * Exp (-(XF / L)**K));
    end Weibull_PDF;
@@ -565,7 +572,7 @@ package body SData_Core.Statistics is
       L  : constant Long_Float := Long_Float (Scale);
       K  : constant Long_Float := Long_Float (Shape);
    begin
-      if L <= 0.0 or K <= 0.0 then raise Constraint_Error with "Scale and Shape must be positive"; end if;
+      if L <= 0.0 or else K <= 0.0 then raise Constraint_Error with "Scale and Shape must be positive"; end if;
       if XF < 0.0 then return 0.0; end if;
       return Float (1.0 - Exp (-(XF / L)**K));
    end Weibull_CDF;
@@ -590,7 +597,7 @@ package body SData_Core.Statistics is
       B  : constant Long_Float := Long_Float (Scale);
    begin
       if B <= 0.0 then raise Constraint_Error with "Laplace scale must be positive"; end if;
-      return Float (Exp (-abs(XF - MU) / B) / (2.0 * B));
+      return Float (Exp (-abs (XF - MU) / B) / (2.0 * B));
    end Laplace_PDF;
 
    -----------------
@@ -618,7 +625,7 @@ package body SData_Core.Statistics is
       B  : constant Long_Float := Long_Float (Scale);
    begin
       if B <= 0.0 then raise Constraint_Error with "Laplace scale must be positive"; end if;
-      if PF <= 0.0 or PF >= 1.0 then return 0.0; end if; -- Should ideally handle boundary
+      if PF <= 0.0 or else PF >= 1.0 then return 0.0; end if; -- Should ideally handle boundary
       if PF < 0.5 then
          return Float (MU + B * Log (2.0 * PF));
       else
@@ -634,7 +641,7 @@ package body SData_Core.Statistics is
    begin
       Ensure_Random_Init;
       U := Ada.Numerics.Float_Random.Random (Generator);
-      -- Simple inversion method
+      --  Simple inversion method
       return Laplace_IDF (U, Location, Scale);
    end Laplace_RN;
 
@@ -651,7 +658,7 @@ package body SData_Core.Statistics is
       if PF >= 1.0 then return Float'Last; end if;
       loop
          Sum := Sum + Long_Float (Poisson_PMF (Float (K), Float (L)));
-         exit when Sum >= PF or K > 1000000;
+         exit when Sum >= PF or else K > 1000000;
          K := K + 1;
       end loop;
       return Float (K);

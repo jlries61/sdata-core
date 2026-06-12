@@ -131,13 +131,13 @@ package body SData_Core.Values is
    ---------
    -- "=" --
    ---------
-   function "=" (L, R : Value) return Boolean is
+   overriding function "=" (L, R : Value) return Boolean is
    begin
       if L.Kind /= R.Kind then
-         -- Promotion logic for comparison
-         if L.Kind = Val_Numeric and R.Kind = Val_Integer then
+         --  Promotion logic for comparison
+         if L.Kind = Val_Numeric and then R.Kind = Val_Integer then
             return L.Num_Val = Float (R.Int_Val);
-         elsif L.Kind = Val_Integer and R.Kind = Val_Numeric then
+         elsif L.Kind = Val_Integer and then R.Kind = Val_Numeric then
             return Float (L.Int_Val) = R.Num_Val;
          end if;
          return False;
@@ -157,19 +157,19 @@ package body SData_Core.Values is
    ---------
    function "<" (L, R : Value) return Boolean is
    begin
-      -- Missing is always smallest
+      --  Missing is always smallest
       if L.Kind = Val_Missing then
          return R.Kind /= Val_Missing;
       elsif R.Kind = Val_Missing then
          return False;
       end if;
 
-      if L.Kind = Val_Numeric or L.Kind = Val_Integer then
+      if L.Kind = Val_Numeric or else L.Kind = Val_Integer then
          declare
             FL : constant Float :=
                (if L.Kind = Val_Numeric then L.Num_Val else Float (L.Int_Val));
          begin
-            if R.Kind = Val_Numeric or R.Kind = Val_Integer then
+            if R.Kind = Val_Numeric or else R.Kind = Val_Integer then
                declare
                   --  FR is only safe to compute once R is known to be
                   --  Numeric or Integer; computing it earlier would fail

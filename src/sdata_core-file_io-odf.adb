@@ -51,8 +51,8 @@ package body SData_Core.File_IO.ODF is
             P_List   : Node_List :=
                Get_Elements_By_Tag_Name (DOM.Core.Element (Cell_Node), "text:p");
          begin
-            if Val_Type = "float" or Val_Type = "currency"
-               or Val_Type = "percentage"
+            if Val_Type = "float" or else Val_Type = "currency"
+               or else Val_Type = "percentage"
             then
                declare
                   V_Attr : constant String :=
@@ -121,7 +121,7 @@ package body SData_Core.File_IO.ODF is
                   begin
                      Free (P_Nodes);
                      for K in 1 .. Repeat_Count loop
-                        exit when Base_Name = "" and K > 1;
+                        exit when Base_Name = "" and then K > 1;
                         declare
                            Idx_Num    : constant Natural :=
                               Natural (Col_Name_Vec.Length) + 1;

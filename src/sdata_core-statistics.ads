@@ -73,13 +73,13 @@ package SData_Core.Statistics is
    function Weibull_CDF (X, Scale, Shape : Float) return Float;
    function Weibull_RN  (Scale, Shape : Float) return Float;
 
-   -- Laplace (L prefix)
+   --  Laplace (L prefix)
    function Laplace_PDF (X, Location, Scale : Float) return Float;
    function Laplace_CDF (X, Location, Scale : Float) return Float;
    function Laplace_IDF (P, Location, Scale : Float) return Float;
    function Laplace_RN  (Location, Scale : Float) return Float;
 
-   -- Extra Quantiles/RNGs
+   --  Extra Quantiles/RNGs
    function Poisson_IDF   (P, Lambda     : Float) return Float;
    function Chi_Square_IDF (P, DF        : Float) return Float;
    function Student_T_IDF  (P, DF        : Float) return Float;

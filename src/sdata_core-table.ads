@@ -2,9 +2,9 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
---  Package SData_Core.Table implements the Data Table Manager, providing an in-memory 
+--  Package SData_Core.Table implements the Data Table Manager, providing an in-memory
 --  2D table structure for storing and manipulating records and columns.
---  Columns are typed (Numeric or String) and the table maintains consistency 
+--  Columns are typed (Numeric or String) and the table maintains consistency
 --  between rows.
 
 with Ada.Finalization;
@@ -52,7 +52,7 @@ package SData_Core.Table is
    function Get_Value (Row : Positive; Column_Name : String) return Value;
    function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value;
 
-   --  Updates the value at a specific row and column. 
+   --  Updates the value at a specific row and column.
    --  Raises Type_Mismatch_Error if the value kind doesn't match the column type.
    procedure Set_Value (Row : Positive; Column_Name : String; Val : Value);
    procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);
@@ -62,7 +62,7 @@ package SData_Core.Table is
 
    --  Removes a column from the table.
    procedure Drop_Column (Name : String);
-   
+
    --  Removes a specific row from the table.
    procedure Drop_Row (Index : Positive);
 
@@ -75,9 +75,9 @@ package SData_Core.Table is
    end record;
    type Sort_Criteria_Array is array (Positive range <>) of Sort_Criteria;
 
-   -- Sorts the table based on the given criteria.
+   --  Sorts the table based on the given criteria.
    procedure Sort (Criteria : Sort_Criteria_Array);
-   
+
    --  Sets/Gets the pointer to the current record during data step iteration.
    procedure Set_Current_Record_Index (Index : Natural);
    function Get_Current_Record_Index return Natural;
@@ -92,7 +92,6 @@ package SData_Core.Table is
    function Logical_To_Physical (Logical : Positive) return Positive;
    function Logical_Row_Count return Natural;
    function Is_Filtered return Boolean;
-   
 
    --  Output Table Management
    procedure Initialize_Output_Table;
@@ -151,7 +150,7 @@ private
       --  the first non-missing write.  See Add_Output_Column / Set_Output_Value*.
       Type_Is_Placeholder : Boolean := False;
    end record;
-   
+
    --  Map from column name (String) to Column record.
    package Column_Maps is new Ada.Containers.Indefinite_Hashed_Maps
      (Key_Type => String,
@@ -172,7 +171,6 @@ private
    --  The global data table state.
    Data_Table : Column_Maps.Map;
 
-
    Output_Data_Table : Column_Maps.Map;
    Output_Column_Order : Name_Vectors.Vector;
    Output_Table_Row_Count : Natural := 0;
@@ -180,17 +178,17 @@ private
 
    --  Maintains the insertion order of column names for range expansion.
    Column_Order : Name_Vectors.Vector;
-   
+
    --  Explicit row count (to handle cases where columns haven't been added yet).
    Table_Row_Count : Natural := 0;
 
    --  Current record pointer for the interpreter.
    Current_Record : Natural := 0;
-   
-   -- Logical record number (respecting filters)
+
+   --  Logical record number (respecting filters)
    Logical_Record : Natural := 0;
 
-   -- Segment tracking for disk spillover
+   --  Segment tracking for disk spillover
    Current_Segment_Start : Positive := 1;
    Output_Segment_Start  : Positive := 1;
 

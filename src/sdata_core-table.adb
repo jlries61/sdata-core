@@ -104,11 +104,11 @@ package body SData_Core.Table is
       Seg_End   := 0;
    end Finalize;
 
-   -- Filtered View Mapping
+   --  Filtered View Mapping
    type Index_Array_Access is access Index_Array;
    Filter_Map    : Index_Array_Access := null;
 
-   -- BY-group variable names (upper-cased); mirrored from the interpreter.
+   --  BY-group variable names (upper-cased); mirrored from the interpreter.
    Table_By_Vars : Name_Vectors.Vector;
 
    -----------
@@ -135,18 +135,18 @@ package body SData_Core.Table is
       New_Col : Column;
    begin
       if Data_Table.Contains (Upper_Name) then
-         return; 
+         return;
       end if;
-      
+
       New_Col.Name := (others => ' ');
       New_Col.Name (1 .. Upper_Name'Length) := Upper_Name;
       New_Col.Typ := Col_Type;
-      
+
       --  Rule: New columns must match the existing table height.
       for I in 1 .. Table_Row_Count loop
          New_Col.Data.Append ((Kind => Val_Missing));
       end loop;
-      
+
       Data_Table.Insert (Upper_Name, New_Col);
       Column_Order.Append (Ada.Strings.Unbounded.To_Unbounded_String (Upper_Name));
 
@@ -330,7 +330,7 @@ package body SData_Core.Table is
    procedure Rename_Column (Old_Name, New_Name : String) is
       Upper_Old : constant String := Ada.Characters.Handling.To_Upper (Old_Name);
       Upper_New : constant String := Ada.Characters.Handling.To_Upper (New_Name);
-      Old_Pos   : Column_Maps.Cursor := Data_Table.Find (Upper_Old);
+      Old_Pos   : constant Column_Maps.Cursor := Data_Table.Find (Upper_Old);
    begin
       if Column_Maps.Has_Element (Old_Pos)
          and then not Data_Table.Contains (Upper_New)
@@ -380,7 +380,6 @@ package body SData_Core.Table is
                  (Target => New_Ref.Data, Source => Old_Ref.Data);
             end;
             Data_Table.Delete (Upper_Old);
-
 
             --  Data_Table is an unordered hash map, so Column_Order is the
             --  sole record of user-visible column sequence.  Patch the name
@@ -447,7 +446,7 @@ package body SData_Core.Table is
    begin
       Current_Record := Index;
    end Set_Current_Record_Index;
-   
+
    ----------------------------------------------------------------
    --  Sort working storage with deterministic finalization.
    --
@@ -543,7 +542,7 @@ package body SData_Core.Table is
                if Criteria (I).Dir = Descending then Ada.Strings.Unbounded.Append (OrderBy, " DESC"); end if;
                if I < Criteria'Last then Ada.Strings.Unbounded.Append (OrderBy, ", "); end if;
             end loop;
-            -- Ensure stability: use record_id as tie-breaker
+            --  Ensure stability: use record_id as tie-breaker
             Ada.Strings.Unbounded.Append (OrderBy, ", record_id ASC");
 
             Store.DB.Execute ("CREATE TABLE data_new (record_id INTEGER PRIMARY KEY AUTOINCREMENT, " & Ada.Strings.Unbounded.To_String (Col_Def) & ")");
@@ -1094,7 +1093,7 @@ package body SData_Core.Table is
       end loop;
       if Memory_Rows = 0 then return; end if;
       Initialize_Backing_Store;
-      
+
       SQL := Ada.Strings.Unbounded.To_Unbounded_String ("CREATE TABLE IF NOT EXISTS [" & Table_Name & "] (record_id INTEGER PRIMARY KEY");
       for C in 1 .. Natural (Col_Names.Length) loop
          declare

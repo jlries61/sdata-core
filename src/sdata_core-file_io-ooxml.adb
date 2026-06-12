@@ -469,13 +469,17 @@ package body SData_Core.File_IO.OOXML is
       when E : others =>
          declare OK : Boolean; begin
             if GNAT.OS_Lib.Is_Regular_File (Temp_Shared) then
-               GNAT.OS_Lib.Delete_File (Temp_Shared, OK); end if;
+               GNAT.OS_Lib.Delete_File (Temp_Shared, OK);
+            end if;
             if GNAT.OS_Lib.Is_Regular_File (Temp_Sheet) then
-               GNAT.OS_Lib.Delete_File (Temp_Sheet, OK); end if;
+               GNAT.OS_Lib.Delete_File (Temp_Sheet, OK);
+            end if;
             if GNAT.OS_Lib.Is_Regular_File (Temp_Workbook) then
-               GNAT.OS_Lib.Delete_File (Temp_Workbook, OK); end if;
+               GNAT.OS_Lib.Delete_File (Temp_Workbook, OK);
+            end if;
             if GNAT.OS_Lib.Is_Regular_File (Temp_Rels) then
-               GNAT.OS_Lib.Delete_File (Temp_Rels, OK); end if;
+               GNAT.OS_Lib.Delete_File (Temp_Rels, OK);
+            end if;
          end;
          raise SData_Core.Script_Error with
             "Failed to parse OOXML file """ & File_Name & """: " &
