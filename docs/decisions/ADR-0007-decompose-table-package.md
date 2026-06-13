@@ -81,13 +81,21 @@ source changes; no version bump.
    function Col_Numeric return Column_Type renames SData_Core.Columns.Col_Numeric;
    function Col_Integer return Column_Type renames SData_Core.Columns.Col_Integer;
    function Col_String  return Column_Type renames SData_Core.Columns.Col_String;
+   function "=" (Left, Right : Column_Type) return Boolean
+     renames SData_Core.Columns."=";
    ```
 
    Enumeration literals are parameterless functions, so they rename cleanly; a
-   `subtype` carries the base type's operations, so `use type
-   SData_Core.Table.Column_Type;` and the literal comparisons keep compiling
-   unchanged. `Sort_Criteria`, `Sort_Direction`, `Index_Array`, `Name_Vectors`,
-   and `Type_Mismatch_Error` stay in `Table` as-is.
+   `subtype` keeps `use type SData_Core.Table.Column_Type;` callers compiling.
+   The `"="` re-export is **required** (corrected during M1 implementation,
+   2026-06-13): the enumeration's predefined `"="` moves to `Columns` with the
+   base type, so a consumer using a package-wide `use SData_Core.Table;` without
+   a `use type` clause (e.g. `sdata`'s unit test) would otherwise lose direct
+   visibility of `=`. Re-exporting `"="` restores the prior directly-visible
+   operator set; both consumers then build untouched. The same correction must be
+   applied to `Sort_Direction` / `Sort_Criteria` when M4 relocates them behind the
+   same shim. `Index_Array`, `Name_Vectors`, and `Type_Mismatch_Error` stay in
+   `Table` as-is.
 
 5. **`Column_Name`** (private, `Unbounded_String`-backed, upper-casing baked
    into its one constructor `To_Column_Name`) becomes the single internal
@@ -120,8 +128,14 @@ detail.
 **Negative**
 
 - The `Column_Type` re-export shim is boilerplate that must stay in lockstep
-  with `Columns.Column_Type` (three literal renames + one subtype). The M1 gate
-  ("both consumers build untouched") guards it.
+  with `Columns.Column_Type` (one subtype + three literal renames + an `"="`
+  operator re-export). The `"="` rename is load-bearing, not decorative — see
+  the Decision note. The M1 gate ("both consumers build untouched") guards it.
+- The re-exported `Col_*` are now *functions*, not enumeration literals, so they
+  cannot be used in a *static* context (`case` choices, `'Image`/`'Pos`, a rep
+  clause, an array aggregate keyed by the literals). No such use exists today;
+  if a future change needs one, the relocation strategy for that type must
+  change.
 - The decomposition is multi-milestone; partial completion leaves the codebase
   in an intermediate shape (still correct, still green) for a while.
 
