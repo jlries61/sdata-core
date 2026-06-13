@@ -13,6 +13,7 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Vectors;
 with SData_Core.Values; use SData_Core.Values;
+with SData_Core.Columns; use SData_Core.Columns;
 
 with Ada_Sqlite3;
 
@@ -21,8 +22,19 @@ package SData_Core.Table is
    --  Resets the table state (removes all columns and rows).
    procedure Clear;
 
-   --  Kinds of data allowed in a column.
-   type Column_Type is (Col_Numeric, Col_Integer, Col_String);
+   --  Kinds of data allowed in a column.  Relocated to SData_Core.Columns and
+   --  re-exported here so the public API is byte-for-byte unchanged.  The
+   --  subtype + literal renames are not enough on their own: the enumeration's
+   --  predefined "=" now lives in Columns, so a caller doing `use
+   --  SData_Core.Table` (without `use type`) would lose direct visibility of
+   --  it.  Re-exporting "=" here restores the prior directly-visible operator
+   --  set.  See ADR-0007 / spec sec 4.1.
+   subtype Column_Type is SData_Core.Columns.Column_Type;
+   function Col_Numeric return Column_Type renames SData_Core.Columns.Col_Numeric;
+   function Col_Integer return Column_Type renames SData_Core.Columns.Col_Integer;
+   function Col_String  return Column_Type renames SData_Core.Columns.Col_String;
+   function "=" (Left, Right : Column_Type) return Boolean
+     renames SData_Core.Columns."=";
 
    --  Defines a new column. If the table already has rows, they are padded with missing values.
    procedure Add_Column (Name : String; Col_Type : Column_Type);
@@ -158,27 +170,6 @@ package SData_Core.Table is
    Type_Mismatch_Error : exception;
 
 private
-   --  Vector of values for a single column.
-   package Value_Vectors is new Ada.Containers.Vectors (Index_Type => Positive, Element_Type => Value);
-
-   --  The internal representation of a column.
-   type Column is record
-      Name : String (1 .. Max_Name_Len); -- Padded name
-      Typ  : Column_Type;      -- Enforced type
-      Data : Value_Vectors.Vector; -- List of values (one per row)
-      --  Output columns only: True when Typ was a placeholder inferred from a
-      --  leading missing value of a derived column; cleared (and Typ set) on
-      --  the first non-missing write.  See Add_Output_Column / Set_Output_Value*.
-      Type_Is_Placeholder : Boolean := False;
-   end record;
-
-   --  Map from column name (String) to Column record.
-   package Column_Maps is new Ada.Containers.Indefinite_Hashed_Maps
-     (Key_Type => String,
-      Element_Type => Column,
-      Hash => Ada.Strings.Hash,
-      Equivalent_Keys => "=");
-
    --  Pre-resolved cursor cache for O(1) positional column access during the
    --  data step hot path.  Parallel to Column_Order / Output_Column_Order;
    --  rebuilt whenever the schema changes (Add_Column, Drop_Column, etc.).
