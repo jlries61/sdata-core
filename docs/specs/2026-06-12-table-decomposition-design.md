@@ -111,12 +111,32 @@ subtype Column_Type is SData_Core.Columns.Column_Type;
 function Col_Numeric return Column_Type renames SData_Core.Columns.Col_Numeric;
 function Col_Integer return Column_Type renames SData_Core.Columns.Col_Integer;
 function Col_String  return Column_Type renames SData_Core.Columns.Col_String;
+function "=" (Left, Right : Column_Type) return Boolean
+  renames SData_Core.Columns."=";   -- REQUIRED, see below
 ```
 
-Enumeration literals are parameterless functions, so they rename cleanly. A
-`subtype` carries the base type's operations, so consumer `use type
-SData_Core.Table.Column_Type;` and `= SData_Core.Table.Col_String` keep
-compiling byte-for-byte. (Verify during M1: build both consumers untouched.)
+Enumeration literals are parameterless functions, so they rename cleanly, and a
+`subtype` keeps `use type SData_Core.Table.Column_Type;` callers compiling. **But
+the subtype + literal renames are NOT sufficient on their own** (corrected during
+M1 implementation, 2026-06-13): the enumeration's predefined `"="` moves to
+`SData_Core.Columns` with the base type, so a consumer doing `use
+SData_Core.Table;` *without* a `use type` clause loses direct visibility of `=`
+and fails to compile (e.g. `sdata`'s `tests/sdata_unit_test.adb` does
+`Get_Column_Type ("X") = SData_Core.Table.Col_Numeric` under a package-wide
+`use`). Re-exporting `"="` from `Table`'s visible part restores the prior
+directly-visible operator set, so both consumers build untouched. A tree-wide
+grep confirmed only `=` is used on `Column_Type` (no ordering operators, no
+`/=`), so the single `"="` rename is the minimal sufficient set; `/=` is
+auto-derived from a visible `=`. **The same correction applies to any other
+enum/record relocated behind this shim — see §4.4 for `Sort_Direction` /
+`Sort_Criteria` in M4.**
+
+> **Forward caution (M2–M5):** because the re-exported `Col_*` are now
+> *functions*, not enumeration literals, they cannot appear in a *static* context
+> — `case … when Col_X =>` choices, `Column_Type'Image`/`'Pos`/`'Val`, a `for
+> Column_Type use (…)` rep clause, or an array aggregate keyed by the literals.
+> M1 is safe (no such use exists tree-wide). If a later milestone needs one, this
+> shim won't satisfy it and the relocation strategy for that type must change.
 
 ### 4.2 `Column_Name` (closes J1-internal)
 
@@ -187,7 +207,12 @@ pick a resolution at M4 / M5:
   `SData_Core.Columns` and re-export from `Table` with the same shim pattern as
   `Column_Type` — `subtype Sort_Criteria is Columns.Sort_Criteria;`,
   `subtype Sort_Direction is …;`, plus literal renames for `Ascending` /
-  `Descending`. Consumer aggregates and `use type` keep working. *Alternative:*
+  `Descending`. **Apply the §4.1 operator-re-export correction here too:** grep
+  the consumers for how they compare `Sort_Direction` (e.g. `Dir = Ascending`)
+  and `Sort_Criteria`, and re-export each operator used under a plain `use
+  SData_Core.Table` — at minimum `"=" (Sort_Direction)` — or the M4 consumer
+  build will break exactly as M1's did. Consumer aggregates and `use type` keep
+  working. *Alternative:*
   make `Sorting` a private child of `Table` (sees the public types + private
   state) — simpler but trades away the compiler-enforced isolation.
 - **`Grouping`**: `In_Same_Group` reads cell values through Table's value
