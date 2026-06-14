@@ -140,24 +140,54 @@ enum/record relocated behind this shim — see §4.4 for `Sort_Direction` /
 
 ### 4.2 `Column_Name` (closes J1-internal)
 
+**Corrected during M2 implementation (2026-06-13):** `Column_Name` lives in its
+**own package `SData_Core.Column_Names`**, not inside `Columns`. The original
+sketch put the private type *and* the generic instantiations
+(`Column_Name_Vectors`, `Column_Maps` keyed on it) in the same package — that
+does not compile: a generic instantiation freezes its actual type, and freezing
+a private type before its full view (which is in the same package's private
+part) is a premature-use error. Putting `Column_Name` in its own package means
+`Columns` instantiates over a type that is already complete. Privacy is
+retained (the win ADR-0007 calls "designed out, not just case-normalized").
+
 ```ada
---  SData_Core.Columns
+--  SData_Core.Column_Names   (its own package)
 type Column_Name is private;
 function To_Column_Name (S : String) return Column_Name;   -- THE upper-casing chokepoint
 function Image (N : Column_Name) return String;            -- back to String when needed
-function "=" (L, R : Column_Name) return Boolean;
+overriding function "=" (L, R : Column_Name) return Boolean;
 function Hash (N : Column_Name) return Ada.Containers.Hash_Type;
 private
    type Column_Name is record
       Value : Ada.Strings.Unbounded.Unbounded_String;       -- always upper-cased
    end record;
+
+--  SData_Core.Columns  -- withs Column_Names; re-exports the boundary ops so
+--  Table / M3-M5 convert without separately withing Column_Names:
+subtype Column_Name is SData_Core.Column_Names.Column_Name;
+function To_Column_Name (S : String) return Column_Name renames Column_Names.To_Column_Name;
+function Image (N : Column_Name) return String renames Column_Names.Image;
+function "=" (L, R : Column_Name) return Boolean renames Column_Names."=";
+--  Column_Name_Vectors, the Column record, and Column_Maps (keyed on
+--  Column_Name, Hash => Column_Names.Hash) are instantiated here.
 ```
 
 `Column.Name`, the `Column_Maps` key, and `Column_Order` /
-`Output_Column_Order` all become `Column_Name`. Every `To_Upper (...)` /
-padded-`String(1..Max_Name_Len)` / `To_Unbounded_String (...)` conversion on a
-column name collapses into `To_Column_Name` / `Image`. The public API still
-takes/returns `String` — the facade converts at the boundary.
+`Output_Column_Order` (and `Table_By_Vars`) all become `Column_Name`. Every
+`To_Upper (...)` / padded-`String(1..Max_Name_Len)` / `To_Unbounded_String (...)`
+conversion on a column name collapses into `To_Column_Name` / `Image`. The
+public API still takes/returns `String` — the facade converts at the boundary.
+
+**Anticipated behavior fix (not a regression):** collapsing the
+representations fixes a latent subscripted-column lookup bug — auto-detected
+array element `X(2)` previously read as *missing* because the name form built at
+lookup didn't match the stored key. With one canonical `Column_Name` the lookup
+succeeds. This is exactly the J1 bug class, and `sdata`'s `auto_array_detect`
+test had recorded the wrong `.` output as a baseline ("will update in Task 9").
+M2 therefore carries **one coordinated consumer change**: updating that test's
+expected output to the correct values. This is the sole exception to "no
+consumer changes" across the milestones, and it is a fix the consumer
+anticipated.
 
 ### 4.3 `Backing_Store` interface (sketch)
 

@@ -43,8 +43,7 @@ package body SData_Core.Table is
       Column_Cursor_Cache.Clear;
       for I in 1 .. Natural (Column_Order.Length) loop
          Column_Cursor_Cache.Append
-           (Data_Table.Find
-              (Ada.Strings.Unbounded.To_String (Column_Order.Element (I))));
+           (Data_Table.Find (Column_Order.Element (I)));
       end loop;
    end Rebuild_Column_Cache;
 
@@ -53,8 +52,7 @@ package body SData_Core.Table is
       Output_Cursor_Cache.Clear;
       for I in 1 .. Natural (Output_Column_Order.Length) loop
          Output_Cursor_Cache.Append
-           (Output_Data_Table.Find
-              (Ada.Strings.Unbounded.To_String (Output_Column_Order.Element (I))));
+           (Output_Data_Table.Find (Output_Column_Order.Element (I)));
       end loop;
    end Rebuild_Output_Cache;
 
@@ -109,7 +107,7 @@ package body SData_Core.Table is
    Filter_Map    : Index_Array_Access := null;
 
    --  BY-group variable names (upper-cased); mirrored from the interpreter.
-   Table_By_Vars : Name_Vectors.Vector;
+   Table_By_Vars : Columns.Column_Name_Vectors.Vector;
 
    -----------
    -- Clear --
@@ -131,15 +129,14 @@ package body SData_Core.Table is
    -- Add_Column --
    ----------------
    procedure Add_Column (Name : String; Col_Type : Column_Type) is
-      Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
+      Key : constant Columns.Column_Name := To_Column_Name (Name);
       New_Col : Column;
    begin
-      if Data_Table.Contains (Upper_Name) then
+      if Data_Table.Contains (Key) then
          return;
       end if;
 
-      New_Col.Name := (others => ' ');
-      New_Col.Name (1 .. Upper_Name'Length) := Upper_Name;
+      New_Col.Name := Key;
       New_Col.Typ := Col_Type;
 
       --  Rule: New columns must match the existing table height.
@@ -147,8 +144,8 @@ package body SData_Core.Table is
          New_Col.Data.Append ((Kind => Val_Missing));
       end loop;
 
-      Data_Table.Insert (Upper_Name, New_Col);
-      Column_Order.Append (Ada.Strings.Unbounded.To_Unbounded_String (Upper_Name));
+      Data_Table.Insert (Key, New_Col);
+      Column_Order.Append (Key);
 
       --  Schema changed: invalidate segment cache and rebuild cursor cache.
       --  Insert may have triggered a rehash, invalidating all prior cursors.
@@ -161,19 +158,20 @@ package body SData_Core.Table is
    ----------------
    function Has_Column (Name : String) return Boolean is
    begin
-      return Data_Table.Contains (Ada.Characters.Handling.To_Upper (Name));
+      return Data_Table.Contains (To_Column_Name (Name));
    end Has_Column;
 
    ---------------------
    -- Get_Column_Type --
    ---------------------
    function Get_Column_Type (Name : String) return Column_Type is
-      Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
-      Cursor : constant Column_Maps.Cursor := Data_Table.Find (Upper_Name);
+      Cursor : constant Column_Maps.Cursor :=
+         Data_Table.Find (To_Column_Name (Name));
    begin
       if not Column_Maps.Has_Element (Cursor) then
          raise Constraint_Error with
-           "Get_Column_Type: column not found: " & Upper_Name;
+           "Get_Column_Type: column not found: "
+           & Ada.Characters.Handling.To_Upper (Name);
       end if;
       --  Read Typ through a Constant_Reference so the whole Column (and its
       --  entire Data vector) is not deep-copied just to read one enum field.
@@ -200,7 +198,7 @@ package body SData_Core.Table is
    -----------------
    function Column_Name (I : Positive) return String is
    begin
-      return Ada.Strings.Unbounded.To_String (Column_Order.Element (I));
+      return Image (Column_Order.Element (I));
    end Column_Name;
 
    ---------------
@@ -243,7 +241,8 @@ package body SData_Core.Table is
    end Get_Value;
 
    function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value is
-      Cur : constant Column_Maps.Cursor := Data_Table.Find (Upper_Name);
+      Cur : constant Column_Maps.Cursor :=
+         Data_Table.Find (To_Column_Name (Upper_Name));
    begin
       if not Column_Maps.Has_Element (Cur) then
          return (Kind => Val_Missing);
@@ -310,7 +309,8 @@ package body SData_Core.Table is
    end Coerce_Value;
 
    procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value) is
-      Cur : constant Column_Maps.Cursor := Data_Table.Find (Upper_Name);
+      Cur : constant Column_Maps.Cursor :=
+         Data_Table.Find (To_Column_Name (Upper_Name));
    begin
       if not Column_Maps.Has_Element (Cur) then
          return;
@@ -332,17 +332,16 @@ package body SData_Core.Table is
    -- Rename_Column --
    -------------------
    procedure Rename_Column (Old_Name, New_Name : String) is
-      Upper_Old : constant String := Ada.Characters.Handling.To_Upper (Old_Name);
-      Upper_New : constant String := Ada.Characters.Handling.To_Upper (New_Name);
-      Old_Pos   : constant Column_Maps.Cursor := Data_Table.Find (Upper_Old);
+      Old_Key : constant Columns.Column_Name := To_Column_Name (Old_Name);
+      New_Key : constant Columns.Column_Name := To_Column_Name (New_Name);
+      Old_Pos : constant Column_Maps.Cursor := Data_Table.Find (Old_Key);
    begin
       if Column_Maps.Has_Element (Old_Pos)
-         and then not Data_Table.Contains (Upper_New)
+         and then not Data_Table.Contains (New_Key)
       then
          declare
             Old_Typ  : Column_Type;
             Old_Plc  : Boolean;
-            New_Name : String (1 .. Max_Name_Len) := (others => ' ');
             New_Pos  : Column_Maps.Cursor;
             Inserted : Boolean;
          begin
@@ -355,42 +354,35 @@ package body SData_Core.Table is
                Old_Plc := Old_CR.Type_Is_Placeholder;
             end;
 
-            if Upper_New'Length > Max_Name_Len then
-               New_Name :=
-                 Upper_New (Upper_New'First .. Upper_New'First + Max_Name_Len - 1);
-            else
-               New_Name (1 .. Upper_New'Length) := Upper_New;
-            end if;
-
             --  Insert a shell column with empty Data under the new key, then
             --  MOVE the value vector across rather than copying it.  The prior
             --  code copied the whole Data vector twice (once on Element, again
             --  on Insert) — O(rows) per rename.  Re-find the old key after the
             --  Insert so the move is robust against any rehash.
             Data_Table.Insert
-              (Upper_New,
-               Column'(Name                => New_Name,
+              (New_Key,
+               Column'(Name                => New_Key,
                        Typ                 => Old_Typ,
                        Data                => Value_Vectors.Empty_Vector,
                        Type_Is_Placeholder => Old_Plc),
                New_Pos, Inserted);
             declare
                Old_Ref : constant Column_Maps.Reference_Type :=
-                 Data_Table.Reference (Data_Table.Find (Upper_Old));
+                 Data_Table.Reference (Data_Table.Find (Old_Key));
                New_Ref : constant Column_Maps.Reference_Type :=
                  Data_Table.Reference (New_Pos);
             begin
                Value_Vectors.Move
                  (Target => New_Ref.Data, Source => Old_Ref.Data);
             end;
-            Data_Table.Delete (Upper_Old);
+            Data_Table.Delete (Old_Key);
 
             --  Data_Table is an unordered hash map, so Column_Order is the
             --  sole record of user-visible column sequence.  Patch the name
             --  in place rather than delete/re-append to preserve position.
             for I in 1 .. Natural (Column_Order.Length) loop
-               if Ada.Strings.Unbounded.To_String (Column_Order.Element (I)) = Upper_Old then
-                  Column_Order.Replace_Element (I, Ada.Strings.Unbounded.To_Unbounded_String (Upper_New));
+               if Column_Order.Element (I) = Old_Key then
+                  Column_Order.Replace_Element (I, New_Key);
                   exit;
                end if;
             end loop;
@@ -404,13 +396,13 @@ package body SData_Core.Table is
    -- Drop_Column --
    -----------------
    procedure Drop_Column (Name : String) is
-      Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
-      Pos : Column_Maps.Cursor := Data_Table.Find (Upper_Name);
+      Key : constant Columns.Column_Name := To_Column_Name (Name);
+      Pos : Column_Maps.Cursor := Data_Table.Find (Key);
    begin
       if Column_Maps.Has_Element (Pos) then
          Data_Table.Delete (Pos);
          for I in 1 .. Natural (Column_Order.Length) loop
-            if Ada.Strings.Unbounded.To_String (Column_Order.Element (I)) = Upper_Name then
+            if Column_Order.Element (I) = Key then
                Column_Order.Delete (I);
                exit;
             end if;
@@ -542,7 +534,7 @@ package body SData_Core.Table is
             end loop;
 
             for I in Criteria'Range loop
-               Ada.Strings.Unbounded.Append (OrderBy, Sql_Id (Ada.Characters.Handling.To_Upper (Criteria (I).Name (1 .. Criteria (I).Len))));
+               Ada.Strings.Unbounded.Append (OrderBy, Sql_Id (Image (To_Column_Name (Criteria (I).Name (1 .. Criteria (I).Len)))));
                if Criteria (I).Dir = Descending then Ada.Strings.Unbounded.Append (OrderBy, " DESC"); end if;
                if I < Criteria'Last then Ada.Strings.Unbounded.Append (OrderBy, ", "); end if;
             end loop;
@@ -622,7 +614,7 @@ package body SData_Core.Table is
             begin
                Key_Data (C).Ref := new Sort_Key_Row (0 .. N);
                Key_Data (C).Ref (0) := (Kind => Val_Missing);
-               if Data_Table.Contains (Col_Name) then
+               if Data_Table.Contains (To_Column_Name (Col_Name)) then
                   for R in 1 .. N loop
                      Key_Data (C).Ref (R) := Get_Value_Upper (R, Col_Name);
                   end loop;
@@ -645,13 +637,14 @@ package body SData_Core.Table is
          begin
             while Column_Maps.Has_Element (Pos) loop
                declare
-                  Current_Key : constant String := Column_Maps.Key (Pos);
+                  Current_Key : constant Columns.Column_Name :=
+                     Column_Maps.Key (Pos);
                   Old_Data    : Value_Vectors.Vector renames Data_Table.Reference (Pos).Element.all.Data;
                   New_Data    : Value_Vectors.Vector;
                begin
                   New_Data.Reserve_Capacity (Ada.Containers.Count_Type (N));
                   for I in 1 .. N loop
-                     New_Data.Append (Get_Value_Upper (Indices.Ref (I), Current_Key));
+                     New_Data.Append (Get_Value_Upper (Indices.Ref (I), Image (Current_Key)));
                   end loop;
                   Value_Vectors.Move (Source => New_Data, Target => Old_Data);
                end;
@@ -712,7 +705,7 @@ package body SData_Core.Table is
    -----------------
    procedure Add_By_Var (Name : String) is
    begin
-      Table_By_Vars.Append (To_Unbounded_String (Name));
+      Table_By_Vars.Append (To_Column_Name (Name));
    end Add_By_Var;
 
    function By_Var_Count return Natural is
@@ -722,7 +715,7 @@ package body SData_Core.Table is
 
    function By_Var_Name (I : Positive) return String is
    begin
-      return To_String (Table_By_Vars.Element (I));
+      return Image (Table_By_Vars.Element (I));
    end By_Var_Name;
 
    -------------------
@@ -735,7 +728,7 @@ package body SData_Core.Table is
       if Idx1 > Table_Row_Count or else Idx2 > Table_Row_Count then return False; end if;
       for V of Table_By_Vars loop
          declare
-            Name : constant String := To_String (V);
+            Name : constant String := Image (V);
             Val1 : constant Value  := Get_Value_Upper (Idx1, Name);
             Val2 : constant Value  := Get_Value_Upper (Idx2, Name);
          begin
@@ -808,12 +801,11 @@ package body SData_Core.Table is
 
    procedure Add_Output_Column
      (Name : String; Col_Type : Column_Type; From_Missing : Boolean := False) is
-      Upper_Name : constant String := Ada.Characters.Handling.To_Upper (Name);
+      Key : constant Columns.Column_Name := To_Column_Name (Name);
       New_Col : Column;
    begin
-      if Output_Data_Table.Contains (Upper_Name) then return; end if;
-      New_Col.Name := (others => ' ');
-      New_Col.Name (1 .. Upper_Name'Length) := Upper_Name;
+      if Output_Data_Table.Contains (Key) then return; end if;
+      New_Col.Name := Key;
       New_Col.Typ := Col_Type;
       New_Col.Type_Is_Placeholder := From_Missing;
 
@@ -821,8 +813,8 @@ package body SData_Core.Table is
          New_Col.Data.Append ((Kind => Val_Missing));
       end loop;
 
-      Output_Data_Table.Insert (Upper_Name, New_Col);
-      Output_Column_Order.Append (Ada.Strings.Unbounded.To_Unbounded_String (Upper_Name));
+      Output_Data_Table.Insert (Key, New_Col);
+      Output_Column_Order.Append (Key);
       --  Insert may have triggered a rehash; rebuild output cursor cache.
       Rebuild_Output_Cache;
    end Add_Output_Column;
@@ -864,7 +856,8 @@ package body SData_Core.Table is
    end Upgrade_Placeholder_Type;
 
    procedure Set_Output_Value_Upper (Row : Positive; Upper_Name : String; Val : Value) is
-      Cur : constant Column_Maps.Cursor := Output_Data_Table.Find (Upper_Name);
+      Cur : constant Column_Maps.Cursor :=
+         Output_Data_Table.Find (To_Column_Name (Upper_Name));
    begin
       if not Column_Maps.Has_Element (Cur) then
          return;
@@ -962,7 +955,7 @@ package body SData_Core.Table is
          if Row >= Current_Segment_Start and then Row < Current_Segment_Start + Len then
             return Ref.Element.all.Data.Element (Row - Current_Segment_Start + 1);
          elsif Store.Is_Active then
-            return Fetch_From_Disk (Row, Column_Maps.Key (Cur));
+            return Fetch_From_Disk (Row, Image (Column_Maps.Key (Cur)));
          else
             return (Kind => Val_Missing);
          end if;
@@ -997,7 +990,7 @@ package body SData_Core.Table is
          Upgrade_Placeholder_Type (Col, Val);
          Col.Data.Replace_Element
            (Row - Output_Segment_Start + 1,
-            Coerce_Value (Val, Col.Typ, Column_Maps.Key (Cur)));
+            Coerce_Value (Val, Col.Typ, Image (Column_Maps.Key (Cur))));
       end;
    end Set_Output_Value_By_Col;
 
@@ -1091,7 +1084,7 @@ package body SData_Core.Table is
       --  Clear cache because we might be modifying the table being cached.
       Clear_Fetch_Cache;
       for Pos in T.Iterate loop
-         Col_Names.Append (Ada.Strings.Unbounded.To_Unbounded_String (Column_Maps.Key (Pos)));
+         Col_Names.Append (Ada.Strings.Unbounded.To_Unbounded_String (Image (Column_Maps.Key (Pos))));
          Col_Cursors.Append (Pos);
          if Memory_Rows = 0 then
             Memory_Rows := Natural (Column_Maps.Constant_Reference (T, Pos).Element.all.Data.Length);

@@ -4,16 +4,25 @@
 
 --  Package SData_Core.Columns holds the shared data vocabulary for the Table
 --  subsystem: the column value type, the typed column record, and the
---  name-keyed column map.  It is foundational and independent -- it withs
---  nothing inside the Table cluster, so Backing_Store / Sorting / Grouping can
---  all build on it without a dependency cycle.
+--  name-keyed column map.  Built on SData_Core.Column_Names (the private
+--  Column_Name type) and re-exporting its boundary operations so the Table
+--  facade and the M3-M5 units convert without separately withing Column_Names.
 
-with Ada.Strings.Hash;
 with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Vectors;
 with SData_Core.Values; use SData_Core.Values;
+with SData_Core.Column_Names;
 
 package SData_Core.Columns is
+
+   --  Re-export the private name type + its boundary ops (see Column_Names).
+   subtype Column_Name is SData_Core.Column_Names.Column_Name;
+   function To_Column_Name (S : String) return Column_Name
+     renames SData_Core.Column_Names.To_Column_Name;
+   function Image (N : Column_Name) return String
+     renames SData_Core.Column_Names.Image;
+   function "=" (L, R : Column_Name) return Boolean
+     renames SData_Core.Column_Names."=";
 
    --  Kinds of data allowed in a column.
    type Column_Type is (Col_Numeric, Col_Integer, Col_String);
@@ -22,22 +31,25 @@ package SData_Core.Columns is
    package Value_Vectors is new Ada.Containers.Vectors
      (Index_Type => Positive, Element_Type => Value);
 
+   --  Insertion-order list of column names (replaces the old Unbounded_String
+   --  Column_Order / Output_Column_Order vectors).  Distinct from
+   --  Table.Name_Vectors, which is a consumer-facing public type and stays.
+   package Column_Name_Vectors is new Ada.Containers.Vectors
+     (Index_Type => Positive, Element_Type => Column_Name);
+
    --  The internal representation of a column.
    type Column is record
-      Name : String (1 .. Max_Name_Len); -- Padded name
-      Typ  : Column_Type;      -- Enforced type
-      Data : Value_Vectors.Vector; -- List of values (one per row)
-      --  Output columns only: True when Typ was a placeholder inferred from a
-      --  leading missing value of a derived column; cleared (and Typ set) on
-      --  the first non-missing write.  See Add_Output_Column / Set_Output_Value*.
+      Name : Column_Name;
+      Typ  : Column_Type;
+      Data : Value_Vectors.Vector;
       Type_Is_Placeholder : Boolean := False;
    end record;
 
-   --  Map from column name (String) to Column record.
+   --  Map keyed by the canonical Column_Name.
    package Column_Maps is new Ada.Containers.Indefinite_Hashed_Maps
-     (Key_Type => String,
-      Element_Type => Column,
-      Hash => Ada.Strings.Hash,
-      Equivalent_Keys => "=");
+     (Key_Type        => Column_Name,
+      Element_Type    => Column,
+      Hash            => SData_Core.Column_Names.Hash,
+      Equivalent_Keys => SData_Core.Column_Names."=");
 
 end SData_Core.Columns;

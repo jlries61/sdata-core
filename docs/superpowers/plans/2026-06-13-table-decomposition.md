@@ -197,8 +197,31 @@ Then open a PR and **stop for review** (spec §9.2 — do not batch milestones).
 
 ## Task M2 — `Column_Name` private type (closes J1-internal)
 
+> **AS BUILT (2026-06-13, commit `391dcf9` on `refactor/table-m2-column-name`):**
+> The Steps 1–2 below are SUPERSEDED. `Column_Name` could NOT be a private type
+> in `Columns` with the map/vector generics instantiated over it in the same
+> package — that freezes the partial view (Ada premature-use error). The
+> as-built layout ("Option B", chosen with the user) is:
+> - **New package `SData_Core.Column_Names`** holds the private `Column_Name` +
+>   `To_Column_Name`/`Image`/`overriding "="`/`Hash` (full record view in its
+>   private part).
+> - `SData_Core.Columns` `with`s it, `subtype`-re-exports `Column_Name` and
+>   renames `To_Column_Name`/`Image`/`"="`, and instantiates
+>   `Column_Name_Vectors` / `Column` / `Column_Maps` (keyed on `Column_Name`,
+>   `Hash => Column_Names.Hash`) over the now-complete type.
+> - `table.adb` Step 4/5 conversion-site list below is accurate as built; type
+>   names are written `Columns.Column_Name` (homograph with the `Column_Name`
+>   function).
+> - Carried **one coordinated consumer change**: `sdata`'s
+>   `tests/expected/auto_array_detect.out` updated for the subscripted-column
+>   fix (see §4.2). Gate: sdata-core 0-warning + 5/5 drivers, sdata 202/202,
+>   data-vandal 70/70.
+> Code-quality review left three behaviour-preserving Minors → tracked as M4
+> follow-ups (see Task M4).
+
 **Files:**
-- Modify: `src/sdata_core-columns.ads` (+ create `src/sdata_core-columns.adb`)
+- Create: `src/sdata_core-column_names.ads` / `.adb` (private `Column_Name`)
+- Modify: `src/sdata_core-columns.ads` (re-export + instantiations over `Column_Name`)
 - Modify: `src/sdata_core-table.adb` (route every column-name conversion through `To_Column_Name` / `Image`)
 - Modify: `src/sdata_core-table.ads` (private part: `Column_Order` / `Output_Column_Order` become `Column_Name_Vectors`)
 
@@ -909,6 +932,23 @@ Open PR, **stop for review**.
 ---
 
 ## Task M4 — `SData_Core.Sorting` extraction (~175 LOC)
+
+> **M2 code-review follow-ups to fold in here (behaviour-preserving Minors):**
+> 1. **Hot-path round-trip:** the in-memory sort reorder currently does
+>    `Get_Value_Upper (Indices.Ref (I), Image (Current_Key))` where `Current_Key`
+>    is already a `Column_Name` — `Image` → `To_Column_Name` re-allocates +
+>    re-upper-cases per cell (O(cols×rows)). M4 rewrites this reorder to read the
+>    column vector directly (no `Find`, no key construction); make sure it does so
+>    (and consider a private `Find`-by-`Column_Name` accessor for the spilled-path
+>    key reads).
+> 2. **Cosmetic:** the spilled-sort ORDER BY builds keys as
+>    `Image (To_Column_Name (Criteria (I).Name (...)))` where there is no map
+>    lookup — replace with plain `Ada.Characters.Handling.To_Upper (...)`.
+> 3. **Naming:** `Get_Value_Upper`/`Set_Value_Upper`/`Set_Output_Value_Upper`
+>    no longer require pre-upper-cased input (they canonicalize internally). When
+>    M4/M5 touch these seams, add a one-line note that the `_Upper` suffix is
+>    historical (or rename if low-risk); `nav_fns.adb` currently double-upper-cases
+>    defensively, which is harmless.
 
 **Files:**
 - Modify: `src/sdata_core-columns.ads` (relocate `Sort_Direction` / `Sort_Criteria` / `Sort_Criteria_Array`)

@@ -55,7 +55,15 @@ jobs:
           # Pinned to sdata's latest release tag.  Bump on each new sdata
           # release: replace below with the new tag and the cache key in
           # the next step will rotate automatically.
-          ref: v0.9.7
+          #
+          # TEMPORARY (U1 M2 / J1-internal): pinned to the sdata commit that
+          # carries the coordinated auto_array_detect expected-output fix,
+          # because M2's Column_Name canonicalization changes that test's
+          # output and the v0.9.7 release predates the fix.  Re-pin to the
+          # next sdata release tag (which will include the fix) once it is
+          # cut.  See sdata#26 / sdata-core#48.  (Full 40-char SHA required:
+          # actions/checkout treats a short SHA as a branch/tag name.)
+          ref: 578d0d766ebd67756ded6a769dab15dca29f38f9
           path: sdata
 
       - name: Set up Alire
