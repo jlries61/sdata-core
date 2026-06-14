@@ -61,8 +61,9 @@ jobs:
           # because M2's Column_Name canonicalization changes that test's
           # output and the v0.9.7 release predates the fix.  Re-pin to the
           # next sdata release tag (which will include the fix) once it is
-          # cut.  See sdata#26 / sdata-core#48.
-          ref: 578d0d7
+          # cut.  See sdata#26 / sdata-core#48.  (Full 40-char SHA required:
+          # actions/checkout treats a short SHA as a branch/tag name.)
+          ref: 578d0d766ebd67756ded6a769dab15dca29f38f9
           path: sdata
 
       - name: Set up Alire
