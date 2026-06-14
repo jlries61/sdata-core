@@ -184,12 +184,12 @@ private
    Data_Table : Column_Maps.Map;
 
    Output_Data_Table : Column_Maps.Map;
-   Output_Column_Order : Name_Vectors.Vector;
+   Output_Column_Order : Columns.Column_Name_Vectors.Vector;
    Output_Table_Row_Count : Natural := 0;
    Record_Explicitly_Written : Boolean := False;
 
    --  Maintains the insertion order of column names for range expansion.
-   Column_Order : Name_Vectors.Vector;
+   Column_Order : Columns.Column_Name_Vectors.Vector;
 
    --  Explicit row count (to handle cases where columns haven't been added yet).
    Table_Row_Count : Natural := 0;
