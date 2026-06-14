@@ -104,6 +104,15 @@ source changes; no version bump.
    J1. The public API continues to take and return `String`; the facade
    converts at the boundary.
 
+   **Implemented (M2, 2026-06-13):** `Column_Name` lives in its **own package
+   `SData_Core.Column_Names`**, not in `Columns`. Instantiating the column
+   map/vectors over a private type requires the type to be complete at the
+   instantiation point; a same-package private type would freeze prematurely
+   (Ada premature-use error). `Columns` `with`s `Column_Names` and re-exports
+   its boundary ops. Privacy is preserved — the "designed out, not just
+   case-normalized" property below holds. M2 also corrected a latent
+   subscripted-column lookup bug as a natural consequence (see Consequences).
+
 The work is staged M1 (Columns relocate) → M2 (`Column_Name`) → M3
 (`Backing_Store`) → M4 (`Sorting`) → M5 (`Grouping`), each behavior-preserving
 and gated by the in-crate drivers plus both consumer suites. See
@@ -121,9 +130,14 @@ detail.
   globals.
 - J1's internal representation sprawl collapses to one `Column_Name` type with
   a single upper-casing chokepoint — the subtlest column-name bug class is
-  designed out, not just case-normalized.
-- Zero consumer churn and no version bump: the facade and the `Column_Type`
-  re-export keep the public contract identical.
+  designed out, not just case-normalized. Concretely, M2's canonicalization
+  fixed a real latent bug: auto-detected array element `X(2)` had been reading
+  as *missing* because the lookup name form didn't match the stored key.
+- Near-zero consumer churn and no version bump: the facade and the `Column_Type`
+  re-export keep the public contract identical. The **one** exception is M2's
+  update to `sdata`'s `auto_array_detect` expected output, reflecting the
+  subscripted-column fix above — a change that test had explicitly anticipated
+  ("will update in Task 9"). No consumer *code* changed.
 
 **Negative**
 
