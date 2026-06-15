@@ -7,15 +7,11 @@
 --  Columns are typed (Numeric or String) and the table maintains consistency
 --  between rows.
 
-with Ada.Finalization;
-with Ada.Strings.Hash;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
-with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Vectors;
 with SData_Core.Values; use SData_Core.Values;
 with SData_Core.Columns; use SData_Core.Columns;
-
-with Ada_Sqlite3;
+with SData_Core.Backing_Store;
 
 package SData_Core.Table is
 
@@ -204,38 +200,8 @@ private
    Current_Segment_Start : Positive := 1;
    Output_Segment_Start  : Positive := 1;
 
-   --  Segment-level prefetch cache for disk-backed rows.
-   --  Holds all rows for one spilled segment; populated on first access to
-   --  any row in that segment and reused until a different segment is needed.
-   --  Per-column data is stored in Value_Vectors.Vector, indexed by
-   --  (row - Seg_Start + 1).
-   package Seg_Data_Maps is new Ada.Containers.Indefinite_Hashed_Maps
-     (Key_Type        => String,
-      Element_Type    => Value_Vectors.Vector,
-      Hash            => Ada.Strings.Hash,
-      Equivalent_Keys => "=",
-      "="             => Value_Vectors."=");
-   Seg_Cache : Seg_Data_Maps.Map;
-   Seg_Start : Natural := 0;  --  0 = empty; first logical row of cached segment
-   Seg_End   : Natural := 0;  --  last logical row of cached segment
-
-   --  SQLite Backing Store
-   --  Derived from Limited_Controlled so that Finalize runs automatically at
-   --  program exit (including on unhandled exception), deleting the temp file.
-   type Database_Access is access all Ada_Sqlite3.Database;
-   type Backing_Store is new Ada.Finalization.Limited_Controlled with record
-      DB          : Database_Access := null;
-      Is_Active   : Boolean := False;
-      Temp_Path   : Unbounded_String;
-      Row_Limit   : Natural := 0; -- -m value
-   end record;
-   overriding procedure Finalize (S : in out Backing_Store);
-
-   Store : Backing_Store;
-
-   --  Storage Management Procedures
-   procedure Initialize_Backing_Store;
-   procedure Spill_To_Disk;
-   function Fetch_From_Disk (Row : Positive; Col_Name : String) return Value;
+   --  Single owned spill kernel.  Package-level singleton (not a stack object)
+   --  so finalization timing is unchanged (spec risk table, row 4).
+   Store : SData_Core.Backing_Store.Backing_Store;
 
 end SData_Core.Table;

@@ -24,6 +24,12 @@ package SData_Core.Columns is
    function "=" (L, R : Column_Name) return Boolean
      renames SData_Core.Column_Names."=";
 
+   --  Strip the leading space Integer'Image prepends for non-negative values
+   --  so diagnostic strings read "rows=123" rather than "rows= 123".  Shared
+   --  by Backing_Store, Sorting, and the Table facade for structured error
+   --  context.
+   function Img (N : Integer) return String;
+
    --  Kinds of data allowed in a column.
    type Column_Type is (Col_Numeric, Col_Integer, Col_String);
 
