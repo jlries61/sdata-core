@@ -90,14 +90,17 @@ package SData_Core.Table is
    --  Removes a specific row from the table.
    procedure Drop_Row (Index : Positive);
 
-   --  Sorting support
-   type Sort_Direction is (Ascending, Descending);
-   type Sort_Criteria is record
-      Name : String (1 .. Max_Name_Len);
-      Len  : Natural;
-      Dir  : Sort_Direction;
-   end record;
-   type Sort_Criteria_Array is array (Positive range <>) of Sort_Criteria;
+   --  Sorting support.  Relocated to SData_Core.Columns and re-exported here so
+   --  consumer aggregates (Sort_Criteria_Array) and `.Dir := Ascending`
+   --  assignments keep compiling byte-for-byte (sec 4.4, same shim pattern as
+   --  Column_Type).  No "=" re-export: neither consumer compares Sort_Direction
+   --  or Sort_Criteria values (only assigns/declares them), so an "=" rename
+   --  would be unused and draw a -gnaty warning.
+   subtype Sort_Direction is SData_Core.Columns.Sort_Direction;
+   function Ascending  return Sort_Direction renames SData_Core.Columns.Ascending;
+   function Descending return Sort_Direction renames SData_Core.Columns.Descending;
+   subtype Sort_Criteria       is SData_Core.Columns.Sort_Criteria;
+   subtype Sort_Criteria_Array is SData_Core.Columns.Sort_Criteria_Array;
 
    --  Sorts the table based on the given criteria.
    procedure Sort (Criteria : Sort_Criteria_Array);
