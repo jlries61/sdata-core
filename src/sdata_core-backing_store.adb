@@ -17,6 +17,18 @@ with Ada_Sqlite3; use Ada_Sqlite3;
 
 package body SData_Core.Backing_Store is
 
+   --  Organisation: the trivial state accessors (Is_Active / Path) and the
+   --  segment-cache reset (Clear_Cache) come first; then the lifecycle (Open
+   --  creates the temp DB on demand, Close / Finalize tear it down); then the
+   --  two heavy operations, Spill (memory -> disk) and Fetch (disk -> memory,
+   --  one segment at a time).  Spill's atomicity / clean-abort contract is
+   --  documented in the spec; the comments here cover only the mechanics.
+
+   --  Quote Name as a SQLite identifier: wrap it in [ ] and escape any embedded
+   --  ']' by doubling it (the sole metacharacter inside a bracket-quoted
+   --  identifier).  This lets column names hold spaces, punctuation, or SQL
+   --  keywords without parse errors or injection.  Buf is sized Name'Length * 2
+   --  for the worst case where every character is a ']'.
    function Sql_Id (Name : String) return String is
       Buf : String (1 .. Name'Length * 2);
       Len : Natural := 0;
@@ -130,8 +142,14 @@ package body SData_Core.Backing_Store is
    begin
       if T.Is_Empty then return; end if;
 
-      --  Clear cache because we might be modifying the table being cached.
+      --  We are about to mutate T (clearing its in-memory vectors on success),
+      --  so any prefetch cache built from it would go stale -- drop it now.
       Clear_Cache (Self);
+
+      --  Snapshot the column names (upper-cased, for the SQL identifiers) and
+      --  their cursors once, in a single stable order reused by both the CREATE
+      --  and the INSERT below.  Memory_Rows is the segment height: every column
+      --  vector has the same length, so the first non-empty one suffices.
       for Pos in T.Iterate loop
          Col_Names.Append
            (To_Unbounded_String (Columns.Image (Columns.Column_Maps.Key (Pos))));
@@ -142,8 +160,15 @@ package body SData_Core.Backing_Store is
          end if;
       end loop;
       if Memory_Rows = 0 then return; end if;
+
+      --  Create the temp DB lazily on the first spill (idempotent thereafter).
       Open (Self);
 
+      --  Build "CREATE TABLE IF NOT EXISTS [Name] (record_id INTEGER PRIMARY
+      --  KEY, <col> <affinity>, ...)".  record_id is the global logical row
+      --  number (set in the INSERT below), so Fetch can reload any segment by
+      --  record_id range.  Each column's Ada type maps to the SQLite affinity
+      --  Numeric -> REAL, Integer -> INTEGER, String -> TEXT.
       SQL := To_Unbounded_String
         ("CREATE TABLE IF NOT EXISTS [" & Name & "] (record_id INTEGER PRIMARY KEY");
       for C in 1 .. Natural (Col_Names.Length) loop
@@ -160,6 +185,10 @@ package body SData_Core.Backing_Store is
       Append (SQL, ")");
       Self.DB.Execute (To_String (SQL));
 
+      --  Build the parameterised "INSERT OR REPLACE INTO [Name] (record_id,
+      --  <cols>) VALUES (?, ?, ...)" prepared once and reused for every row.
+      --  OR REPLACE so re-spilling an overlapping record_id range overwrites
+      --  cleanly rather than colliding on the primary key.
       SQL := To_Unbounded_String
         ("INSERT OR REPLACE INTO [" & Name & "] (record_id");
       for N of Col_Names loop Append (SQL, ", " & Sql_Id (To_String (N))); end loop;
@@ -176,6 +205,8 @@ package body SData_Core.Backing_Store is
          for R in 1 .. Memory_Rows loop
             Stmt.Reset;
             Stmt.Clear_Bindings;
+            --  record_id = global logical row: this segment's first row (Start)
+            --  plus the in-segment offset (R - 1).
             Stmt.Bind_Int (1, Start + R - 1);
             for C in 1 .. Natural (Col_Names.Length) loop
                declare
@@ -196,6 +227,10 @@ package body SData_Core.Backing_Store is
          Self.DB.Execute ("COMMIT");
       end;
 
+      --  SUCCESS path only: the rows are now durably in the DB, so release the
+      --  in-memory vectors (the caller then advances its segment start past
+      --  them).  On SQLite_Error this line is never reached -- per the spec's
+      --  clean-abort contract, memory must stay the sole copy of the data.
       for Pos in T.Iterate loop T.Reference (Pos).Element.all.Data.Clear; end loop;
    exception
       when E : SQLite_Error =>
@@ -214,9 +249,17 @@ package body SData_Core.Backing_Store is
                    Row_Count : Natural) return SData_Core.Values.Value is
       U_Col : constant String := Ada.Characters.Handling.To_Upper (Col);
    begin
-      --  Load a new segment when Row falls outside the cached range.
+      --  Cache miss -> load the segment containing Row.  Seg_Start = 0 means
+      --  the cache is empty; otherwise [Seg_Start, Seg_End] is what we hold.
+      --  The cache holds exactly ONE segment (no LRU), so a scan that jumps
+      --  between segments re-queries each time -- see the Add_Row cost note.
       if Self.Seg_Start = 0 or else Row < Self.Seg_Start or else Row > Self.Seg_End then
          declare
+            --  Limit = rows per segment = the same cells/columns budget Add_Row
+            --  spills at, so disk segments line up with the in-memory ones.
+            --  Segments tile the row space into Limit-sized blocks: block S_Idx
+            --  (0-based) covers rows [S_Start, S_End], with S_End clamped to the
+            --  table height (Row_Count).  Row is guaranteed to fall in it.
             Col_Count : constant Positive := Positive'Max (1, Natural (T.Length));
             Limit   : constant Positive :=
                (if SData_Core.Config.Max_Table_Cells > 0
@@ -281,7 +324,9 @@ package body SData_Core.Backing_Store is
          end;
       end if;
 
-      --  Return the cached value.
+      --  Return the cached value.  Idx is Row's 1-based position within the
+      --  cached segment.  A column absent from the cache, or a short column,
+      --  yields Missing rather than raising.
       if Self.Seg_Cache.Contains (U_Col) then
          declare
             Idx : constant Positive := Row - Self.Seg_Start + 1;
