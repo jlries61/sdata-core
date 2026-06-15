@@ -5,9 +5,8 @@
 with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Exceptions;
-with Ada.Finalization;
 with SData_Core.Config;
-with SData_Core.IO;
+with SData_Core.Sorting;
 
 with Ada.Unchecked_Deallocation;
 with Ada_Sqlite3; use Ada_Sqlite3;
@@ -39,24 +38,6 @@ package body SData_Core.Table is
 
    procedure Spill_To_Disk;
    procedure Spill_Output_To_Disk;
-
-   --  SQLite identifier quoter for the in-package spilled-Sort SQL builder.
-   --  Backing_Store has its own private copy for the spill/fetch path; this one
-   --  stays here only until M4 moves Sort out (then it goes with it).
-   function Sql_Id (Name : String) return String is
-      Buf : String (1 .. Name'Length * 2);
-      Len : Natural := 0;
-   begin
-      for C of Name loop
-         Len := Len + 1;
-         Buf (Len) := C;
-         if C = ']' then
-            Len := Len + 1;
-            Buf (Len) := ']';
-         end if;
-      end loop;
-      return "[" & Buf (1 .. Len) & "]";
-   end Sql_Id;
 
    --  Filtered View Mapping
    type Index_Array_Access is access Index_Array;
@@ -196,6 +177,9 @@ package body SData_Core.Table is
       return Get_Value_Upper (Row, Ada.Characters.Handling.To_Upper (Column_Name));
    end Get_Value;
 
+   --  The "_Upper" suffix is historical: To_Column_Name canonicalizes the key
+   --  internally now, so callers need not pre-upper-case Upper_Name.  Kept for
+   --  signature compatibility (rename is low value, out of M4 scope).
    function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value is
       Cur : constant Column_Maps.Cursor :=
          Data_Table.Find (To_Column_Name (Upper_Name));
@@ -399,215 +383,17 @@ package body SData_Core.Table is
       Current_Record := Index;
    end Set_Current_Record_Index;
 
-   ----------------------------------------------------------------
-   --  Sort working storage with deterministic finalization.
-   --
-   --  Sort needs per-criterion value snapshots (Key_Data) and two scratch
-   --  index arrays (Indices, Temp).  These were previously bare `access`
-   --  allocations that leaked on every Sort call -- per-sort cost
-   --  (key_columns + 2) * N * sizeof(Value | Positive), unbounded across
-   --  repeated sorts in long-running sessions.
-   --
-   --  Wrapping each allocation in a Limited_Controlled holder makes the
-   --  free deterministic: Finalize runs on scope exit, including the
-   --  exception-unwind case.  Mirrors the Backing_Store pattern in this
-   --  same package.
-   ----------------------------------------------------------------
-   type Sort_Key_Row is array (Natural range <>) of Value;
-   type Sort_Key_Row_Access is access Sort_Key_Row;
-   procedure Free_Key_Row is new Ada.Unchecked_Deallocation
-      (Sort_Key_Row, Sort_Key_Row_Access);
-
-   type Sort_Key_Holder is new Ada.Finalization.Limited_Controlled with record
-      Ref : Sort_Key_Row_Access := null;
-   end record;
-   overriding procedure Finalize (H : in out Sort_Key_Holder);
-
-   type Sort_Indices_Array is array (Positive range <>) of Natural;
-   type Sort_Indices_Access is access Sort_Indices_Array;
-   procedure Free_Sort_Indices is new Ada.Unchecked_Deallocation
-      (Sort_Indices_Array, Sort_Indices_Access);
-
-   type Sort_Indices_Holder is new Ada.Finalization.Limited_Controlled with record
-      Ref : Sort_Indices_Access := null;
-   end record;
-   overriding procedure Finalize (H : in out Sort_Indices_Holder);
-
-   overriding procedure Finalize (H : in out Sort_Key_Holder) is
-   begin
-      if H.Ref /= null then
-         Free_Key_Row (H.Ref);
-      end if;
-   end Finalize;
-
-   overriding procedure Finalize (H : in out Sort_Indices_Holder) is
-   begin
-      if H.Ref /= null then
-         Free_Sort_Indices (H.Ref);
-      end if;
-   end Finalize;
-
    ----------
    -- Sort --
    ----------
+   --  Thin delegator: the spilled SQL ORDER BY path and the in-memory stable
+   --  merge-sort live in SData_Core.Sorting (U1 M4), operating on the column
+   --  map + insertion order + criteria + Store.  Criteria is the re-exported
+   --  Columns.Sort_Criteria_Array subtype, so it passes through directly.
    procedure Sort (Criteria : Sort_Criteria_Array) is
-      N : constant Natural := Table_Row_Count;
    begin
-      if N <= 1 or else Criteria'Length = 0 then return; end if;
-
-      --  One-shot progress note (sort is atomic from the caller's view);
-      --  no-op unless --progress is set.
-      SData_Core.IO.Show_Progress ("SORT", N, Final => True);
-
-      Store.Clear_Cache;
-
-      if Store.Is_Active then
-         Spill_To_Disk;
-         declare
-            N       : constant Natural := Column_Count;
-            Cols_CSV : Ada.Strings.Unbounded.Unbounded_String;
-            Col_Def  : Ada.Strings.Unbounded.Unbounded_String;
-            OrderBy  : Ada.Strings.Unbounded.Unbounded_String :=
-                          Ada.Strings.Unbounded.To_Unbounded_String (" ORDER BY ");
-         begin
-            if N = 0 then return; end if;
-
-            for I in 1 .. N loop
-               declare
-                  Name  : constant String := Column_Name (I);  --  already upper-cased
-                  Typ   : constant Column_Type := Get_Column_Type (Name);
-                  SQL_T : constant String := (if Typ = Col_Numeric then "REAL"
-                                              elsif Typ = Col_Integer then "INTEGER"
-                                              else "TEXT");
-               begin
-                  Ada.Strings.Unbounded.Append (Cols_CSV, Sql_Id (Name));
-                  Ada.Strings.Unbounded.Append (Col_Def,  Sql_Id (Name) & " " & SQL_T);
-                  if I < N then
-                     Ada.Strings.Unbounded.Append (Cols_CSV, ", ");
-                     Ada.Strings.Unbounded.Append (Col_Def,  ", ");
-                  end if;
-               end;
-            end loop;
-
-            for I in Criteria'Range loop
-               Ada.Strings.Unbounded.Append (OrderBy, Sql_Id (Image (To_Column_Name (Criteria (I).Name (1 .. Criteria (I).Len)))));
-               if Criteria (I).Dir = Descending then Ada.Strings.Unbounded.Append (OrderBy, " DESC"); end if;
-               if I < Criteria'Last then Ada.Strings.Unbounded.Append (OrderBy, ", "); end if;
-            end loop;
-            --  Ensure stability: use record_id as tie-breaker
-            Ada.Strings.Unbounded.Append (OrderBy, ", record_id ASC");
-
-            Store.Execute ("CREATE TABLE data_new (record_id INTEGER PRIMARY KEY AUTOINCREMENT, " & Ada.Strings.Unbounded.To_String (Col_Def) & ")");
-            Store.Execute ("INSERT INTO data_new (" & Ada.Strings.Unbounded.To_String (Cols_CSV) & ") " &
-                              "SELECT " & Ada.Strings.Unbounded.To_String (Cols_CSV) & " FROM data " & Ada.Strings.Unbounded.To_String (OrderBy));
-            Store.Execute ("DROP TABLE data");
-            Store.Execute ("ALTER TABLE data_new RENAME TO data");
-         exception
-            when E : SQLite_Error =>
-               raise Script_Error with
-                  "could not sort spilled dataset (disk full?)"
-                  & " [rows=" & Img (Table_Row_Count)
-                  & ", sort_keys=" & Img (Criteria'Length) & "]: "
-                  & Ada.Exceptions.Exception_Message (E);
-         end;
-         return;
-      end if;
-
-      declare
-         --  Per-criterion value snapshots and scratch index arrays are held
-         --  in Limited_Controlled wrappers so heap allocations are freed on
-         --  scope exit (including exception unwind).  See holder type
-         --  declarations above Sort.
-         Key_Data : array (Criteria'Range) of Sort_Key_Holder;
-         Indices  : Sort_Indices_Holder;
-         Temp     : Sort_Indices_Holder;
-
-         function Lt (L, R : Natural) return Boolean is
-         begin
-            for C in Criteria'Range loop
-               declare
-                  VL : Value renames Key_Data (C).Ref (L);
-                  VR : Value renames Key_Data (C).Ref (R);
-               begin
-                  if VL /= VR then
-                     if Criteria (C).Dir = Ascending then
-                        return VL < VR;
-                     else
-                        return VR < VL;
-                     end if;
-                  end if;
-               end;
-            end loop;
-            return L < R;
-         end Lt;
-
-         procedure Merge_Sort (Lo, Hi : Positive) is
-            Mid : Positive;
-            I, J, K : Positive;
-         begin
-            if Lo >= Hi then return; end if;
-            Mid := Lo + (Hi - Lo) / 2;
-            Merge_Sort (Lo, Mid);
-            Merge_Sort (Mid + 1, Hi);
-            for X in Lo .. Hi loop Temp.Ref (X) := Indices.Ref (X); end loop;
-            I := Lo; J := Mid + 1; K := Lo;
-            while I <= Mid and then J <= Hi loop
-               if not Lt (Temp.Ref (J), Temp.Ref (I)) then
-                  Indices.Ref (K) := Temp.Ref (I); I := I + 1;
-               else
-                  Indices.Ref (K) := Temp.Ref (J); J := J + 1;
-               end if;
-               K := K + 1;
-            end loop;
-            while I <= Mid loop Indices.Ref (K) := Temp.Ref (I); I := I + 1; K := K + 1; end loop;
-         end Merge_Sort;
-
-      begin
-         for C in Criteria'Range loop
-            declare
-               Col_Name : constant String :=
-                  Ada.Characters.Handling.To_Upper (Criteria (C).Name (1 .. Criteria (C).Len));
-            begin
-               Key_Data (C).Ref := new Sort_Key_Row (0 .. N);
-               Key_Data (C).Ref (0) := (Kind => Val_Missing);
-               if Data_Table.Contains (To_Column_Name (Col_Name)) then
-                  for R in 1 .. N loop
-                     Key_Data (C).Ref (R) := Get_Value_Upper (R, Col_Name);
-                  end loop;
-               else
-                  for R in 1 .. N loop
-                     Key_Data (C).Ref (R) := (Kind => Val_Missing);
-                  end loop;
-               end if;
-            end;
-         end loop;
-
-         Indices.Ref := new Sort_Indices_Array (1 .. N);
-         Temp.Ref    := new Sort_Indices_Array (1 .. N);
-         for I in 1 .. N loop Indices.Ref (I) := I; end loop;
-
-         Merge_Sort (1, N);
-
-         declare
-            Pos : Column_Maps.Cursor := Data_Table.First;
-         begin
-            while Column_Maps.Has_Element (Pos) loop
-               declare
-                  Current_Key : constant Columns.Column_Name :=
-                     Column_Maps.Key (Pos);
-                  Old_Data    : Value_Vectors.Vector renames Data_Table.Reference (Pos).Element.all.Data;
-                  New_Data    : Value_Vectors.Vector;
-               begin
-                  New_Data.Reserve_Capacity (Ada.Containers.Count_Type (N));
-                  for I in 1 .. N loop
-                     New_Data.Append (Get_Value_Upper (Indices.Ref (I), Image (Current_Key)));
-                  end loop;
-                  Value_Vectors.Move (Source => New_Data, Target => Old_Data);
-               end;
-               Column_Maps.Next (Pos);
-            end loop;
-         end;
-      end;
+      Sorting.Sort (Data_Table, Column_Order, Criteria,
+                    Table_Row_Count, Current_Segment_Start, Store);
    end Sort;
 
    ------------------------------

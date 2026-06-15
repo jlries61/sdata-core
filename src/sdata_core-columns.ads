@@ -58,4 +58,16 @@ package SData_Core.Columns is
       Hash            => SData_Core.Column_Names.Hash,
       Equivalent_Keys => SData_Core.Column_Names."=");
 
+   --  Sorting support.  Relocated here (from Table) so SData_Core.Sorting can
+   --  build on it without a with-cycle; Table re-exports unchanged (sec 4.4).
+   --  Sort_Criteria.Name keeps its fixed-width String tail (the J1 public
+   --  surface), explicitly out of the Column_Name conversion's scope.
+   type Sort_Direction is (Ascending, Descending);
+   type Sort_Criteria is record
+      Name : String (1 .. Max_Name_Len);
+      Len  : Natural;
+      Dir  : Sort_Direction;
+   end record;
+   type Sort_Criteria_Array is array (Positive range <>) of Sort_Criteria;
+
 end SData_Core.Columns;
