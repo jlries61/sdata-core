@@ -15,10 +15,14 @@ with Ada_Sqlite3; use Ada_Sqlite3;
 
 package body SData_Core.Sorting is
 
-   --  SQLite identifier quoter for the spilled ORDER BY.  Backing_Store keeps
-   --  its own private copy for the spill/fetch path; duplicate the 9-line
-   --  quoter here rather than widen the Backing_Store API for one caller.
-   --  (If a third caller appears, promote it to Columns.)
+   --  Quote Name as a SQLite identifier for the spilled ORDER BY: wrap it in
+   --  [ ] and escape any embedded ']' by doubling it (the sole metacharacter
+   --  inside a bracket-quoted identifier), so column names with spaces,
+   --  punctuation, or SQL keywords are safe.  Buf is sized Name'Length * 2 for
+   --  the worst case of all-']'.  Backing_Store keeps its own private copy for
+   --  the spill/fetch path; this 9-line quoter is duplicated rather than
+   --  widening the Backing_Store API for one caller.  (If a third caller
+   --  appears, promote it to Columns.)
    function Sql_Id (Name : String) return String is
       Buf : String (1 .. Name'Length * 2);
       Len : Natural := 0;
