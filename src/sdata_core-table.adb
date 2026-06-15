@@ -5,35 +5,16 @@
 with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Exceptions;
+with Ada.Finalization;
 with SData_Core.Config;
-with SData_Core.Signals;
 with SData_Core.IO;
 
-with GNAT.OS_Lib;
-with GNAT.Strings;
 with Ada.Unchecked_Deallocation;
 with Ada_Sqlite3; use Ada_Sqlite3;
 
 package body SData_Core.Table is
 
    use type Ada.Containers.Count_Type;
-
-   --  Strip the leading space Integer'Image prepends for non-negative values
-   --  so diagnostic strings read "rows=123" rather than "rows= 123".  Used
-   --  only when building the structured context appended to spill / backing-
-   --  store error messages.
-   function Img (N : Integer) return String is
-      S : constant String := Integer'Image (N);
-   begin
-      return (if S (S'First) = ' ' then S (S'First + 1 .. S'Last) else S);
-   end Img;
-
-   procedure Clear_Fetch_Cache is
-   begin
-      Seg_Cache.Clear;
-      Seg_Start := 0;
-      Seg_End   := 0;
-   end Clear_Fetch_Cache;
 
    --  Rebuilds Column_Cursor_Cache to match Column_Order after any schema change.
    --  Must be called after every Insert/Delete/Rename on Data_Table or after a
@@ -56,9 +37,12 @@ package body SData_Core.Table is
       end loop;
    end Rebuild_Output_Cache;
 
+   procedure Spill_To_Disk;
    procedure Spill_Output_To_Disk;
-   procedure Spill_Table_To_Disk (T : aliased in out Column_Maps.Map; Table_Name : String; Start_Idx : Positive);
 
+   --  SQLite identifier quoter for the in-package spilled-Sort SQL builder.
+   --  Backing_Store has its own private copy for the spill/fetch path; this one
+   --  stays here only until M4 moves Sort out (then it goes with it).
    function Sql_Id (Name : String) return String is
       Buf : String (1 .. Name'Length * 2);
       Len : Natural := 0;
@@ -74,34 +58,6 @@ package body SData_Core.Table is
       return "[" & Buf (1 .. Len) & "]";
    end Sql_Id;
 
-   --------------
-   -- Finalize --
-   --------------
-   overriding procedure Finalize (S : in out Backing_Store) is
-      Success : Boolean;
-   begin
-      if not S.Is_Active then return; end if;
-      --  Mark inactive first so a second call (explicit + automatic) is a no-op.
-      S.Is_Active := False;
-      SData_Core.Signals.Clear_Cleanup_Path;
-      declare
-         Path : constant String := Ada.Strings.Unbounded.To_String (S.Temp_Path);
-      begin
-         --  We avoid manually freeing S.DB here: doing so triggers a
-         --  double-finalization crash inside Ada_Sqlite3 (observed with
-         --  ada_sqlite3 0.1.1 -- the only published version; upstream
-         --  github.com/gtnoble/ada-sqlite3 @ 2edbceb).  No upstream issue
-         --  is filed as of 2026-06-02 and no fixed release exists.  The OS
-         --  reclaims the memory; we only need to remove the file.  REVISIT
-         --  when bumping ada_sqlite3 past 0.1.1 (see alire.toml): re-test
-         --  whether freeing S.DB is safe and, if so, drop this leak.
-         GNAT.OS_Lib.Delete_File (Path, Success);
-      end;
-      Seg_Cache.Clear;
-      Seg_Start := 0;
-      Seg_End   := 0;
-   end Finalize;
-
    --  Filtered View Mapping
    type Index_Array_Access is access Index_Array;
    Filter_Map    : Index_Array_Access := null;
@@ -114,7 +70,7 @@ package body SData_Core.Table is
    -----------
    procedure Clear is
    begin
-      Finalize (Store);
+      Store.Close;
       Data_Table.Clear;
       Column_Order.Clear;
       Table_Row_Count := 0;
@@ -149,7 +105,7 @@ package body SData_Core.Table is
 
       --  Schema changed: invalidate segment cache and rebuild cursor cache.
       --  Insert may have triggered a rehash, invalidating all prior cursors.
-      Clear_Fetch_Cache;
+      Store.Clear_Cache;
       Rebuild_Column_Cache;
    end Add_Column;
 
@@ -255,7 +211,7 @@ package body SData_Core.Table is
          if Row >= Current_Segment_Start and then Row < Current_Segment_Start + Len then
             return Ref.Element.all.Data.Element (Row - Current_Segment_Start + 1);
          elsif Store.Is_Active then
-            return Fetch_From_Disk (Row, Upper_Name);
+            return Store.Fetch (Row, Upper_Name, Data_Table, Table_Row_Count);
          else
             return (Kind => Val_Missing);
          end if;
@@ -503,7 +459,7 @@ package body SData_Core.Table is
       --  no-op unless --progress is set.
       SData_Core.IO.Show_Progress ("SORT", N, Final => True);
 
-      Clear_Fetch_Cache;
+      Store.Clear_Cache;
 
       if Store.Is_Active then
          Spill_To_Disk;
@@ -541,11 +497,11 @@ package body SData_Core.Table is
             --  Ensure stability: use record_id as tie-breaker
             Ada.Strings.Unbounded.Append (OrderBy, ", record_id ASC");
 
-            Store.DB.Execute ("CREATE TABLE data_new (record_id INTEGER PRIMARY KEY AUTOINCREMENT, " & Ada.Strings.Unbounded.To_String (Col_Def) & ")");
-            Store.DB.Execute ("INSERT INTO data_new (" & Ada.Strings.Unbounded.To_String (Cols_CSV) & ") " &
+            Store.Execute ("CREATE TABLE data_new (record_id INTEGER PRIMARY KEY AUTOINCREMENT, " & Ada.Strings.Unbounded.To_String (Col_Def) & ")");
+            Store.Execute ("INSERT INTO data_new (" & Ada.Strings.Unbounded.To_String (Cols_CSV) & ") " &
                               "SELECT " & Ada.Strings.Unbounded.To_String (Cols_CSV) & " FROM data " & Ada.Strings.Unbounded.To_String (OrderBy));
-            Store.DB.Execute ("DROP TABLE data");
-            Store.DB.Execute ("ALTER TABLE data_new RENAME TO data");
+            Store.Execute ("DROP TABLE data");
+            Store.Execute ("ALTER TABLE data_new RENAME TO data");
          exception
             when E : SQLite_Error =>
                raise Script_Error with
@@ -743,11 +699,7 @@ package body SData_Core.Table is
    ----------------------------
    function Get_Backing_Store_Path return String is
    begin
-      if Store.Is_Active then
-         return Ada.Strings.Unbounded.To_String (Store.Temp_Path);
-      else
-         return "";
-      end if;
+      return Store.Path;
    end Get_Backing_Store_Path;
 
    -------------------------
@@ -794,7 +746,7 @@ package body SData_Core.Table is
       Output_Column_Order.Clear;
       Output_Table_Row_Count := 0;
       if Store.Is_Active then
-         Store.DB.Execute ("DROP TABLE IF EXISTS output_data");
+         Store.Execute ("DROP TABLE IF EXISTS output_data");
       end if;
       Rebuild_Output_Cache;
    end Initialize_Output_Table;
@@ -880,7 +832,7 @@ package body SData_Core.Table is
    procedure Commit_Output_Table is
       Output_Spilled : constant Boolean := Output_Segment_Start > 1;
    begin
-      Clear_Fetch_Cache;
+      Store.Clear_Cache;
       if Output_Table_Row_Count = 0 and then Output_Data_Table.Is_Empty
         and then not Data_Table.Is_Empty
       then
@@ -892,8 +844,8 @@ package body SData_Core.Table is
          end loop;
          Table_Row_Count := 0;
          if Store.Is_Active then
-            Store.DB.Execute ("DROP TABLE IF EXISTS data");
-            Store.DB.Execute ("DROP TABLE IF EXISTS output_data");
+            Store.Execute ("DROP TABLE IF EXISTS data");
+            Store.Execute ("DROP TABLE IF EXISTS output_data");
          end if;
       else
          Data_Table := Output_Data_Table;
@@ -904,10 +856,10 @@ package body SData_Core.Table is
          Rebuild_Column_Cache;
 
          if Store.Is_Active then
-            Store.DB.Execute ("DROP TABLE IF EXISTS data");
+            Store.Execute ("DROP TABLE IF EXISTS data");
             if Output_Spilled then
                Spill_Output_To_Disk;
-               Store.DB.Execute ("ALTER TABLE output_data RENAME TO data");
+               Store.Execute ("ALTER TABLE output_data RENAME TO data");
             end if;
          end if;
       end if;
@@ -955,7 +907,8 @@ package body SData_Core.Table is
          if Row >= Current_Segment_Start and then Row < Current_Segment_Start + Len then
             return Ref.Element.all.Data.Element (Row - Current_Segment_Start + 1);
          elsif Store.Is_Active then
-            return Fetch_From_Disk (Row, Image (Column_Maps.Key (Cur)));
+            return Store.Fetch
+               (Row, Image (Column_Maps.Key (Cur)), Data_Table, Table_Row_Count);
          else
             return (Kind => Val_Missing);
          end if;
@@ -1004,260 +957,14 @@ package body SData_Core.Table is
       return Record_Explicitly_Written;
    end Get_Record_Explicitly_Written;
 
-   ------------------------------
-   -- Initialize_Backing_Store --
-   ------------------------------
-   procedure Initialize_Backing_Store is
-      FD : GNAT.OS_Lib.File_Descriptor;
-      Temp_Name : GNAT.Strings.String_Access;
-   begin
-      if Store.Is_Active then return; end if;
-      GNAT.OS_Lib.Create_Temp_File (FD, Temp_Name);
-      GNAT.OS_Lib.Close (FD);
-      Store.Temp_Path := Ada.Strings.Unbounded.To_Unbounded_String (Temp_Name.all);
-      Store.DB := new Ada_Sqlite3.Database'(Ada_Sqlite3.Open (Temp_Name.all));
-      --  This is a process-private temp file; we need no durability at all.
-      --  Disable the journal and fsync entirely, and give SQLite a large page
-      --  cache so that external-merge sort runs stay hot across passes.
-      --  temp_store=MEMORY keeps SQLite's own sort intermediates in RAM.
-      Store.DB.Execute ("PRAGMA journal_mode = OFF");
-      Store.DB.Execute ("PRAGMA synchronous = OFF");
-      Store.DB.Execute ("PRAGMA cache_size = -65536");  --  64 MB (negative = KiB)
-      Store.DB.Execute ("PRAGMA temp_store = MEMORY");
-      Store.Is_Active := True;
-      SData_Core.Signals.Register_Cleanup_Path (Temp_Name.all);
-      GNAT.Strings.Free (Temp_Name);
-   exception
-      when E : SQLite_Error =>
-         raise Script_Error with
-            "could not create disk backing store for dataset"
-            & " [temp_path="
-            & Ada.Strings.Unbounded.To_String (Store.Temp_Path) & "]: "
-            & Ada.Exceptions.Exception_Message (E);
-   end Initialize_Backing_Store;
-
-   ---------------------------
-   -- Spill_Table_To_Disk --
-   ---------------------------
-   --  Write every in-memory row of T to the [Table_Name] SQLite table in a
-   --  single transaction, then clear the in-memory column vectors.  Shared
-   --  by Spill_To_Disk ("data") and Spill_Output_To_Disk ("output_data").
-   --
-   --  Atomicity / failure contract -- this is an all-or-nothing operation
-   --  with a deliberate CLEAN-ABORT guarantee:
-   --
-   --    * Success: rows are committed, then the in-memory Data vectors are
-   --      cleared (the "for Pos in T.Iterate ... Data.Clear" below) and the
-   --      caller advances Current_Segment_Start past the spilled segment.
-   --
-   --    * SQLite_Error (e.g. disk full) anywhere in BEGIN..COMMIT: SQLite
-   --      rolls back the uncommitted transaction, so nothing reaches disk;
-   --      the in-memory Clear is SKIPPED, so memory still holds every row;
-   --      and the caller (Add_Row / Commit_Output_Table) unwinds before
-   --      touching Current_Segment_Start or Table_Row_Count.  The net
-   --      result is the exact pre-call state -- the table stays fully
-   --      readable from memory -- with the failure surfaced as Script_Error.
-   --
-   --  WARNING: do NOT "fix" this by forcing the in-memory Clear to run on
-   --  the exception path (e.g. wrapping it in a controlled type).  Binding
-   --  only READS the Value vectors; on failure they are the sole surviving
-   --  copy of the data.  Clearing them after a failed write would discard
-   --  live rows -- turning a recoverable disk-full into data loss.
-   --
-   --  A failed FIRST spill leaves Store.Is_Active = True (set by
-   --  Initialize_Backing_Store before the write).  This is benign and is
-   --  intentionally NOT unwound: reads still hit the in-memory segment,
-   --  Initialize_Backing_Store is idempotent so no temp file leaks, the
-   --  temp file is registered for cleanup, and freeing Store.DB here would
-   --  court the ada_sqlite3 double-finalize crash that Finalize deliberately
-   --  avoids (see :91-92).
-   procedure Spill_Table_To_Disk (T : aliased in out Column_Maps.Map; Table_Name : String; Start_Idx : Positive) is
-      SQL : Ada.Strings.Unbounded.Unbounded_String;
-      Memory_Rows : Natural := 0;
-      package Name_Vecs is new Ada.Containers.Vectors (Positive, Ada.Strings.Unbounded.Unbounded_String);
-      package Cursor_Vecs is new Ada.Containers.Vectors (Positive, Column_Maps.Cursor, Column_Maps."=");
-      Col_Names   : Name_Vecs.Vector;
-      Col_Cursors : Cursor_Vecs.Vector;
-   begin
-      if T.Is_Empty then return; end if;
-
-      --  Clear cache because we might be modifying the table being cached.
-      Clear_Fetch_Cache;
-      for Pos in T.Iterate loop
-         Col_Names.Append (Ada.Strings.Unbounded.To_Unbounded_String (Image (Column_Maps.Key (Pos))));
-         Col_Cursors.Append (Pos);
-         if Memory_Rows = 0 then
-            Memory_Rows := Natural (Column_Maps.Constant_Reference (T, Pos).Element.all.Data.Length);
-         end if;
-      end loop;
-      if Memory_Rows = 0 then return; end if;
-      Initialize_Backing_Store;
-
-      SQL := Ada.Strings.Unbounded.To_Unbounded_String ("CREATE TABLE IF NOT EXISTS [" & Table_Name & "] (record_id INTEGER PRIMARY KEY");
-      for C in 1 .. Natural (Col_Names.Length) loop
-         declare
-            Ref   : constant Column_Maps.Constant_Reference_Type :=
-               Column_Maps.Constant_Reference (T, Col_Cursors.Element (C));
-            SQL_T : constant String := (if Ref.Element.all.Typ = Col_Numeric then "REAL"
-                                        elsif Ref.Element.all.Typ = Col_Integer then "INTEGER"
-                                        else "TEXT");
-         begin
-            Ada.Strings.Unbounded.Append (SQL, ", " & Sql_Id (Ada.Strings.Unbounded.To_String (Col_Names.Element (C))) & " " & SQL_T);
-         end;
-      end loop;
-      Ada.Strings.Unbounded.Append (SQL, ")");
-      Store.DB.Execute (Ada.Strings.Unbounded.To_String (SQL));
-
-      SQL := Ada.Strings.Unbounded.To_Unbounded_String ("INSERT OR REPLACE INTO [" & Table_Name & "] (record_id");
-      for Name of Col_Names loop Ada.Strings.Unbounded.Append (SQL, ", " & Sql_Id (Ada.Strings.Unbounded.To_String (Name))); end loop;
-      Ada.Strings.Unbounded.Append (SQL, ") VALUES (?");
-      for I in 1 .. Natural (Col_Names.Length) loop Ada.Strings.Unbounded.Append (SQL, ", ?"); end loop;
-      Ada.Strings.Unbounded.Append (SQL, ")");
-
-      declare
-         Stmt : Ada_Sqlite3.Statement := Store.DB.Prepare (Ada.Strings.Unbounded.To_String (SQL));
-      begin
-         --  Batch all inserts in one transaction; without this, SQLite
-         --  auto-commits each row individually, causing O(N) lock cycles.
-         Store.DB.Execute ("BEGIN");
-         for R in 1 .. Memory_Rows loop
-            Stmt.Reset;
-            Stmt.Clear_Bindings;
-            Stmt.Bind_Int (1, Start_Idx + R - 1);
-            for C in 1 .. Natural (Col_Names.Length) loop
-               declare
-                  Ref : constant Column_Maps.Constant_Reference_Type :=
-                     Column_Maps.Constant_Reference (T, Col_Cursors.Element (C));
-                  Val : constant Value := Ref.Element.all.Data.Element (R);
-               begin
-                  case Val.Kind is
-                     when Val_Numeric => Stmt.Bind_Double (C + 1, Val.Num_Val);
-                     when Val_Integer => Stmt.Bind_Int (C + 1, Val.Int_Val);
-                     when Val_String  => Stmt.Bind_Text (C + 1, Ada.Strings.Unbounded.To_String (Val.Str_Val));
-                     when Val_Missing => Stmt.Bind_Null (C + 1);
-                  end case;
-               end;
-            end loop;
-            Stmt.Step;
-         end loop;
-         Store.DB.Execute ("COMMIT");
-      end;
-
-      for Pos in T.Iterate loop T.Reference (Pos).Element.all.Data.Clear; end loop;
-   exception
-      when E : SQLite_Error =>
-         raise Script_Error with
-            "could not write dataset to disk (disk full?)"
-            & " [table=" & Table_Name
-            & ", rows=" & Img (Memory_Rows)
-            & ", segment_start=" & Img (Start_Idx) & "]: "
-            & Ada.Exceptions.Exception_Message (E);
-   end Spill_Table_To_Disk;
-
    procedure Spill_To_Disk is
    begin
-      Spill_Table_To_Disk (Data_Table, "data", Current_Segment_Start);
+      Store.Spill (Data_Table, "data", Current_Segment_Start);
    end Spill_To_Disk;
 
    procedure Spill_Output_To_Disk is
    begin
-      Spill_Table_To_Disk (Output_Data_Table, "output_data", Output_Segment_Start);
+      Store.Spill (Output_Data_Table, "output_data", Output_Segment_Start);
    end Spill_Output_To_Disk;
-
-   -----------------------
-   -- Fetch_From_Disk --
-   -----------------------
-   function Fetch_From_Disk (Row : Positive; Col_Name : String) return Value is
-      U_Col : constant String := Ada.Characters.Handling.To_Upper (Col_Name);
-   begin
-      --  Load a new segment when Row falls outside the cached range.
-      if Seg_Start = 0 or else Row < Seg_Start or else Row > Seg_End then
-         declare
-            Col_Count : constant Positive := Positive'Max (1, Natural (Data_Table.Length));
-            Limit   : constant Positive :=
-               (if SData_Core.Config.Max_Table_Cells > 0
-                then Positive'Max (1, SData_Core.Config.Max_Table_Cells / Col_Count)
-                else 1);
-            S_Idx   : constant Natural  := (Row - 1) / Limit;
-            S_Start : constant Positive := S_Idx * Limit + 1;
-            S_End   : constant Positive :=
-               Positive'Min (S_Start + Limit - 1, Table_Row_Count);
-            Num_Rows : constant Natural := S_End - S_Start + 1;
-            Stmt : Ada_Sqlite3.Statement := Store.DB.Prepare
-               ("SELECT * FROM [data] WHERE record_id >= ? AND record_id <= ?" &
-                " ORDER BY record_id");
-            Num_Cols : Integer;
-         begin
-            Stmt.Bind_Int (1, S_Start);
-            Stmt.Bind_Int (2, S_End);
-            Seg_Cache.Clear;
-
-            --  Column count is known from the prepared statement before stepping.
-            Num_Cols := Stmt.Column_Count - 1;  --  exclude record_id at index 0
-
-            --  Pre-insert an empty vector for each data column and reserve
-            --  capacity so that subsequent Appends do not reallocate.
-            for I in 1 .. Num_Cols loop
-               declare
-                  CName : constant String          := Stmt.Column_Name (I);
-                  Empty : constant Value_Vectors.Vector := Value_Vectors.Empty_Vector;
-               begin
-                  Seg_Cache.Include (CName, Empty);
-                  Seg_Cache.Reference (CName).Reserve_Capacity
-                     (Ada.Containers.Count_Type (Num_Rows));
-               end;
-            end loop;
-
-            --  Fetch all rows in one sequential scan.
-            while Stmt.Step = Ada_Sqlite3.ROW loop
-               for I in 1 .. Num_Cols loop
-                  declare
-                     CName : constant String               := Stmt.Column_Name (I);
-                     Typ   : constant Ada_Sqlite3.Column_Type := Stmt.Get_Column_Type (I);
-                     Val   : Value;
-                  begin
-                     if Stmt.Column_Is_Null (I) then
-                        Val := (Kind => Val_Missing);
-                     elsif Typ = Ada_Sqlite3.Float_Type then
-                        Val := (Kind => Val_Numeric, Num_Val => Stmt.Column_Double (I));
-                     elsif Typ = Ada_Sqlite3.Integer_Type then
-                        Val := (Kind => Val_Integer, Int_Val => Stmt.Column_Int (I));
-                     else
-                        Val := (Kind    => Val_String,
-                                Str_Val => Ada.Strings.Unbounded.To_Unbounded_String
-                                             (Stmt.Column_Text (I)));
-                     end if;
-                     Seg_Cache.Reference (CName).Append (Val);
-                  end;
-               end loop;
-            end loop;
-
-            Seg_Start := S_Start;
-            Seg_End   := S_End;
-         end;
-      end if;
-
-      --  Return the cached value.
-      if Seg_Cache.Contains (U_Col) then
-         declare
-            Idx : constant Positive := Row - Seg_Start + 1;
-            Ref : constant Seg_Data_Maps.Constant_Reference_Type :=
-               Seg_Cache.Constant_Reference (U_Col);
-         begin
-            if Idx <= Natural (Ref.Length) then
-               return Ref.Element (Idx);
-            end if;
-         end;
-      end if;
-      return (Kind => Val_Missing);
-   exception
-      when E : SQLite_Error =>
-         raise Script_Error with
-            "could not read dataset from disk "
-            & "(backing store corrupted or missing?)"
-            & " [row=" & Img (Row)
-            & ", column=" & U_Col & "]: "
-            & Ada.Exceptions.Exception_Message (E);
-   end Fetch_From_Disk;
 
 end SData_Core.Table;
