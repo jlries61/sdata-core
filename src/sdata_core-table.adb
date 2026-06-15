@@ -7,6 +7,7 @@ with Ada.Containers;
 with Ada.Exceptions;
 with SData_Core.Config;
 with SData_Core.Sorting;
+with SData_Core.Grouping;
 
 with Ada.Unchecked_Deallocation;
 with Ada_Sqlite3; use Ada_Sqlite3;
@@ -42,9 +43,6 @@ package body SData_Core.Table is
    --  Filtered View Mapping
    type Index_Array_Access is access Index_Array;
    Filter_Map    : Index_Array_Access := null;
-
-   --  BY-group variable names (upper-cased); mirrored from the interpreter.
-   Table_By_Vars : Columns.Column_Name_Vectors.Vector;
 
    -----------
    -- Clear --
@@ -439,7 +437,7 @@ package body SData_Core.Table is
    -------------------
    procedure Clear_By_Vars is
    begin
-      Table_By_Vars.Clear;
+      Grouping.Clear_By_Vars;
    end Clear_By_Vars;
 
    -----------------
@@ -447,17 +445,17 @@ package body SData_Core.Table is
    -----------------
    procedure Add_By_Var (Name : String) is
    begin
-      Table_By_Vars.Append (To_Column_Name (Name));
+      Grouping.Add_By_Var (Name);
    end Add_By_Var;
 
    function By_Var_Count return Natural is
    begin
-      return Natural (Table_By_Vars.Length);
+      return Grouping.By_Var_Count;
    end By_Var_Count;
 
    function By_Var_Name (I : Positive) return String is
    begin
-      return Image (Table_By_Vars.Element (I));
+      return Grouping.By_Var_Name (I);
    end By_Var_Name;
 
    -------------------
@@ -465,19 +463,8 @@ package body SData_Core.Table is
    -------------------
    function In_Same_Group (Idx1, Idx2 : Positive) return Boolean is
    begin
-      if Table_By_Vars.Is_Empty then return True; end if;
-      if Idx1 = Idx2 then return True; end if;
-      if Idx1 > Table_Row_Count or else Idx2 > Table_Row_Count then return False; end if;
-      for V of Table_By_Vars loop
-         declare
-            Name : constant String := Image (V);
-            Val1 : constant Value  := Get_Value_Upper (Idx1, Name);
-            Val2 : constant Value  := Get_Value_Upper (Idx2, Name);
-         begin
-            if not (Val1 = Val2) then return False; end if;
-         end;
-      end loop;
-      return True;
+      return Grouping.In_Same_Group
+        (Idx1, Idx2, Data_Table, Store, Current_Segment_Start, Table_Row_Count);
    end In_Same_Group;
 
    ----------------------------
