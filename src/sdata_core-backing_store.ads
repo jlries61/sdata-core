@@ -68,8 +68,8 @@ package SData_Core.Backing_Store is
                     Start : Positive);
 
    --  Read one cell from the spilled [data] table, materializing the whole
-   --  containing segment into the prefetch cache on first access.  T and
-   --  Row_Count give the table shape (column count for segment sizing).
+   --  containing segment into the prefetch cache on first access.  T's column
+   --  count drives segment sizing; Row_Count clamps the segment's upper bound.
    function Fetch (Self      : in out Backing_Store;
                    Row       : Positive;
                    Col       : String;
@@ -81,7 +81,10 @@ package SData_Core.Backing_Store is
 
    --  Raw SQL escape hatch used by the Sort ORDER BY rebuild and the
    --  Commit_Output_Table table swaps -- operations that are inherently
-   --  DB-level table create/drop/rename.  No-op-safe only when Is_Active.
+   --  DB-level table create/drop/rename.
+   --  PRECONDITION: only call when Is_Active.  This dereferences the DB handle
+   --  unconditionally; calling it on an inactive store is a null dereference,
+   --  not a no-op.  Every caller guards with `if Store.Is_Active`.
    procedure Execute (Self : in out Backing_Store; SQL : String);
 
    --  Tear down: delete the temp file, deactivate, clear cache, unregister
