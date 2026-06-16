@@ -37,7 +37,14 @@ jobs:
             alire-${{ runner.os }}-
 
       - name: Install system dependencies
-        run: sudo apt-get update -o Acquire::Languages=none && sudo apt-get install -y --no-install-recommends libsqlite3-dev
+        run: |
+          # GitHub's Ubuntu image ships Microsoft apt sources (azure-cli, prod)
+          # that intermittently return 403 and abort apt-get update.  This
+          # crate needs none of them, so drop them before updating; libsqlite3-dev
+          # comes from the standard Ubuntu repositories.
+          sudo rm -f /etc/apt/sources.list.d/*microsoft* /etc/apt/sources.list.d/*azure*
+          sudo apt-get update -o Acquire::Languages=none
+          sudo apt-get install -y --no-install-recommends libsqlite3-dev
 
       - name: Build library
         run: alr build
