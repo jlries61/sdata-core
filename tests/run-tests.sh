@@ -29,6 +29,20 @@ for driver in values_tests parse_expression_tests call_function_tests statistics
    fi
 done
 
+#  Documentation-generator unit tests (Python stdlib only; skipped when
+#  python3 is unavailable, e.g. a minimal packaging environment).
+if command -v python3 >/dev/null 2>&1; then
+   echo ""
+   echo "==> Running gen-reference tests"
+   if ! python3 scripts/test-gen-reference.py; then
+      EXIT_STATUS=1
+      echo "  (gen-reference tests failed)"
+   fi
+else
+   echo ""
+   echo "==> Skipping gen-reference tests (python3 not found)"
+fi
+
 echo ""
 if [ "$EXIT_STATUS" -eq 0 ]; then
    echo "==> All test drivers passed."

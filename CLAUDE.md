@@ -58,7 +58,22 @@ gate per audit Findings Beck B1/B2. Run with:
 tests/run-tests.sh
 ```
 
-See `tests/README.md` for what's in scope.
+`run-tests.sh` also runs `scripts/test-gen-reference.py` (Python stdlib, skipped
+if `python3` is absent), the regression tests for the API-reference generator
+described below. See `tests/README.md` for what's in scope.
+
+### API reference generator
+
+`scripts/gen-reference.sh` produces an HTML programmer's reference for the
+public API straight from the `.ads` specs — it reads them as text (Python 3
+stdlib only) rather than via the Ada toolchain, which is why it works where
+GNATdoc 26.0 crashes on this crate's source closure. Output defaults to the
+gitignored `docs/api/reference.html`; pass `--all` to `gen-reference.py` to
+document every spec rather than just the public-contract packages.
+
+```bash
+scripts/gen-reference.sh                 # -> docs/api/reference.html
+```
 
 ### CI scope
 
