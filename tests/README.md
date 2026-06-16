@@ -17,6 +17,17 @@ seam that the `Config.Runtime` privatization made testable in isolation.
 Each driver is a plain Ada main with inline assertions — no framework. A
 failing assertion prints `FAIL: <name>` and the driver exits non-zero.
 
+## Documentation generator
+
+`scripts/test-gen-reference.py` (Python stdlib `unittest`) guards
+`scripts/gen-reference.py`, the HTML API-reference generator. The generator
+is a heuristic text parser over the `.ads` specs, so these tests pin its
+invariants against the live sources: named public entities are captured,
+multi-line signatures stay intact, the license header is stripped from
+package overviews, and nothing from a `private` part leaks into the output.
+`run-tests.sh` runs them after the Ada drivers; they are skipped (not failed)
+when `python3` is unavailable.
+
 ## What's NOT covered
 
 The `Variables` and `Table` data structures, and external I/O (`File_IO`,
@@ -33,8 +44,9 @@ belong in the consumer test suites (`sdata make check`,
 tests/run-tests.sh
 ```
 
-Builds and runs all five drivers; exits 0 if every assertion in every
-driver passes.
+Builds and runs all five Ada drivers, then the documentation-generator
+tests (skipped if `python3` is absent); exits 0 if every assertion in every
+driver and test passes.
 
 ## Rationale
 

@@ -9,3 +9,9 @@ tests/bin/
 
 # SSD working directory (see .ssd/README.md)
 .ssd/
+
+# Generated API reference (scripts/gen-reference.sh)
+docs/api/
+
+# Python bytecode cache (scripts/ tooling)
+__pycache__/
