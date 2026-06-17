@@ -80,6 +80,7 @@ package SData_Core.Config.Runtime is
    function Options_CSVDLM_Len         return Natural;
    function Options_Header             return Boolean;
    function Options_SAVEOVERWRT        return Boolean;
+   function Options_Warn_Reserved      return Boolean;
    function Options_TXTFMT             return String;
    function Options_TXTFMT_Len         return Natural;
    function Options_CHARSET            return String;
@@ -157,8 +158,9 @@ private
                                  (',', others => ' ');
    Options_CSVDLM_Len_Value  : Natural := 1;
    Options_Header_Value      : Boolean := True;
-   Options_SAVEOVERWRT_Value : Boolean := True;
-   Options_TXTFMT_Value      : String (1 .. SData_Core.Max_Delimiter_Len) :=
+   Options_SAVEOVERWRT_Value   : Boolean := True;
+   Options_Warn_Reserved_Value : Boolean := True;
+   Options_TXTFMT_Value        : String (1 .. SData_Core.Max_Delimiter_Len) :=
                                  "AUTO    ";
    Options_TXTFMT_Len_Value  : Natural := 4;
    Options_CHARSET_Value     : String (1 .. SData_Core.Max_Charset_Len) :=

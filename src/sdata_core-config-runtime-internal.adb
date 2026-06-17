@@ -118,6 +118,11 @@ package body SData_Core.Config.Runtime.Internal is
       Options_SAVEOVERWRT_Value := Value;
    end Set_Options_SAVEOVERWRT;
 
+   procedure Set_Options_Warn_Reserved (Value : Boolean) is
+   begin
+      Options_Warn_Reserved_Value := Value;
+   end Set_Options_Warn_Reserved;
+
    procedure Set_Options_TXTFMT (Value : String) is
    begin
       Options_TXTFMT_Value                     := (others => ' ');
