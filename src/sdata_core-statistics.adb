@@ -27,6 +27,45 @@ with Generic_Random_Functions;
 --  MathPaqs library (Phi_function, Beta_function, Gamma_function,
 --  Generic_Random_Functions) implements standard algorithms internally;
 --  see the MathPaqs source tree for per-function references.
+--
+--  Implementation strategy (why the code below looks the way it does):
+--
+--  * Precision.  Every body computes in Long_Float and converts to Float only
+--    at the boundary, so tail cancellation (e.g. 1 - CDF) and log-space PMFs
+--    keep their accuracy.  The public type stays Float because that is the
+--    interpreter's numeric type.
+--
+--  * Special functions are not reimplemented.  The Phi (normal) function, the
+--    regularized / inverse beta function, and log-gamma come from MathPaqs;
+--    only the regularized incomplete gamma P(a,x) is inlined here ([NR] §6.2),
+--    because several distributions need it directly and it is short.  This
+--    keeps the hard numerics in one audited place rather than re-deriving
+--    rational approximations per call site.
+--
+--  * CDFs use standard special-function identities, not numeric integration:
+--    gamma / chi-square via the regularized incomplete gamma; beta / Student-t
+--    / F / binomial via the regularized incomplete beta; the remainder are
+--    closed form.  Each such CDF states its identity and reference inline.
+--
+--  * Quantiles (IDF) come in two flavours.  Where a closed-form inverse exists
+--    (probit, exponential, uniform, beta, Laplace) it is used directly.  Where
+--    it does not, one generic bisection (Bisect_IDF) inverts the CDF and each
+--    caller documents its bracket.  Bisection is preferred over Newton because
+--    these CDFs are monotone but have no cheap, robust derivative, so for a
+--    one-shot interactive evaluation robustness matters more than iteration
+--    count.  Discrete quantiles (Poisson, Binomial) instead accumulate the PMF
+--    forward, since the support is integer-valued.
+--
+--  * Random variates favour a simple, provably-correct method per distribution
+--    over a uniformly optimal one: inverse-CDF where the inverse is closed form
+--    (exponential, Weibull, Laplace), Box-Muller for the normal, Marsaglia-
+--    Tsang for the gamma, and the gamma-based identities for the variates
+--    defined in terms of it (beta, chi-square, Student-t, F).  Discrete cases
+--    are simulated directly (N Bernoulli trials for the binomial).  All draw
+--    from one shared generator, so a single Set_Seed makes every distribution
+--    reproducible.  These are textbook constructions, not speed-tuned
+--    generators — appropriate for a data-step interpreter, not a Monte-Carlo
+--    engine.
 
 package body SData_Core.Statistics is
 
@@ -250,6 +289,7 @@ package body SData_Core.Statistics is
    ---------------------
    -- Exponential_IDF --
    ---------------------
+   --  Method: closed-form inverse CDF, x = -ln(1 - p) / rate.
    function Exponential_IDF (P, Rate : Float) return Float is
    begin
       if Rate <= 0.0 then raise Constraint_Error with "Rate must be positive"; end if;
@@ -260,6 +300,7 @@ package body SData_Core.Statistics is
    --------------------
    -- Exponential_RN --
    --------------------
+   --  Method: inverse-CDF sampling (feed one uniform draw to Exponential_IDF).
    function Exponential_RN (Rate : Float) return Float is
    begin
       Ensure_Random_Init;
@@ -299,6 +340,9 @@ package body SData_Core.Statistics is
    -------------
    -- Beta_RN --
    -------------
+   --  Method: beta variate as X / (X + Y) with X ~ Gamma(Alpha, 1) and
+   --  Y ~ Gamma(Beta, 1) — exact, and reuses the gamma sampler rather than
+   --  needing a dedicated beta generator.
    function Beta_RN (Alpha, Beta : Float) return Float is
       Y1 : constant Float := Gamma_RN (Alpha, 1.0);
       Y2 : constant Float := Gamma_RN (Beta, 1.0);
@@ -321,6 +365,8 @@ package body SData_Core.Statistics is
    -----------------
    -- Poisson_CDF --
    -----------------
+   --  Method: direct summation of the PMF over 0 .. K — simple and exact
+   --  (O(K) terms), rather than the incomplete-gamma relation.
    function Poisson_CDF (K, Mean : Float) return Float is
       KI : constant Integer := Integer (Float'Floor (K));
       Sum : Long_Float := 0.0;
@@ -334,6 +380,8 @@ package body SData_Core.Statistics is
    ----------------
    -- Poisson_RN --
    ----------------
+   --  Method: delegated to MathPaqs Generic_Random_Functions.Poisson, driven
+   --  by the shared uniform generator (local U).
    function Poisson_RN (Mean : Float) return Float is
       function U return Long_Float is
       begin
@@ -405,6 +453,8 @@ package body SData_Core.Statistics is
    --------------------
    -- Chi_Square_PDF --
    --------------------
+   --  chi-square(DF) = Gamma(DF/2, rate 1/2); Chi_Square_PDF/CDF/RN all reduce
+   --  to the corresponding gamma routine via this identity.
    function Chi_Square_PDF (X, DF : Float) return Float is
    begin
       return Gamma_PDF (X, DF / 2.0, 0.5);
@@ -521,6 +571,8 @@ package body SData_Core.Statistics is
    ------------------
    -- Binomial_IDF --
    ------------------
+   --  Method: accumulate the PMF forward until it reaches the cumulative
+   --  probability P (discrete support).
    function Binomial_IDF (P, N, Prob : Float) return Float is
       Sum : Float := 0.0;
       NI  : constant Integer := Integer (Float'Floor (N));
@@ -537,6 +589,8 @@ package body SData_Core.Statistics is
    -----------------
    -- Binomial_RN --
    -----------------
+   --  Method: direct simulation — count successes over N independent
+   --  Bernoulli(P) trials.  Exact and O(N), no approximation.
    function Binomial_RN (N, P : Float) return Float is
       NI : constant Integer := Integer (Float'Floor (N));
       PF : constant Float := P;
@@ -580,6 +634,7 @@ package body SData_Core.Statistics is
    ----------------
    -- Weibull_RN --
    ----------------
+   --  Method: inverse-CDF sampling, x = Scale * (-ln(1 - U))**(1 / Shape).
    function Weibull_RN (Scale, Shape : Float) return Float is
       U : Float;
    begin
@@ -648,6 +703,8 @@ package body SData_Core.Statistics is
    -----------------
    -- Poisson_IDF --
    -----------------
+   --  Method: accumulate the PMF forward until it reaches P (discrete support,
+   --  so a forward search rather than bisection); capped at K > 1e6 as a guard.
    function Poisson_IDF (P, Lambda : Float) return Float is
       PF : constant Long_Float := Long_Float (P);
       L  : constant Long_Float := Long_Float (Lambda);
@@ -675,6 +732,8 @@ package body SData_Core.Statistics is
    -------------------
    -- Student_T_RN --
    -------------------
+   --  Method: definitional construction — Z / sqrt(V / DF), with Z standard
+   --  normal and V ~ chi-square(DF).
    function Student_T_RN (DF : Float) return Float is
       Z : constant Float := Normal_RN (0.0, 1.0);
       V : constant Float := Chi_Square_RN (DF);
@@ -685,6 +744,8 @@ package body SData_Core.Statistics is
    ----------
    -- F_RN --
    ----------
+   --  Method: definitional construction — ratio of two independent chi-squares,
+   --  each divided by its degrees of freedom: (U1/DF1) / (U2/DF2).
    function F_RN (DF1, DF2 : Float) return Float is
       U1 : constant Float := Chi_Square_RN (DF1);
       U2 : constant Float := Chi_Square_RN (DF2);
