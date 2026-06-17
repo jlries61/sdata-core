@@ -1,6 +1,6 @@
 name = "sdata_core"
 description = "Shared data-layer and evaluator library for sdata and data-vandal"
-version = "0.1.14"
+version = "0.1.15"
 
 authors = ["John L. Ries"]
 maintainers = ["John L. Ries <john@theyarnbard.com>"]
