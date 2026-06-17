@@ -17,7 +17,6 @@ with DOM.Core;
 with DOM.Core.Nodes;
 with DOM.Core.Elements;
 with DOM.Core.Documents;
-with DOM.Readers;
 with Input_Sources.File;
 with SData_Core.Config;
 with SData_Core.File_IO.Helpers;   use SData_Core.File_IO.Helpers;
@@ -48,7 +47,7 @@ package body SData_Core.File_IO.OOXML is
       Shared_Strings : String_Vectors.Vector;
 
       function Find_Sheet_XML_Path (Zip_Info : Zip.Zip_Info) return String is
-         WB_Reader : DOM.Readers.Tree_Reader;
+         WB_Reader : Secure_Reader;
          WB_Input  : Input_Sources.File.File_Input;
          WB_Doc    : DOM.Core.Document;
          Sheets    : Node_List;
@@ -64,8 +63,8 @@ package body SData_Core.File_IO.OOXML is
          end;
 
          Input_Sources.File.Open (Temp_Workbook, WB_Input);
-         DOM.Readers.Parse (WB_Reader, WB_Input);
-         WB_Doc := DOM.Readers.Get_Tree (WB_Reader);
+         Parse (WB_Reader, WB_Input);
+         WB_Doc := Get_Tree (WB_Reader);
          Input_Sources.File.Close (WB_Input);
          Sheets := DOM.Core.Documents.Get_Elements_By_Tag_Name
             (WB_Doc, "sheet");
@@ -88,7 +87,7 @@ package body SData_Core.File_IO.OOXML is
          end if;
 
          Free (Sheets);
-         DOM.Readers.Free (WB_Reader);
+         Free (WB_Reader);
          GNAT.OS_Lib.Delete_File (Temp_Workbook, Success);
 
          if Length (Found_RId) = 0 then
@@ -96,7 +95,7 @@ package body SData_Core.File_IO.OOXML is
          end if;
 
          declare
-            RL_Reader : DOM.Readers.Tree_Reader;
+            RL_Reader : Secure_Reader;
             RL_Input  : Input_Sources.File.File_Input;
             RL_Doc    : DOM.Core.Document;
             RL_List   : Node_List;
@@ -112,8 +111,8 @@ package body SData_Core.File_IO.OOXML is
             end;
 
             Input_Sources.File.Open (Temp_Rels, RL_Input);
-            DOM.Readers.Parse (RL_Reader, RL_Input);
-            RL_Doc := DOM.Readers.Get_Tree (RL_Reader);
+            Parse (RL_Reader, RL_Input);
+            RL_Doc := Get_Tree (RL_Reader);
             Input_Sources.File.Close (RL_Input);
             RL_List := DOM.Core.Documents.Get_Elements_By_Tag_Name
                (RL_Doc, "Relationship");
@@ -130,7 +129,7 @@ package body SData_Core.File_IO.OOXML is
             end loop;
 
             Free (RL_List);
-            DOM.Readers.Free (RL_Reader);
+            Free (RL_Reader);
             GNAT.OS_Lib.Delete_File (Temp_Rels, Success);
 
             if Length (Found_Tgt) = 0 then
@@ -141,7 +140,7 @@ package body SData_Core.File_IO.OOXML is
       end Find_Sheet_XML_Path;
 
       procedure Load_Shared_Strings (Zip_Info : Zip.Zip_Info) is
-         Reader   : DOM.Readers.Tree_Reader;
+         Reader   : Secure_Reader;
          Input    : Input_Sources.File.File_Input;
          Doc      : DOM.Core.Document;
          SI_Nodes, T_Nodes : Node_List;
@@ -157,8 +156,8 @@ package body SData_Core.File_IO.OOXML is
          end;
 
          Input_Sources.File.Open (Temp_Shared, Input);
-         DOM.Readers.Parse (Reader, Input);
-         Doc := DOM.Readers.Get_Tree (Reader);
+         Parse (Reader, Input);
+         Doc := Get_Tree (Reader);
          Input_Sources.File.Close (Input);
 
          SI_Nodes := DOM.Core.Documents.Get_Elements_By_Tag_Name (Doc, "si");
@@ -175,7 +174,7 @@ package body SData_Core.File_IO.OOXML is
          end loop;
 
          Free (SI_Nodes);
-         DOM.Readers.Free (Reader);
+         Free (Reader);
          GNAT.OS_Lib.Delete_File (Temp_Shared, Success);
       exception
          when E : others =>
@@ -188,7 +187,7 @@ package body SData_Core.File_IO.OOXML is
       end Load_Shared_Strings;
 
       procedure Load_Sheet (Zip_Info : Zip.Zip_Info; Sheet_XML_Path : String) is
-         Reader  : DOM.Readers.Tree_Reader;
+         Reader  : Secure_Reader;
          Input   : Input_Sources.File.File_Input;
          Doc     : DOM.Core.Document;
          Rows    : Node_List;
@@ -400,7 +399,7 @@ package body SData_Core.File_IO.OOXML is
             begin
                if Converted /= "" then
                   GNAT.OS_Lib.Delete_File (Temp_Sheet, OK);
-                  DOM.Readers.Free (Reader);
+                  Free (Reader);
                   SData_Core.File_IO.ODF.Parse_ODF (Converted);
                   GNAT.OS_Lib.Delete_File (Converted, OK);
                   return;
@@ -414,8 +413,8 @@ package body SData_Core.File_IO.OOXML is
          end if;
 
          Input_Sources.File.Open (Temp_Sheet, Input);
-         DOM.Readers.Parse (Reader, Input);
-         Doc := DOM.Readers.Get_Tree (Reader);
+         Parse (Reader, Input);
+         Doc := Get_Tree (Reader);
          Input_Sources.File.Close (Input);
 
          declare
@@ -424,7 +423,7 @@ package body SData_Core.File_IO.OOXML is
          begin
             if Length (Merged) > 0 then
                Free (Merged);
-               DOM.Readers.Free (Reader);
+               Free (Reader);
                raise SData_Core.Script_Error
                   with "XLSX file contains merged cells, which are not supported.";
             end if;
@@ -448,11 +447,11 @@ package body SData_Core.File_IO.OOXML is
          end if;
 
          Free (Rows);
-         DOM.Readers.Free (Reader);
+         Free (Reader);
          GNAT.OS_Lib.Delete_File (Temp_Sheet, Success);
       exception
          when others =>
-            DOM.Readers.Free (Reader);
+            Free (Reader);
             raise;
       end Load_Sheet;
 

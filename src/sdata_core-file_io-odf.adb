@@ -16,7 +16,6 @@ with DOM.Core;
 with DOM.Core.Nodes;
 with DOM.Core.Elements;
 with DOM.Core.Documents;
-with DOM.Readers;
 with Input_Sources.File;
 with SData_Core.Config;
 with SData_Core.File_IO.Helpers;   use SData_Core.File_IO.Helpers;
@@ -39,7 +38,7 @@ package body SData_Core.File_IO.ODF is
       Temp_XML : constant String := File_Name & ".content.xml";
 
       procedure Load_Content (Zip_Info : Zip.Zip_Info) is
-         Reader : DOM.Readers.Tree_Reader;
+         Reader : Secure_Reader;
          Input  : Input_Sources.File.File_Input;
          Doc    : DOM.Core.Document;
          Tables, Rows : Node_List;
@@ -298,7 +297,7 @@ package body SData_Core.File_IO.ODF is
             begin
                if Converted /= "" then
                   GNAT.OS_Lib.Delete_File (Temp_XML, OK);
-                  DOM.Readers.Free (Reader);
+                  Free (Reader);
                   SData_Core.File_IO.OOXML.Parse_OOXML (Converted);
                   GNAT.OS_Lib.Delete_File (Converted, OK);
                   return;
@@ -312,13 +311,13 @@ package body SData_Core.File_IO.ODF is
          end if;
 
          Input_Sources.File.Open (Temp_XML, Input);
-         DOM.Readers.Parse (Reader, Input);
-         Doc := DOM.Readers.Get_Tree (Reader);
+         Parse (Reader, Input);
+         Doc := Get_Tree (Reader);
          Input_Sources.File.Close (Input);
 
          Tables := DOM.Core.Documents.Get_Elements_By_Tag_Name (Doc, "table:table");
          if Length (Tables) = 0 then
-            Free (Tables); DOM.Readers.Free (Reader);
+            Free (Tables); Free (Reader);
             raise SData_Core.Script_Error with "No tables found in ODS file";
          end if;
 
@@ -355,11 +354,11 @@ package body SData_Core.File_IO.ODF is
 
          Free (Rows);
          Free (Tables);
-         DOM.Readers.Free (Reader);
+         Free (Reader);
          GNAT.OS_Lib.Delete_File (Temp_XML, Success);
       exception
          when others =>
-            DOM.Readers.Free (Reader);
+            Free (Reader);
             raise;
       end Load_Content;
 
