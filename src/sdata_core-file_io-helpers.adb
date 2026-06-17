@@ -8,8 +8,29 @@ with Ada.Strings.Fixed;       use Ada.Strings.Fixed;
 with GNAT.OS_Lib;
 with GNAT.Strings;            use GNAT.Strings;
 with DOM.Core.Nodes;
+with Input_Sources.Strings;
+with Unicode.CES.Utf8;
 
 package body SData_Core.File_IO.Helpers is
+
+   overriding function Resolve_Entity
+      (Handler   : Secure_Reader;
+       Public_Id : Unicode.CES.Byte_Sequence;
+       System_Id : Unicode.CES.Byte_Sequence)
+       return Input_Sources.Input_Source_Access
+   is
+      pragma Unreferenced (Handler, Public_Id, System_Id);
+      --  Resolve every external entity to an empty byte sequence: the parser
+      --  uses this in place of opening the referenced file or URI, so no
+      --  external resource is ever read.  The parser takes ownership of the
+      --  returned access value and frees it.
+      Empty : constant Input_Sources.Strings.String_Input_Access :=
+         new Input_Sources.Strings.String_Input;
+   begin
+      Input_Sources.Strings.Open
+         ("", Unicode.CES.Utf8.Utf8_Encoding, Empty.all);
+      return Input_Sources.Input_Source_Access (Empty);
+   end Resolve_Entity;
 
    function File_Base (File_Name : String) return String is
    begin
