@@ -270,6 +270,9 @@ package SData_Core.Commands is
    --  single authority — callers do not check the toggle).
    procedure Warn_Reserved_Columns (Keywords : Reserved_Keyword_Sets.Set);
 
+   --  OPTIONS WARNRESERVED — enable (True, the default) or suppress (False)
+   --  the reserved-keyword column warning emitted by Warn_Reserved_Columns
+   --  at USE time.  Sets Config.Runtime.Options_Warn_Reserved.
    procedure Execute_OPTIONS_WarnReserved (Value : Boolean);
 
    ----------------------------------------------------------------
