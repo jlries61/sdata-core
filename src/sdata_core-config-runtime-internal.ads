@@ -51,6 +51,7 @@ package SData_Core.Config.Runtime.Internal is
    procedure Set_Options_CSVDLM             (Value : String);
    procedure Set_Options_Header             (Value : Boolean);
    procedure Set_Options_SAVEOVERWRT        (Value : Boolean);
+   procedure Set_Options_Warn_Reserved      (Value : Boolean);
    procedure Set_Options_TXTFMT             (Value : String);
    procedure Set_Options_CHARSET            (Value : String);
    procedure Set_IEEE_Divide                (Value : Boolean);

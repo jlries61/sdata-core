@@ -757,4 +757,34 @@ package body SData_Core.Commands is
       SData_Core.Config.Runtime.Internal.Set_Last_Error (Code, Line);
    end Execute_Record_Error;
 
+   --------------------------------------------------------------------
+   --  Warn_Reserved_Columns                                         --
+   --------------------------------------------------------------------
+   procedure Warn_Reserved_Columns (Keywords : Reserved_Keyword_Sets.Set) is
+   begin
+      if not SData_Core.Config.Runtime.Options_Warn_Reserved then
+         return;
+      end if;
+      for I in 1 .. SData_Core.Table.Column_Count loop
+         declare
+            Upper : constant String := To_Upper (SData_Core.Table.Column_Name (I));
+         begin
+            if Keywords.Contains (Upper) then
+               SData_Core.IO.Put_Line_Error
+                 ("warning: column """ & Upper
+                  & """ matches a reserved keyword; reference it as `"
+                  & Upper & "` or rename it");
+            end if;
+         end;
+      end loop;
+   end Warn_Reserved_Columns;
+
+   --------------------------------------------------------------------
+   --  Execute_OPTIONS_WarnReserved                                  --
+   --------------------------------------------------------------------
+   procedure Execute_OPTIONS_WarnReserved (Value : Boolean) is
+   begin
+      SData_Core.Config.Runtime.Internal.Set_Options_Warn_Reserved (Value);
+   end Execute_OPTIONS_WarnReserved;
+
 end SData_Core.Commands;

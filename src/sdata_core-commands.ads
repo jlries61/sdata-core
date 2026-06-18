@@ -13,6 +13,7 @@
 --  primitive types and types defined in sdata-core, so callers do not need
 --  to depend on any host-specific AST.
 
+with Ada.Containers.Indefinite_Ordered_Sets;
 with SData_Core.Config;
 with SData_Core.Evaluator;
 with SData_Core.Table;
@@ -255,6 +256,24 @@ package SData_Core.Commands is
    --  threshold above which /JOIN merges emit a warning.  Value 0
    --  disables the warning entirely.
    procedure Execute_OPTIONS_Join_Warn_Threshold (Value : Natural);
+
+   ----------------------------------------------------------------
+   --  Reserved-keyword warning support (per quoted-identifiers design,
+   --  2026-05-30; promoted to sdata-core 2026-06-17 as the one shareable
+   --  sliver). Each consumer passes its own grammar-specific keyword set.
+   package Reserved_Keyword_Sets is
+     new Ada.Containers.Indefinite_Ordered_Sets (String);
+
+   --  Walk the current table's columns; for each upper-cased column name
+   --  that is a member of Keywords, emit one stderr warning. No-op when
+   --  Config.Runtime.Options_Warn_Reserved is False (gating lives here, the
+   --  single authority — callers do not check the toggle).
+   procedure Warn_Reserved_Columns (Keywords : Reserved_Keyword_Sets.Set);
+
+   --  OPTIONS WARNRESERVED — enable (True, the default) or suppress (False)
+   --  the reserved-keyword column warning emitted by Warn_Reserved_Columns
+   --  at USE time.  Sets Config.Runtime.Options_Warn_Reserved.
+   procedure Execute_OPTIONS_WarnReserved (Value : Boolean);
 
    ----------------------------------------------------------------
    --  Record_Error — set the Last_Error_Code / Last_Error_Line pair

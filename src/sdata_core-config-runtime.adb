@@ -36,6 +36,7 @@ package body SData_Core.Config.Runtime is
    function Options_CSVDLM_Len         return Natural is (Options_CSVDLM_Len_Value);
    function Options_Header             return Boolean is (Options_Header_Value);
    function Options_SAVEOVERWRT        return Boolean is (Options_SAVEOVERWRT_Value);
+   function Options_Warn_Reserved      return Boolean is (Options_Warn_Reserved_Value);
    function Options_TXTFMT             return String  is (Options_TXTFMT_Value);
    function Options_TXTFMT_Len         return Natural is (Options_TXTFMT_Len_Value);
    function Options_CHARSET            return String  is (Options_CHARSET_Value);
@@ -81,8 +82,9 @@ package body SData_Core.Config.Runtime is
       Options_CSVDLM_Value (1)  := ',';
       Options_CSVDLM_Len_Value  := 1;
       Options_Header_Value      := True;
-      Options_SAVEOVERWRT_Value := True;
-      Options_TXTFMT_Value      := (others => ' ');
+      Options_SAVEOVERWRT_Value   := True;
+      Options_Warn_Reserved_Value := True;
+      Options_TXTFMT_Value        := (others => ' ');
       Options_TXTFMT_Value (1 .. 4) := "AUTO";
       Options_TXTFMT_Len_Value  := 4;
       Options_CHARSET_Value     := (others => ' ');
