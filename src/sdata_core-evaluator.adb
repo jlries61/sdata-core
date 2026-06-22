@@ -131,6 +131,21 @@ package body SData_Core.Evaluator is
       return Fn_Maps.Element (Cursor).all (UC, Vals);
    end Call_Function;
 
+   function Is_Aggregate (Name : String) return Boolean is
+   begin
+      return Aggregate_Meta_Table.Contains (To_Upper (Name));
+   end Is_Aggregate;
+
+   function Lookup (Name : String) return Aggregate_Metadata is
+      UC : constant String := To_Upper (Name);
+   begin
+      if not Aggregate_Meta_Table.Contains (UC) then
+         raise SData_Core.Script_Error with
+           "AGGREGATE: '" & Name & "' is not a registered aggregate function";
+      end if;
+      return Aggregate_Meta_Table.Element (UC);
+   end Lookup;
+
    function Convert_To_Float (V : Value) return Float is
    begin
       case V.Kind is

@@ -182,6 +182,13 @@ package body SData_Core.Evaluator.Aggregate_Fns is
    ---------------------------------------------------------------------------
 
    procedure Register is
+      --  Numeric-only aggregates: accept numeric input, reject character.
+      Num  : constant Aggregate_Metadata := (Accepts_Numeric   => True,
+                                             Accepts_Character => False);
+      --  N and NMISS additionally accept character input (they count rows /
+      --  count missings regardless of value type).
+      Both : constant Aggregate_Metadata := (Accepts_Numeric   => True,
+                                             Accepts_Character => True);
    begin
       Dispatch_Table.Insert ("SUM",    Handle_Sum'Access);
       Dispatch_Table.Insert ("MEAN",   Handle_Mean'Access);
@@ -194,6 +201,19 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Dispatch_Table.Insert ("GMEAN",  Handle_Gmean'Access);
       Dispatch_Table.Insert ("HMEAN",  Handle_Hmean'Access);
       Dispatch_Table.Insert ("MEDIAN", Handle_Median'Access);
+
+      --  Paired aggregate-only type metadata (per ADR-046 / architect C1).
+      Aggregate_Meta_Table.Insert ("SUM",    Num);
+      Aggregate_Meta_Table.Insert ("MEAN",   Num);
+      Aggregate_Meta_Table.Insert ("STD",    Num);
+      Aggregate_Meta_Table.Insert ("VAR",    Num);
+      Aggregate_Meta_Table.Insert ("MIN",    Num);
+      Aggregate_Meta_Table.Insert ("MAX",    Num);
+      Aggregate_Meta_Table.Insert ("N",      Both);
+      Aggregate_Meta_Table.Insert ("NMISS",  Both);
+      Aggregate_Meta_Table.Insert ("GMEAN",  Num);
+      Aggregate_Meta_Table.Insert ("HMEAN",  Num);
+      Aggregate_Meta_Table.Insert ("MEDIAN", Num);
    end Register;
 
 begin

@@ -21,7 +21,7 @@ echo "==> Building test drivers"
 ${GPRBUILD_PREFIX}gprbuild -q -p -P tests/sdata_core_tests.gpr
 
 EXIT_STATUS=0
-for driver in values_tests parse_expression_tests call_function_tests statistics_tests commands_tests; do
+for driver in values_tests parse_expression_tests call_function_tests aggregate_meta_test statistics_tests commands_tests; do
    echo ""
    if ! tests/bin/"$driver"; then
       EXIT_STATUS=1
