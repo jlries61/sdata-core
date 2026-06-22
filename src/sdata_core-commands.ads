@@ -14,6 +14,8 @@
 --  to depend on any host-specific AST.
 
 with Ada.Containers.Indefinite_Ordered_Sets;
+with Ada.Containers.Vectors;
+with Ada.Strings.Unbounded;
 with SData_Core.Config;
 with SData_Core.Evaluator;
 with SData_Core.Table;
@@ -172,6 +174,44 @@ package SData_Core.Commands is
       Start_Idx : Integer;
       End_Idx   : Integer;
       Is_Temp   : Boolean := False);
+
+   ----------------------------------------------------------------
+   --  AGGREGATE — collapse the current table into one row per active BY
+   --  group, computing registered aggregate functions over chosen input
+   --  columns.  Grouping is taken from the active BY statement (no /BY=);
+   --  the active SELECT filter is respected during the input scan.  On
+   --  success the fresh one-row-per-group table replaces the in-memory
+   --  table, a pending SAVE is flushed, and the active SELECT and BY are
+   --  cleared.  All errors abort before any side effect (see ADR-046).
+   --
+   --  An Aggregate_Spec describes one "<outvar> = <fn>(<invar>)" clause:
+   --    Outvar      target column name (may end in '$' for character output).
+   --    Fn_Name     registered aggregate function name (case-insensitive).
+   --    Invar_Kind  shape of the input reference (see below).
+   --    Invar_Name  input column / array base name (empty for Invar_Empty).
+   --    Invar_Index array element subscript (only for Invar_Array_Element).
+   type Aggregate_Invar_Kind is
+     (Invar_Empty,          --  N() with no argument -> group row count
+      Invar_Scalar,         --  a scalar column name
+      Invar_Array_Element,  --  an array element, e.g. x(1)
+      Invar_Array_Name);    --  a whole registered array, element-wise
+
+   type Aggregate_Spec is record
+      Outvar      : Ada.Strings.Unbounded.Unbounded_String;
+      Fn_Name     : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Kind  : Aggregate_Invar_Kind := Invar_Empty;
+      Invar_Name  : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Index : Natural := 0;
+   end record;
+
+   package Aggregate_Spec_Vectors is
+     new Ada.Containers.Vectors (Positive, Aggregate_Spec);
+
+   --  Raises SData_Core.Script_Error (per the AGGREGATE error catalog,
+   --  ADR-046 / design spec sec 5) on any validation failure; on such a
+   --  failure the in-memory table, the pending SAVE, and the active
+   --  SELECT/BY are all left untouched.
+   procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector);
 
    ----------------------------------------------------------------
    --  Execute_Commit_Step — perform the end-of-step actions shared by

@@ -22,6 +22,7 @@ project SData_Core_Tests is
                  "parse_expression_tests.adb",
                  "call_function_tests.adb",
                  "aggregate_meta_test.adb",
+                 "aggregate_exec_test.adb",
                  "statistics_tests.adb",
                  "commands_tests.adb");
    for Languages use ("Ada");
