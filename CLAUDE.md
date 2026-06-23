@@ -67,9 +67,11 @@ described below. See `tests/README.md` for what's in scope.
 `scripts/gen-reference.sh` produces an HTML programmer's reference for the
 public API straight from the `.ads` specs — it reads them as text (Python 3
 stdlib only) rather than via the Ada toolchain, which is why it works where
-GNATdoc 26.0 crashes on this crate's source closure. Output defaults to the
-gitignored `docs/api/reference.html`; pass `--all` to `gen-reference.py` to
-document every spec rather than just the public-contract packages.
+GNATdoc 26.0 crashes on this crate's source closure. Output defaults to
+`docs/api/reference.html`, a checked-in artifact — regenerate and commit it
+whenever a public spec changes so the tracked copy stays in sync. Pass `--all`
+to `gen-reference.py` to document every spec rather than just the
+public-contract packages.
 
 ```bash
 scripts/gen-reference.sh                 # -> docs/api/reference.html
@@ -119,10 +121,11 @@ back to the shared evaluator without needing to share AST types (per
 
 - `SData_Core.Commands` — Execute_USE, Execute_SAVE, Execute_FPATH,
   Execute_OUTPUT, Execute_OUTPUT_Table, Execute_SELECT, Execute_KEEP,
-  Execute_DROP, Execute_ARRAY, Execute_DIM, Execute_RUN,
-  Execute_Rebuild_Filter, Execute_REPEAT, Execute_NEW,
-  Execute_OPTIONS_{CSVDLM, Header, SAVEOVERWRT, TXTFMT, CHARSET,
-  IEEE_Divide, Shell_Timeout}, Execute_Record_Error
+  Execute_DROP, Execute_ARRAY, Execute_DIM, Execute_AGGREGATE,
+  Execute_Commit_Step, Execute_RUN, Execute_Rebuild_Filter, Execute_REPEAT,
+  Execute_NEW, Execute_OPTIONS_{CSVDLM, Header, SAVEOVERWRT, TXTFMT, CHARSET,
+  IEEE_Divide, Shell_Timeout, Join_Warn_Threshold, WarnReserved},
+  Warn_Reserved_Columns, Execute_Record_Error
 - `SData_Core.Table` — column-store table + SQLite spill
 - `SData_Core.Variables` — PDV, temp/permanent symbols, hold semantics,
   `Register_Subscripted_Columns` (auto-detect arrays from `name(n)` columns at

@@ -11,7 +11,9 @@
 #  Usage:
 #    scripts/gen-reference.sh [OUTPUT_FILE]
 #
-#  OUTPUT_FILE defaults to docs/api/reference.html (gitignored build output).
+#  OUTPUT_FILE defaults to docs/api/reference.html (a checked-in artifact;
+#  regenerate and commit it when a public spec changes -- CI verifies the
+#  tracked copy matches a fresh regeneration).
 #  Extra flags understood by gen-reference.py (e.g. --all) are not forwarded
 #  here; call the Python script directly for those.
 

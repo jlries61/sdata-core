@@ -77,15 +77,17 @@ closed, so each consumer owns its complete grammar (see
 ## API reference
 
 An HTML programmer's reference for the public API is generated directly from
-the package specs:
+the package specs and checked in at
+[`docs/api/reference.html`](docs/api/reference.html):
 
 ```bash
-scripts/gen-reference.sh          # writes docs/api/reference.html
+scripts/gen-reference.sh          # regenerates docs/api/reference.html
 ```
 
 The generator reads the `.ads` specs as text (Python 3 standard library only —
 no Ada toolchain required). Pass `--all` to `scripts/gen-reference.py` to
-document every spec rather than just the public-contract packages.
+document every spec rather than just the public-contract packages. Regenerate
+and commit the reference whenever a public spec changes.
 
 ## Public API and versioning
 

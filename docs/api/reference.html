@@ -1,0 +1,1655 @@
+<!doctype html><html lang='en'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>sdata-core &mdash; Programmer's Reference</title>
+<style>
+  body{font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;max-width:62em;
+       margin:2em auto;padding:0 1em;color:#1a1a1a}
+  h1{border-bottom:2px solid #444}
+  h2{margin-top:2.5em;border-bottom:1px solid #ccc;color:#234}
+  nav{background:#f6f6f6;padding:1em 1.5em;border-radius:6px;line-height:2}
+  nav a{margin-right:1.2em;white-space:nowrap}
+  .decl{margin:1.4em 0;padding-left:1em;border-left:3px solid #cdd}
+  .kind{font-size:.72em;text-transform:uppercase;color:#888;letter-spacing:.06em}
+  pre{background:#f4f6f8;padding:.6em .8em;border-radius:4px;overflow-x:auto;
+      font:13px/1.45 SFMono-Regular,Consolas,monospace}
+  .doc{color:#333;white-space:pre-wrap;margin-top:.4em}
+  .overview{color:#444;font-style:italic;white-space:pre-wrap}
+  footer{margin-top:3em;color:#999;font-size:.85em;border-top:1px solid #eee;
+         padding-top:1em}
+</style></head><body>
+<h1>sdata-core &mdash; Programmer's Reference</h1>
+<p class='overview'>Public API (public-contract packages). Generated from <code>src/*.ads</code> visible declarations.</p>
+<nav><strong>Packages</strong><br>
+<a href='#SData_Core.Commands'>SData_Core.Commands</a>
+<a href='#SData_Core.Config.Runtime'>SData_Core.Config.Runtime</a>
+<a href='#SData_Core.Evaluator'>SData_Core.Evaluator</a>
+<a href='#SData_Core.Statistics'>SData_Core.Statistics</a>
+<a href='#SData_Core.Table'>SData_Core.Table</a>
+<a href='#SData_Core.Values'>SData_Core.Values</a>
+<a href='#SData_Core.Variables'>SData_Core.Variables</a>
+</nav>
+<h2 id='SData_Core.Commands'>SData_Core.Commands</h2>
+<p class='overview'>Package SData_Core.Commands provides execution procedures for the shared
+command set used by both sdata and data-vandal.  Each procedure reads and
+writes interpreter state held in SData_Core.Config and
+SData_Core.Config.Runtime, and operates on the global data table.
+
+These procedures encapsulate the *semantics* of each command.  The host
+application is still responsible for parsing the surface syntax and
+resolving the parameter values to pass in here.  Procedures take only
+primitive types and types defined in sdata-core, so callers do not need
+to depend on any host-specific AST.</p>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_USE
+     (File_Name   : String;
+      Fmt         : SData_Core.Config.Format_Type;
+      Sheet_Name  : String  := &quot;&quot;;
+      Delimiter   : String  := &quot;,&quot;;
+      Read_Header : Boolean := True;
+      Charset     : String  := &quot;&quot;;
+      Skip_Rows   : Natural := 0;
+      Max_Rows    : Natural := 0;
+      Nscan_Rows  : Natural := 0;
+      Is_Mock     : Boolean := False);</pre>
+<div class='doc'>--------------------------------------------------------------
+USE — open and read an input dataset into the data table.
+
+File_Name      Path or &quot;MOCK&quot; for the synthetic test dataset.
+Fmt            Target file format.
+Sheet_Name     Spreadsheet sheet name; empty selects the first sheet.
+Delimiter      CSV field delimiter (already decoded; e.g. &quot;,&quot; or HT).
+Read_Header    Treat first row as column header.
+Charset        Character set name; empty means autodetect.
+Skip_Rows      Initial rows to skip before reading data.
+Max_Rows       Maximum rows to read (0 = unlimited).
+Nscan_Rows     Sample rows for type inference (0 = default).
+Is_Mock        True when the input is the synthetic MOCK dataset.
+
+Side effects: clears REPEAT state, refreshes the PDV column map.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Use_Defaults is record
+      Delimiter     : String (1 .. Max_Delimiter_Len) := (others =&gt; &#x27; &#x27;);
+      Delimiter_Len : Natural := 0;
+      Read_Header   : Boolean := True;
+      Charset       : String (1 .. Max_Charset_Len)   := (others =&gt; &#x27; &#x27;);
+      Charset_Len   : Natural := 0;
+   end record;</pre>
+<div class='doc'>--------------------------------------------------------------
+Resolve_Use_Defaults — the single authority for the
+&quot;specified on the USE statement, else fall back to OPTIONS state&quot;
+merge that consumers previously open-coded.  Front ends parse the
+surface syntax, then call this to obtain the effective delimiter /
+header / charset to hand to Execute_USE, so the merge rule lives in
+one place rather than drifting between consumers (per ADR; closes
+the Evans &quot;two authorities for USE defaults&quot; finding).
+
+Each *_Specified flag MUST be supplied by the caller and MUST NOT be
+inferred from emptiness: an empty Charset is a legal explicit value
+(&quot;autodetect&quot;) distinct from &quot;charset unspecified&quot;.  When a flag is
+False the corresponding SData_Core.Config.Runtime.Options_* accessor
+supplies the value.  The Delimiter passed in must already be decoded
+to its literal form (e.g. TAB -&gt; HT); the OPTIONS fallback is used
+verbatim.  Raises SData_Core.Script_Error if an effective delimiter
+or charset exceeds its bound (Max_Delimiter_Len / Max_Charset_Len) —
+friendlier than the bare Constraint_Error a slice assignment raises.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Resolve_Use_Defaults
+     (Delimiter           : String  := &quot;&quot;;
+      Delimiter_Specified : Boolean := False;
+      Read_Header         : Boolean := True;
+      Header_Specified    : Boolean := False;
+      Charset             : String  := &quot;&quot;;
+      Charset_Specified   : Boolean := False) return Use_Defaults;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_SAVE
+     (File_Name   : String;
+      Fmt         : SData_Core.Config.Format_Type;
+      Sheet_Name  : String  := &quot;&quot;;
+      Delimiter   : String  := &quot;,&quot;;
+      Write_Header : Boolean := True;
+      Charset     : String  := &quot;&quot;);</pre>
+<div class='doc'>--------------------------------------------------------------
+SAVE — register a pending output dataset.
+
+When File_Name is empty, any pending SAVE is cancelled.  Otherwise the
+parameters are stored in SData_Core.Config.Runtime so that the actual
+write occurs at the end of the next RUN.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_FPATH
+     (Path        : String;
+      Use_Flag    : Boolean := False;
+      Save_Flag   : Boolean := False;
+      Submit_Flag : Boolean := False;
+      Output_Flag : Boolean := False);</pre>
+<div class='doc'>--------------------------------------------------------------
+FPATH — set search directories per category.
+
+When all four flags are False the procedure resets every FPath_*
+category to Path (matching the original behaviour of the bare
+&quot;FPATH dir&quot; command).  Otherwise only categories whose flag is True
+are updated.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OUTPUT
+     (File_Name : String;
+      TXTFMT    : String := &quot;&quot;;
+      Charset   : String := &quot;&quot;);</pre>
+<div class='doc'>--------------------------------------------------------------
+OUTPUT — redirect console output and update text format options.
+
+An empty File_Name closes any active redirection without opening a
+new one.  TXTFMT and CHARSET parameters update OPTIONS state when
+non-empty, with the same length validation as the OPTIONS command
+(raising SData_Core.Script_Error on overflow).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OUTPUT_Table
+     (File_Name : String;
+      Fmt       : SData_Core.Config.Format_Type := SData_Core.Config.CSV);</pre>
+<div class='doc'>--------------------------------------------------------------
+OUTPUT (table form) — register a default table-output path.
+
+Unlike Execute_OUTPUT (which redirects console text), this form
+records the path so that Execute_RUN will write the current table
+there if no explicit SAVE is pending.  Used by front ends such as
+data-vandal where OUTPUT means &quot;save the dataset here&quot; rather than
+&quot;redirect PRINT to here&quot;.  An empty File_Name clears any pending
+table output.  The format is inferred from the file extension by
+the underlying writer, with CSV as the default.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_SELECT
+     (Expr : SData_Core.Evaluator.Expression_Access);</pre>
+<div class='doc'>--------------------------------------------------------------
+SELECT — install (or, with null, clear) the persistent filter
+expression that is rebuilt into the logical→physical index map at
+the start of every RUN.  Ownership of the passed expression
+transfers to the runtime; any previously held expression is freed.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_KEEP
+     (Names : SData_Core.Table.Name_Vectors.Vector);</pre>
+<div class='doc'>--------------------------------------------------------------
+KEEP / DROP — restrict the current table&#x27;s column set.
+
+KEEP drops every column not in the list; DROP removes the listed
+columns.  Names are matched case-insensitively after upper-casing.
+Missing column names are silently ignored.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_DROP
+     (Names : SData_Core.Table.Name_Vectors.Vector);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_ARRAY
+     (Name         : String;
+      Constituents : SData_Core.Table.Name_Vectors.Vector);</pre>
+<div class='doc'>--------------------------------------------------------------
+ARRAY — define a virtual array as a list of existing variables.
+Passing an empty Constituents vector undefines the named array.
+Passing an empty Name lists every defined virtual array on stdout.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_DIM
+     (Base_Name : String;
+      Start_Idx : Integer;
+      End_Idx   : Integer;
+      Is_Temp   : Boolean := False);</pre>
+<div class='doc'>--------------------------------------------------------------
+DIM — define or resize a real array.  Bounds are integer indices
+with End_Idx &gt;= Start_Idx; otherwise the underlying call raises an
+exception.  Is_Temp = True declares a /TEMP DIM array.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Aggregate_Invar_Kind is
+     (Invar_Empty,
+      Invar_Scalar,
+      Invar_Array_Element,
+      Invar_Array_Name);</pre>
+<div class='doc'>--------------------------------------------------------------
+AGGREGATE — collapse the current table into one row per active BY
+group, computing registered aggregate functions over chosen input
+columns.  Grouping is taken from the active BY statement (no /BY=);
+the active SELECT filter is respected during the input scan.  On
+success the fresh one-row-per-group table replaces the in-memory
+table, a pending SAVE is flushed, and the active SELECT and BY are
+cleared.  All errors abort before any side effect (see ADR-046).
+
+An Aggregate_Spec describes one &quot;&lt;outvar&gt; = &lt;fn&gt;(&lt;invar&gt;)&quot; clause:
+Outvar      target column name (may end in &#x27;$&#x27; for character output).
+Fn_Name     registered aggregate function name (case-insensitive).
+Invar_Kind  shape of the input reference (see below).
+Invar_Name  input column / array base name (empty for Invar_Empty).
+Invar_Index array element subscript (only for Invar_Array_Element).
+N() with no argument -&gt; group row count
+a scalar column name
+an array element, e.g. x(1)
+a whole registered array, element-wise</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Aggregate_Spec is record
+      Outvar      : Ada.Strings.Unbounded.Unbounded_String;
+      Fn_Name     : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Kind  : Aggregate_Invar_Kind := Invar_Empty;
+      Invar_Name  : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Index : Natural := 0;
+   end record;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector);</pre>
+<div class='doc'>Raises SData_Core.Script_Error (per the AGGREGATE error catalog,
+ADR-046 / design spec sec 5) on any validation failure; on such a
+failure the in-memory table, the pending SAVE, and the active
+SELECT/BY are all left untouched.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_Commit_Step;</pre>
+<div class='doc'>--------------------------------------------------------------
+Execute_Commit_Step — perform the end-of-step actions shared by
+every front end: rebuild the SELECT filter map against the current
+table and, if a SAVE or table-output is pending, write the table
+out.  Call this wherever a step&#x27;s results must be committed and the
+filter map refreshed — at the end of a data step, or after a SORT
+reorders the table.  This is the intention-revealing name for that
+work; Execute_RUN below is a thin alias for front ends whose RUN
+statement maps directly onto it.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_RUN;</pre>
+<div class='doc'>--------------------------------------------------------------
+RUN — the user-issued RUN statement.  Currently identical to the
+end-of-step commit: it delegates to Execute_Commit_Step.  The two
+are kept distinct so a host&#x27;s &quot;the user typed RUN&quot; dispatch and its
+internal &quot;commit this step&quot; calls read differently at the call site.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_Rebuild_Filter;</pre>
+<div class='doc'>--------------------------------------------------------------
+Execute_Rebuild_Filter — rebuild the SELECT logical→physical index
+map against the current table without flushing a pending SAVE.
+Front ends call this at the *start* of a data step (before iterating
+records) so the filter map is current for the initial record set.
+Execute_RUN rebuilds the map at the *end* of a step (after the output
+table has been committed).  Both paths share the same implementation.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_REPEAT (Count : Natural);</pre>
+<div class='doc'>--------------------------------------------------------------
+REPEAT — set or clear the deferred-program repeat state.
+
+Count &gt; 0  sets Repeat_Active := True and Repeat_Count := Count.
+Count = 0  clears Repeat_Active and Repeat_Count.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_NEW;</pre>
+<div class='doc'>--------------------------------------------------------------
+NEW — reset all runtime interpreter state to defaults.
+
+Delegates to SData_Core.Config.Runtime.Reset.  Host applications
+call this from their Stmt_NEW handler.  Note: this does NOT clear
+the data table, variables, or the active program — those are the
+consumer&#x27;s responsibility (each is a distinct concern in core).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_CSVDLM        (Value : String);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_Header        (Value : Boolean);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_SAVEOVERWRT   (Value : Boolean);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_TXTFMT        (Value : String);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_CHARSET       (Value : String);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_IEEE_Divide   (Value : Boolean);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_Shell_Timeout (Value : Natural);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_Join_Warn_Threshold (Value : Natural);</pre>
+<div class='doc'>--------------------------------------------------------------
+OPTIONS JOIN_WARN_THRESHOLD — set the per-BY-group product
+threshold above which /JOIN merges emit a warning.  Value 0
+disables the warning entirely.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Warn_Reserved_Columns (Keywords : Reserved_Keyword_Sets.Set);</pre>
+<div class='doc'>Walk the current table&#x27;s columns; for each upper-cased column name
+that is a member of Keywords, emit one stderr warning. No-op when
+Config.Runtime.Options_Warn_Reserved is False (gating lives here, the
+single authority — callers do not check the toggle).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_OPTIONS_WarnReserved (Value : Boolean);</pre>
+<div class='doc'>OPTIONS WARNRESERVED — enable (True, the default) or suppress (False)
+the reserved-keyword column warning emitted by Warn_Reserved_Columns
+at USE time.  Sets Config.Runtime.Options_Warn_Reserved.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_Record_Error (Code : Natural; Line : Natural);</pre>
+<div class='doc'>--------------------------------------------------------------
+Record_Error — set the Last_Error_Code / Last_Error_Line pair
+observed via the ERROR_CODE and ERROR_LINE expression functions.
+
+Host applications call this from their per-record exception
+handlers in lieu of writing the Runtime fields directly.</div>
+</div>
+<h2 id='SData_Core.Config.Runtime'>SData_Core.Config.Runtime</h2>
+<p class='overview'>Package SData_Core.Config.Runtime holds interpreter state that changes
+during execution and is reset to defaults by the NEW command.  Separating
+it from SData_Core.Config makes the boundary between startup configuration
+(set once by the CLI) and per-run state (written by the interpreter)
+explicit.
+
+Privatization (audit item #5): the state itself lives in the private
+part of this spec, accessible only to the package body and to the
+Internal child package.  Consumers see read-only accessor functions
+with the same names as the old public variables, plus the lifecycle
+procedures below.  All writes go through SData_Core.Config.Runtime.
+Internal, which is callable only by SData_Core.Commands.
+
+Ownership protocol (audit item #6).  There are exactly three roles:
+
+* Front ends (sdata, data-vandal) READ state through the accessor
+functions below and CHANGE it only by calling the
+SData_Core.Commands.Execute_* procedures (and the lifecycle
+procedures in this spec).  A front end must never `with`
+SData_Core.Config.Runtime.Internal, and must not mutate Runtime
+state by any other route.
+
+* SData_Core.Commands is the sole writer of record: each Execute_*
+procedure translates one command into calls on the Internal child.
+This read-vs-write split is the public stability contract named in
+CLAUDE.md; honouring it is what lets the private state shape change
+without breaking either consumer.
+
+* This package body and the Internal child are the only code that
+touches the private _Value variables directly.
+
+SELECT-filter heap ownership.  Select_Filter_Expr is an access value
+the runtime OWNS.  Execute_SELECT takes ownership of the expression
+handed to it and frees the one it replaces; Reset and
+Clear_Select_Filter free the field and reset it to null.  Never call
+Free_Expression on the value returned by the Select_Filter_Expr
+accessor -- doing so would dangle the field and double-free at the
+next Execute_SELECT or Reset.  (Before privatization a consumer freed
+this field directly; Clear_Select_Filter exists so it no longer must.)</p>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_File_Path      return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_File_Len       return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_File_Active    return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_File_Fmt       return SData_Core.Config.Format_Type;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Sheet_Name     return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Sheet_Name_Len return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function FPath_Use    return Unbounded_String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function FPath_Save   return Unbounded_String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function FPath_Submit return Unbounded_String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function FPath_Output return Unbounded_String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Output_Table_Path   return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Output_Table_Len    return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Output_Table_Active return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Output_Table_Fmt    return SData_Core.Config.Format_Type;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Repeat_Count  return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Repeat_Active return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Last_Error_Code return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Last_Error_Line return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_CSVDLM             return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_CSVDLM_Len         return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_Header             return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_SAVEOVERWRT        return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_Warn_Reserved      return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_TXTFMT             return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_TXTFMT_Len         return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_CHARSET            return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_CHARSET_Len        return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function IEEE_Divide                return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_Shell_Timeout      return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Options_Join_Warn_Threshold return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_DLM         return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_DLM_Len     return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Header      return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Charset     return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Charset_Len return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Select_Filter_Expr return SData_Core.Evaluator.Expression_Access;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Reset;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Clear_Select_Filter;</pre>
+<div class='doc'>Clear_Select_Filter — free any installed persistent SELECT filter
+expression and reset the field to null.  Idempotent.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure End_Repeat;</pre>
+<div class='doc'>End_Repeat — clear an active REPEAT state once the loop has finished
+iterating.  Idempotent.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Clear_Pending_Save;</pre>
+<div class='doc'>Clear_Pending_Save — cancel any pending SAVE target.  Does NOT clear
+path/format/sheet (only Reset blanks the full SAVE descriptor).
+Idempotent.</div>
+</div>
+<h2 id='SData_Core.Evaluator'>SData_Core.Evaluator</h2>
+<p class='overview'>Package SData_Core.Evaluator implements the Expression Evaluation Engine.
+It takes AST expression nodes and returns computed &#x27;Value&#x27; records,
+interacting with SData_Core.Variables for symbol lookups.
+
+This package also owns all expression-type definitions (Expression_Kind,
+Expression, Expression_Access, Expression_List, and Free_Expression) that
+were previously part of SData.AST.  Placing them here removes the
+circular dependency between the evaluator and the AST package: the AST
+package (SData.AST) now withs this package to obtain Expression_Access
+for statement fields, while this package no longer needs to with SData.AST.</p>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression_Kind is (
+      Expr_Numeric_Literal,
+      Expr_String_Literal,
+      Expr_Variable,
+      Expr_Binary_Op,
+      Expr_Unary_Op,
+      Expr_Function_Call,
+      Expr_Array_Access,
+      Expr_Missing
+   );</pre>
+<div class='doc'>Kinds of expressions supported in the language.
+e.g., 123.45
+e.g., &quot;Hello&quot;
+e.g., SALARY
+e.g., A + B
+e.g., -A
+e.g., SQRT(X)
+e.g., ARR{1}
+&#x27;.&#x27; literal: evaluates to Val_Missing</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Binary_Op is (Op_Add, Op_Sub, Op_Mul, Op_Div, Op_Pow, Op_Eq, Op_Ne, Op_Lt, Op_Le, Op_Gt, Op_Ge, Op_And, Op_Or, Op_Xor);</pre>
+<div class='doc'>Arithmetic and logical binary operators.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Unary_Op is (Op_Neg, Op_Not);</pre>
+<div class='doc'>Unary operators.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression_Access is access Expression;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression_List_Node;</pre>
+<div class='doc'>Linked list structure for function arguments.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression_List is access Expression_List_Node;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression_List_Node is record
+      Expr     : Expression_Access;
+      Is_Range : Boolean := False;
+      Expr_End : Expression_Access := null;
+      Next     : Expression_List := null;
+   end record;</pre>
+<div class='doc'>True for colon range lo:hi
+hi part of the range</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Expression (Kind : Expression_Kind) is record
+      case Kind is
+         when Expr_Numeric_Literal =&gt;
+            Value      : Float;
+            Is_Integer : Boolean := False;
+            Int_Value  : Integer := 0;
+         when Expr_String_Literal =&gt;
+            Str_Value : Ada.Strings.Unbounded.Unbounded_String;
+         when Expr_Variable =&gt;
+            Var_Name  : String (1 .. Max_Name_Len);
+            Var_Len   : Natural;
+            Var_Index : Natural := 0;
+         when Expr_Binary_Op =&gt;
+            Left  : Expression_Access;
+            Right : Expression_Access;
+            Op    : Binary_Op;
+         when Expr_Unary_Op =&gt;
+            Operand : Expression_Access;
+            UOp     : Unary_Op;
+         when Expr_Function_Call =&gt;
+            Func_Name : String (1 .. Max_Name_Len);
+            Func_Len  : Natural;
+            Arguments : Expression_List;
+         when Expr_Array_Access =&gt;
+            Arr_Name : String (1 .. Max_Name_Len);
+            Arr_Len  : Natural;
+            Arr_Idx  : Expression_List;
+         when Expr_Missing =&gt;
+            null;
+      end case;</pre>
+<div class='doc'>Variant record for all expression types.
+0 = unresolved; positive = 1-based PDV_Vec slot
+Supports multiple subscripts: X(1, 3, 5)</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Free_Expression (Expr : in out Expression_Access);</pre>
+<div class='doc'>Frees a single expression tree.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Evaluate (Expr : Expression_Access) return Value;</pre>
+<div class='doc'>Computes the value of an AST expression.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Convert_To_Float (V : Value) return Float;</pre>
+<div class='doc'>Converts any numeric value kind to Float for calculation.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Expected_Kind (Name : String) return Value_Kind;</pre>
+<div class='doc'>Returns the expected kind of value based on name suffix</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Identifier_Ref_Function (N : String) return Boolean;</pre>
+<div class='doc'>Returns True for functions whose first argument is passed as a variable
+*name* rather than the variable&#x27;s evaluated value (LAG, NEXT, OBS and
+their character variants).  Used by the parser, evaluator, and any code
+that walks the expression AST.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Group_Boundary (BOG, EOG : Boolean);</pre>
+<div class='doc'>Set_Group_Boundary — update the BOG/EOG indicators before each record.
+
+Caller: SData.Interpreter.Process_One_Record, called exactly once per
+record at the start of the deferred program body, after Group_Flags
+determines the boundary values from the physical row sequence and the
+active BY-variable list.
+
+Both flags are set atomically; the evaluator makes no assertion about
+their values.  The BOG() and EOG() expression functions read these flags
+during Evaluate; behaviour is undefined if they are read before the first
+call in a data step.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Value_Array is array (Positive range &lt;&gt;) of Value;</pre>
+<div class='doc'>Thin shim for unit tests: call a registered function by name with
+pre-evaluated arguments.  Raises SData_Core.Script_Error if Name is not in
+the dispatch table.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Call_Function (Name : String; Args : Value_Array) return Value;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Aggregate_Metadata is record
+      Accepts_Numeric   : Boolean;
+      Accepts_Character : Boolean;
+   end record;</pre>
+<div class='doc'>Aggregate-function metadata.  AGGREGATE (SData_Core.Commands) consults
+this side-table to (a) recognise a name as a registered aggregate and
+(b) type-check its input column before computing.  The actual per-group
+computation is done via Call_Function above, so this record deliberately
+carries only the accepted input-type flags — no handler access — and
+leaks none of the private dispatch types.  See ADR-046.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Aggregate (Name : String) return Boolean;</pre>
+<div class='doc'>True iff Name (case-insensitive) is a registered aggregate function.
+This is the aggregate allow-list AGGREGATE uses to reject non-aggregate
+functions (SQRT, LEN$, …) at parse time.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Lookup (Name : String) return Aggregate_Metadata;</pre>
+<div class='doc'>Returns the metadata for a registered aggregate.  Raises
+SData_Core.Script_Error with
+&quot;AGGREGATE: &#x27;&lt;name&gt;&#x27; is not a registered aggregate function&quot;
+when Name is not a registered aggregate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Parse_Expression (Text : String) return Expression_Access;</pre>
+<div class='doc'>Parse an expression from a plain string.  Used by application parsers
+(data-vandal) that do not embed sdata&#x27;s full lexer.  Raises
+SData_Core.Script_Error with a descriptive message on syntax error.</div>
+</div>
+<h2 id='SData_Core.Statistics'>SData_Core.Statistics</h2>
+<p class='overview'>Package SData_Core.Statistics provides probability-distribution and
+random-variate functions for the distributions the interpreter exposes.
+All values are Float; the bodies compute in Long_Float for precision.
+
+Naming convention.  Each distribution offers some of these, by suffix:
+_PDF  probability *density* (continuous distributions)
+_PMF  probability *mass*    (discrete distributions: Poisson, Binomial)
+_CDF  cumulative distribution, P(X &lt;= x)
+_IDF  inverse CDF / quantile: the x for which CDF(x) = p
+_RN   one pseudo-random variate drawn from the distribution
+
+Conventions shared across the package:
+* Random functions draw from a single shared generator.  Call Set_Seed
+for a reproducible sequence; otherwise the generator seeds itself on
+first use.  Uniform_Random exposes that generator directly.
+* Out-of-domain *parameters* raise Constraint_Error (e.g. a non-positive
+scale/shape, or a probability outside the function&#x27;s valid range).
+A density evaluated *outside its support* instead returns 0.0.
+* Discrete distributions (Poisson, Binomial) floor their count
+arguments (K, N) to integers.
+* Parameterisation gotchas worth noting up front: Gamma uses a *rate*
+(not scale) second shape argument; Weibull_IDF takes its parameters
+in the opposite order to the other Weibull functions; Binomial_IDF&#x27;s
+first argument is a cumulative probability, not the success
+probability.  Each is flagged again at the declaration below.</p>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Z_PDF (Z : Float) return Float;</pre>
+<div class='doc'>Standard Normal (Z) -- mean 0, standard deviation 1.
+Density phi(z).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Z_CDF (Z : Float) return Float;</pre>
+<div class='doc'>CDF Phi(z).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Z_IDF (P : Float) return Float;</pre>
+<div class='doc'>Quantile (probit) Phi^-1(p).  P must lie in the open interval (0,1).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Normal_PDF (X, Mean, Std_Dev : Float) return Float;</pre>
+<div class='doc'>General Normal(Mean, Std_Dev).  Std_Dev must be positive.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Normal_CDF (X, Mean, Std_Dev : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Normal_IDF (P, Mean, Std_Dev : Float) return Float;</pre>
+<div class='doc'>Quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Normal_RN  (Mean, Std_Dev : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Uniform_PDF (X, Lower, Upper : Float) return Float;</pre>
+<div class='doc'>Continuous Uniform on the interval [Lower, Upper].  Requires
+Lower &lt; Upper.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Uniform_CDF (X, Lower, Upper : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Uniform_IDF (P, Lower, Upper : Float) return Float;</pre>
+<div class='doc'>Quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Uniform_RN  (Lower, Upper : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Exponential_PDF (X, Rate : Float) return Float;</pre>
+<div class='doc'>Exponential with rate parameter Rate (= lambda), which must be
+positive.  The mean is 1/Rate.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Exponential_CDF (X, Rate : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Exponential_IDF (P, Rate : Float) return Float;</pre>
+<div class='doc'>Quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Exponential_RN  (Rate : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Beta_PDF (X, Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>Beta(Alpha, Beta) on [0,1].  Alpha and Beta are shape parameters and
+must both be positive.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Beta_CDF (X, Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Beta_IDF (P, Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>Quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Beta_RN  (Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Poisson_PMF (K, Mean : Float) return Float;</pre>
+<div class='doc'>Poisson (discrete) with mean Mean (= lambda), which must be positive.
+K is floored to an integer count.
+Mass P(X = K).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Poisson_CDF (K, Mean : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Poisson_RN  (Mean : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Gamma_PDF (X, Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>Gamma(Alpha, Beta) where Alpha is the shape and Beta is the *rate*
+(NOT the scale).  Both must be positive; the mean is Alpha/Beta.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Gamma_CDF (X, Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Gamma_RN  (Alpha, Beta : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Chi_Square_PDF (X, DF : Float) return Float;</pre>
+<div class='doc'>Chi-square with DF degrees of freedom (equivalently Gamma(DF/2, 1/2)).
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Chi_Square_CDF (X, DF : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Student_T_PDF (T, DF : Float) return Float;</pre>
+<div class='doc'>Student&#x27;s t with DF degrees of freedom.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Student_T_CDF (T, DF : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function F_PDF (X, DF1, DF2 : Float) return Float;</pre>
+<div class='doc'>Snedecor&#x27;s F with DF1 (numerator) and DF2 (denominator) degrees of
+freedom.
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function F_CDF (X, DF1, DF2 : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Binomial_PMF (K, N, P : Float) return Float;</pre>
+<div class='doc'>Binomial (discrete): N trials (floored) each succeeding with
+probability P in [0,1]; K is the floored success count.
+Mass P(X = K).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Binomial_CDF (K, N, P : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Binomial_IDF (P, N, Prob : Float) return Float;</pre>
+<div class='doc'>Quantile.  NOTE the argument roles: P is the cumulative probability
+(quantile input) and Prob is the per-trial success probability.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Binomial_RN  (N, P : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Weibull_PDF (X, Scale, Shape : Float) return Float;</pre>
+<div class='doc'>Weibull(Scale, Shape) where Scale = lambda and Shape = k; both must be
+positive.  (Weibull_IDF below takes the two in the opposite order.)
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Weibull_CDF (X, Scale, Shape : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Weibull_RN  (Scale, Shape : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Laplace_PDF (X, Location, Scale : Float) return Float;</pre>
+<div class='doc'>Laplace(Location, Scale) where Location is the mean (mu) and Scale is
+the positive diversity parameter (b).
+Density.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Laplace_CDF (X, Location, Scale : Float) return Float;</pre>
+<div class='doc'>CDF.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Laplace_IDF (P, Location, Scale : Float) return Float;</pre>
+<div class='doc'>Quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Laplace_RN  (Location, Scale : Float) return Float;</pre>
+<div class='doc'>One variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Poisson_IDF    (P, Lambda      : Float) return Float;</pre>
+<div class='doc'>Quantiles and random variates added after the blocks above; each
+belongs to the distribution named in its identifier.
+Poisson quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Chi_Square_IDF (P, DF          : Float) return Float;</pre>
+<div class='doc'>Chi-square quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Student_T_IDF  (P, DF          : Float) return Float;</pre>
+<div class='doc'>Student&#x27;s t quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function F_IDF          (P, DF1, DF2    : Float) return Float;</pre>
+<div class='doc'>F quantile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Gamma_IDF      (P, Shape, Rate : Float) return Float;</pre>
+<div class='doc'>Gamma quantile.  Like Gamma_*, the second shape argument is a rate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Weibull_IDF    (P, Shape, Scale : Float) return Float;</pre>
+<div class='doc'>Weibull quantile.  CAUTION: Shape and Scale are in the *reverse* order
+to Weibull_PDF/CDF/RN, which take (Scale, Shape).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Chi_Square_RN (DF : Float) return Float;</pre>
+<div class='doc'>Chi-square variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Student_T_RN (DF : Float) return Float;</pre>
+<div class='doc'>Student&#x27;s t variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function F_RN (DF1, DF2 : Float) return Float;</pre>
+<div class='doc'>F variate.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Seed (Seed : Integer);</pre>
+<div class='doc'>Reseed the shared random generator so the subsequent *_RN / Uniform_Random
+sequence is reproducible.  Without this the generator self-seeds on first use.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function  Uniform_Random return Float;</pre>
+<div class='doc'>Returns uniform [0,1) using the shared generator.</div>
+</div>
+<h2 id='SData_Core.Table'>SData_Core.Table</h2>
+<p class='overview'>Package SData_Core.Table implements the Data Table Manager, providing an in-memory
+2D table structure for storing and manipulating records and columns.
+Columns are typed (Numeric or String) and the table maintains consistency
+between rows.</p>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Clear;</pre>
+<div class='doc'>Resets the table state (removes all columns and rows).</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   subtype Column_Type is SData_Core.Columns.Column_Type;</pre>
+<div class='doc'>Kinds of data allowed in a column.  Relocated to SData_Core.Columns and
+re-exported here so the public API is byte-for-byte unchanged.  The
+subtype + literal renames are not enough on their own: the enumeration&#x27;s
+predefined &quot;=&quot; now lives in Columns, so a caller doing `use
+SData_Core.Table` (without `use type`) would lose direct visibility of
+it.  Re-exporting &quot;=&quot; here restores the prior directly-visible operator
+set.  See ADR-0007 / spec sec 4.1.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Col_Numeric return Column_Type renames SData_Core.Columns.Col_Numeric;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Col_Integer return Column_Type renames SData_Core.Columns.Col_Integer;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Col_String  return Column_Type renames SData_Core.Columns.Col_String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function &quot;=&quot; (Left, Right : Column_Type) return Boolean
+     renames SData_Core.Columns.&quot;=&quot;;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Add_Column (Name : String; Col_Type : Column_Type);</pre>
+<div class='doc'>Defines a new column. If the table already has rows, they are padded with missing values.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Has_Column (Name : String) return Boolean;</pre>
+<div class='doc'>Checks if a column with the given name (case-insensitive) exists.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Column_Type (Name : String) return Column_Type;</pre>
+<div class='doc'>Returns the declared Column_Type for the named column. Raises
+Constraint_Error if the column does not exist (caller should test
+Has_Column first when uncertainty is possible).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Column_Count return Natural;</pre>
+<div class='doc'>Returns the number of columns in the table.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Column_Name (I : Positive) return String;</pre>
+<div class='doc'>Returns the Ith column name in user-visible (insertion) order, 1-based.
+Used to iterate column names without heap-allocating a String_List.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Row_Count return Natural;</pre>
+<div class='doc'>Returns the number of rows (records) in the table.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Add_Row;</pre>
+<div class='doc'>Appends a new empty row to the table (all values initialized to
+Val_Missing).
+
+Spill / cost-class contract: when Config.Max_Table_Cells &gt; 0, Add_Row
+transparently spills the current in-memory segment to the SQLite backing
+store once it fills -- i.e. when
+(rows-in-segment * Column_Count) &gt;= Max_Table_Cells -- so at most
+Max_Table_Cells / Column_Count rows are resident at a time.  This makes
+the table larger-than-RAM at the price of a read-cost transition: a row
+in the live (unspilled) segment reads in O(1) by vector index, but a row
+in a spilled segment costs O(segment) on first access -- one SQL query
+materializes the whole segment into the prefetch cache (see
+Fetch_From_Disk) -- and O(1) thereafter while that segment stays cached.
+Sequential scans pay one fetch per segment; random access across segments
+thrashes the single-segment cache (Seg_Cache holds one segment, no LRU).
+Max_Table_Cells = 0 disables spilling: every row stays in memory, always
+O(1).  See Spill_Table_To_Disk for the all-or-nothing write contract.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Value (Row : Positive; Column_Name : String) return Value;</pre>
+<div class='doc'>Retrieves the value for a specific row and column.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Value (Row : Positive; Column_Name : String; Val : Value);</pre>
+<div class='doc'>Updates the value at a specific row and column.
+Raises Type_Mismatch_Error if the value kind doesn&#x27;t match the column type.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Rename_Column (Old_Name, New_Name : String);</pre>
+<div class='doc'>Renames an existing column.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Drop_Column (Name : String);</pre>
+<div class='doc'>Removes a column from the table.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Drop_Row (Index : Positive);</pre>
+<div class='doc'>Removes a specific row from the table.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   subtype Sort_Direction is SData_Core.Columns.Sort_Direction;</pre>
+<div class='doc'>Sorting support.  Relocated to SData_Core.Columns and re-exported here so
+consumer aggregates (Sort_Criteria_Array) and `.Dir := Ascending`
+assignments keep compiling byte-for-byte (sec 4.4, same shim pattern as
+Column_Type).  No &quot;=&quot; re-export: neither consumer compares Sort_Direction
+or Sort_Criteria values (only assigns/declares them), so an &quot;=&quot; rename
+would be unused and draw a -gnaty warning.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Ascending  return Sort_Direction renames SData_Core.Columns.Ascending;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Descending return Sort_Direction renames SData_Core.Columns.Descending;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   subtype Sort_Criteria       is SData_Core.Columns.Sort_Criteria;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   subtype Sort_Criteria_Array is SData_Core.Columns.Sort_Criteria_Array;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Sort (Criteria : Sort_Criteria_Array);</pre>
+<div class='doc'>Sorts the table based on the given criteria.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Current_Record_Index (Index : Natural);</pre>
+<div class='doc'>Sets/Gets the pointer to the current record during data step iteration.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Current_Record_Index return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Logical_Record_Index (Index : Natural);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Logical_Record_Index return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Index_Array is array (Positive range &lt;&gt;) of Positive;</pre>
+<div class='doc'>Filtered view support (SELECT filter)</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Index_Map (Map : Index_Array);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Clear_Index_Map;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Logical_To_Physical (Logical : Positive) return Positive;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Logical_Row_Count return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Filtered return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Initialize_Output_Table;</pre>
+<div class='doc'>Output Table Management</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Add_Output_Column
+     (Name : String; Col_Type : Column_Type; From_Missing : Boolean := False);</pre>
+<div class='doc'>From_Missing =&gt; True marks the column&#x27;s type as a placeholder inferred
+from a leading missing value of a non-table (derived) column.  Such a
+placeholder is upgraded to the first non-missing value&#x27;s kind on write
+(see Set_Output_Value*), so a missing-first-then-character derived column
+is not locked to Numeric.  A deliberately-typed column (From_Missing
+False) is never upgraded.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Add_Output_Row;</pre>
+<div class='doc'>Appends an empty row to the output table.  Carries the same spill /
+cost-class contract as Add_Row -- threshold Config.Max_Table_Cells,
+O(1) live-segment vs O(segment) disk-backed reads -- applied to the
+independent Output_* segment (Output_Segment_Start, Spill_Output_To_Disk).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Output_Value (Row : Positive; Column_Name : String; Val : Value);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Output_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Commit_Output_Table;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Output_Row_Count return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Value_By_Col (Row : Positive; Col_Pos : Positive) return Value;</pre>
+<div class='doc'>Position-indexed accessors using the pre-resolved cursor cache.
+Col_Pos is 1-based column index matching Column_Order / Output_Column_Order.
+O(1): no hash lookup, no Contains check.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Output_Value_By_Col (Row : Positive; Col_Pos : Positive; Val : Value);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Record_Explicitly_Written (State : Boolean);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Record_Explicitly_Written return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Backing_Store_Path return String;</pre>
+<div class='doc'>Returns the backing-store temp file path, or &quot;&quot; if the store is not active.
+Used by the signal handler to clean up on SIGTERM/SIGINT.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Clear_By_Vars;</pre>
+<div class='doc'>BY-group support.  The interpreter registers the active BY variable
+names here so that the evaluator can query group membership without
+depending on the interpreter package.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Add_By_Var (Name : String);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function By_Var_Count return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function By_Var_Name (I : Positive) return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function In_Same_Group (Idx1, Idx2 : Positive) return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   package Name_Vectors is new Ada.Containers.Vectors (Index_Type =&gt; Positive, Element_Type =&gt; Unbounded_String);</pre>
+<div class='doc'>Package to store lists of column names.</div>
+</div>
+<div class='decl'>
+<div class='kind'>exception</div>
+<pre>   Type_Mismatch_Error : exception;</pre>
+</div>
+<h2 id='SData_Core.Values'>SData_Core.Values</h2>
+<p class='overview'>Package SData_Core.Values defines the core data types used within the SData interpreter.
+It provides a variant record type &#x27;Value&#x27; that can represent numeric (Float),
+integer (Integer), string, or missing values, along with utility functions.</p>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Value_Kind is (Val_Numeric, Val_Integer, Val_String, Val_Missing);</pre>
+<div class='doc'>Kind of data stored in a Value record.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Value (Kind : Value_Kind := Val_Missing) is record
+      case Kind is
+         when Val_Numeric =&gt;
+            Num_Val : Float;
+         when Val_Integer =&gt;
+            Int_Val : Integer;
+         when Val_String =&gt;
+            Str_Val : Ada.Strings.Unbounded.Unbounded_String;
+         when Val_Missing =&gt;
+            null;
+      end case;</pre>
+<div class='doc'>The main data container for the interpreter.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function To_String (V : Value) return String;</pre>
+<div class='doc'>Converts a Value to its string representation.
+Integers are formatted without decimals or scientific notation.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Inf (F : Float) return Boolean;</pre>
+<div class='doc'>Returns True for IEEE 754 positive or negative infinity.
+Returns False for finite values, Missing, and NaN.</div>
+</div>
+<div class='decl'>
+<div class='kind'>value</div>
+<pre>   Pos_Inf : Float;</pre>
+<div class='doc'>IEEE 754 infinity sentinels produced at package elaboration.
+Use these wherever +Inf or -Inf must be produced at runtime.</div>
+</div>
+<div class='decl'>
+<div class='kind'>value</div>
+<pre>   Neg_Inf : Float;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function To_String_Formatted (V : Value) return String;</pre>
+<div class='doc'>Like To_String, but respects global precision settings for Floats.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Convert_Value (V : Value; Target : Value_Kind) return Value;</pre>
+<div class='doc'>Convert V to the requested numeric-family kind.
+Val_Numeric &lt;-&gt; Val_Integer convert (Numeric -&gt; Integer truncates
+toward zero, matching LET coercion); Val_Missing passes through; a
+Value already of kind Target is returned unchanged.  Raises
+Conversion_Error if a string is involved on either side (string value
+with a numeric Target, or string Target with a numeric value), i.e.
+the numeric/character boundary, which this routine does not cross.</div>
+</div>
+<div class='decl'>
+<div class='kind'>exception</div>
+<pre>   Conversion_Error : exception;</pre>
+<div class='doc'>Raised by Convert_Value for an unsupported string &lt;-&gt; numeric crossing.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_True (V : Value) return Boolean;</pre>
+<div class='doc'>Determines the boolean truth of a value.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   overriding function &quot;=&quot; (L, R : Value) return Boolean;</pre>
+<div class='doc'>Comparison functions</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function &quot;&lt;&quot; (L, R : Value) return Boolean;</pre>
+</div>
+<h2 id='SData_Core.Variables'>SData_Core.Variables</h2>
+<p class='overview'>Package SData_Core.Variables implements the Symbol Table for the interpreter.
+It distinguishes between Temporary (memory only) and Permanent (table-linked) variables.</p>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Temporary (Name : String; Val : Value);</pre>
+<div class='doc'>Creates or updates a temporary variable. Fails if name matches a table column.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Permanent (Name : String; Val : Value);</pre>
+<div class='doc'>Ensures a variable is permanent. If it was temporary, it&#x27;s moved to the table.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get (Name : String) return Value;</pre>
+<div class='doc'>Retrieves a value. Lookup order: 1. Permanent PDV, 2. Temporary symbols.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Defined (Name : String) return Boolean;</pre>
+<div class='doc'>Returns True if the name exists in either the PDV or the temporary symbol table,
+regardless of whether its current value is missing.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Unset (Name : String);</pre>
+<div class='doc'>Removes a session variable.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Clear_Temporary;</pre>
+<div class='doc'>Removes all temporary variables (called by NEW).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Initialize_PDV;</pre>
+<div class='doc'>PDV Management (PDV stands for Program Data Vector)</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Load_PDV_From_Table (Row : Positive);</pre>
+<div class='doc'>Load all table columns for Row into the PDV.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Load_PDV_One_Column (Row : Positive; Col_Name : String);</pre>
+<div class='doc'>Load a single already-upper-cased column Col_Name for Row into the PDV.
+Used by the SELECT filter scan to load only the columns the filter references.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Reset_PDV_Non_Held;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Refresh_PDV_Names;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function PDV_Resolve (Name : String) return Natural;</pre>
+<div class='doc'>Indexed PDV access — used by the evaluator hot path after pre-resolution.
+Returns the 1-based slot index for Name in the PDV vector, 0 if absent.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_PDV_Value (Idx : Positive) return Value;</pre>
+<div class='doc'>Direct slot read (caller must ensure Idx in 1 .. PDV_Size).</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   package Symbol_Table_Pkg is new Ada.Containers.Indefinite_Hashed_Maps
+     (Key_Type        =&gt; String,
+      Element_Type   =&gt; Value,
+      Hash           =&gt; Ada.Strings.Hash,
+      Equivalent_Keys =&gt; &quot;=&quot;);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Flush_PDV_To_Output;</pre>
+<div class='doc'>Flushes the current PDV to the Output Table</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Type (Name : String) return Value_Kind;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_PDV_Names return GNAT.Strings.String_List_Access;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Session_Names return GNAT.Strings.String_List_Access;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Define_Array (Name : String; Constituents : GNAT.Strings.String_List);</pre>
+<div class='doc'>Array Management
+Defines a virtual array (maps existing variables)</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Define_Array (Name : String; Constituents : Name_Vectors.Vector);</pre>
+<div class='doc'>For internal use</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Define_Array_Access (Name : String; Constituents : GNAT.Strings.String_List_Access);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Undefine_Virtual_Array (Name : String);</pre>
+<div class='doc'>Removes a virtual array definition by name (no effect on constituent variables or real arrays)</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure List_Virtual_Arrays;</pre>
+<div class='doc'>Prints all currently defined virtual arrays to console output</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Dim_Array (Name : String; Start_Idx, End_Idx : Integer; Is_Temp : Boolean);</pre>
+<div class='doc'>Creates or resizes a real array (generates numbered variables)</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Array_Element (Name : String; Index : Integer) return Value;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Array_Element (Name : String; Index : Integer; Val : Value);</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Has_Array (Name : String) return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Temporary_Array (Name : String) return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Get_Array_Bounds (Name : String; Start_Idx, End_Idx : out Integer);</pre>
+<div class='doc'>Returns the bounds of an array if it exists.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Array_Element_Column (Name : String; Index : Integer) return String;</pre>
+<div class='doc'>Returns the physical table column name for element Index of the named array.
+For Real_Array (DIM): &quot;NAME(Index)&quot;.
+For Virtual_Array (ARRAY): the constituent variable name at that position.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Register_Subscripted_Columns;</pre>
+<div class='doc'>Scan the current table column names for the pattern base(n) where n is
+a positive integer.  For each unique base name found, register the group
+as a DIM array spanning the minimum and maximum subscript observed.
+Gaps in the numeric sequence are permitted.  Call after Execute_USE.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Hold (Name : String; State : Boolean);</pre>
+<div class='doc'>Hold/Unhold Management</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Held (Name : String) return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Set_Current_Group_Key (Key : String);</pre>
+<div class='doc'>Group Management</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Get_Current_Group_Key return String;</pre>
+</div>
+<footer>Generated by scripts/gen-reference.py &mdash; sdata-core.</footer>
+</body></html>
