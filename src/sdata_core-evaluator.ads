@@ -130,6 +130,28 @@ package SData_Core.Evaluator is
    type Value_Array is array (Positive range <>) of Value;
    function Call_Function (Name : String; Args : Value_Array) return Value;
 
+   --  Aggregate-function metadata.  AGGREGATE (SData_Core.Commands) consults
+   --  this side-table to (a) recognise a name as a registered aggregate and
+   --  (b) type-check its input column before computing.  The actual per-group
+   --  computation is done via Call_Function above, so this record deliberately
+   --  carries only the accepted input-type flags — no handler access — and
+   --  leaks none of the private dispatch types.  See ADR-046.
+   type Aggregate_Metadata is record
+      Accepts_Numeric   : Boolean;
+      Accepts_Character : Boolean;
+   end record;
+
+   --  True iff Name (case-insensitive) is a registered aggregate function.
+   --  This is the aggregate allow-list AGGREGATE uses to reject non-aggregate
+   --  functions (SQRT, LEN$, …) at parse time.
+   function Is_Aggregate (Name : String) return Boolean;
+
+   --  Returns the metadata for a registered aggregate.  Raises
+   --  SData_Core.Script_Error with
+   --    "AGGREGATE: '<name>' is not a registered aggregate function"
+   --  when Name is not a registered aggregate.
+   function Lookup (Name : String) return Aggregate_Metadata;
+
    --  Parse an expression from a plain string.  Used by application parsers
    --  (data-vandal) that do not embed sdata's full lexer.  Raises
    --  SData_Core.Script_Error with a descriptive message on syntax error.
@@ -159,6 +181,16 @@ private
    --  Global dispatch table — populated during elaboration by each handler
    --  family's private child package.
    Dispatch_Table : Fn_Maps.Map;
+
+   --  Aggregate-only metadata side-table — populated during elaboration by
+   --  SData_Core.Evaluator.Aggregate_Fns.Register alongside the aggregate
+   --  entries it adds to Dispatch_Table.  Keyed by upper-cased function name.
+   package Aggregate_Meta_Maps is new Ada.Containers.Indefinite_Hashed_Maps
+      (Key_Type        => String,
+       Element_Type    => Aggregate_Metadata,
+       Hash            => Ada.Strings.Hash,
+       Equivalent_Keys => "=");
+   Aggregate_Meta_Table : Aggregate_Meta_Maps.Map;
 
    --  Helpers used by every handler family.
    function Has_Args (Vals : Value_Vectors.Vector; N : Positive) return Boolean;
