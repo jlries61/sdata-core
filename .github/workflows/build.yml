@@ -16,6 +16,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  api-reference:
+    # The HTML programmer's reference (docs/api/reference.html) is a checked-in
+    # artifact generated from the .ads specs.  Verify the tracked copy matches a
+    # fresh regeneration so it cannot silently drift from the public API.  Pure
+    # Python (stdlib only) -- no Alire build needed, so this runs independently
+    # of the library smoke build below.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Regenerate API reference
+        run: scripts/gen-reference.sh
+
+      - name: Verify tracked reference is up to date
+        run: |
+          if ! git diff --exit-code -- docs/api/reference.html; then
+            echo "::error::docs/api/reference.html is out of date." \
+                 "Run scripts/gen-reference.sh and commit the result." >&2
+            exit 1
+          fi
+
   build:
     runs-on: ubuntu-latest
 
