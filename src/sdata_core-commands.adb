@@ -692,8 +692,24 @@ package body SData_Core.Commands is
       --  Phase 1 — validation (errors 4..8).  No side effects.    --
       --------------------------------------------------------------
       procedure Validate is
+         Seen_Outvars : Name_Sets.Set;
       begin
          for Spec of Resolved loop
+            declare
+               Outvar  : constant String := To_String (Spec.Outvar);
+            begin
+               --  #9 (defensive): the sdata parser rejects duplicate outvars,
+               --  but Execute_AGGREGATE is public sdata-core API and the output
+               --  column build (Emit_Group) assumes one distinct column per
+               --  spec — a duplicate base name would misalign columns.  Reject
+               --  it here so any direct caller is protected, not just sdata.
+               if Seen_Outvars.Contains (To_Upper (Outvar)) then
+                  raise SData_Core.Script_Error with
+                    "AGGREGATE: duplicate outvar name '" & Outvar & "'";
+               end if;
+               Seen_Outvars.Insert (To_Upper (Outvar));
+            end;
+
             declare
                Fn      : constant String := To_String (Spec.Fn_Name);
                Outvar  : constant String := To_String (Spec.Outvar);
