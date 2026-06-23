@@ -634,6 +634,12 @@ package body SData_Core.Commands is
       package Vars renames SData_Core.Variables;
       package Eval renames SData_Core.Evaluator;
 
+      --  Specs with each bare-name (Invar_Scalar) input resolved against the
+      --  live array registry: a name that is a registered array becomes
+      --  Invar_Array_Name (applied element-wise).  The parser cannot make this
+      --  decision because in batch mode the registry is empty until USE runs.
+      Resolved : Aggregate_Spec_Vectors.Vector;
+
       function Img (N : Integer) return String is
         (Ada.Strings.Fixed.Trim (N'Image, Ada.Strings.Left));
 
@@ -687,7 +693,7 @@ package body SData_Core.Commands is
       --------------------------------------------------------------
       procedure Validate is
       begin
-         for Spec of Specs loop
+         for Spec of Resolved loop
             declare
                Fn      : constant String := To_String (Spec.Fn_Name);
                Outvar  : constant String := To_String (Spec.Outvar);
@@ -792,7 +798,7 @@ package body SData_Core.Commands is
                          Source => Src_By, By_Idx => I, others => <>));
          end loop;
 
-         for Spec of Specs loop
+         for Spec of Resolved loop
             declare
                Fn     : constant String := To_String (Spec.Fn_Name);
                Outvar : constant String := To_String (Spec.Outvar);
@@ -835,6 +841,55 @@ package body SData_Core.Commands is
             end;
          end loop;
       end Build_Descriptors;
+
+      --------------------------------------------------------------
+      --  Warning W1 — outvar pre-exists with a different shape.    --
+      --  Emitted before the table is replaced; same-shape pre-     --
+      --  existence is silent.                                      --
+      --------------------------------------------------------------
+      procedure Warn_Resizing is
+
+         procedure Warn (Name, Old_Shape, New_Shape : String) is
+         begin
+            SData_Core.IO.Put_Line
+              ("AGGREGATE: resizing existing variable '" & Name & "' (" &
+               Old_Shape & " -> " & New_Shape & ")");
+         end Warn;
+
+         function Array_Shape (Lo, Hi : Integer) return String is
+           ("array " & Img (Lo) & ".." & Img (Hi));
+
+      begin
+         for Spec of Resolved loop
+            declare
+               Outvar       : constant String := To_String (Spec.Outvar);
+               New_Is_Array : constant Boolean :=
+                 Spec.Invar_Kind = Invar_Array_Name;
+               New_Lo, New_Hi : Integer := 0;
+            begin
+               if New_Is_Array then
+                  Vars.Get_Array_Bounds
+                    (To_String (Spec.Invar_Name), New_Lo, New_Hi);
+               end if;
+
+               if Vars.Has_Array (Outvar) then
+                  declare
+                     Old_Lo, Old_Hi : Integer;
+                  begin
+                     Vars.Get_Array_Bounds (Outvar, Old_Lo, Old_Hi);
+                     if not New_Is_Array then
+                        Warn (Outvar, Array_Shape (Old_Lo, Old_Hi), "scalar");
+                     elsif Old_Lo /= New_Lo or else Old_Hi /= New_Hi then
+                        Warn (Outvar, Array_Shape (Old_Lo, Old_Hi),
+                              Array_Shape (New_Lo, New_Hi));
+                     end if;
+                  end;
+               elsif Tbl.Has_Column (Outvar) and then New_Is_Array then
+                  Warn (Outvar, "scalar", Array_Shape (New_Lo, New_Hi));
+               end if;
+            end;
+         end loop;
+      end Warn_Resizing;
 
       --  Gather one column's values across a group's physical rows.
       function Group_Values (Rows : Row_Vectors.Vector; Col : String)
@@ -886,7 +941,22 @@ package body SData_Core.Commands is
    begin
       --  Phase 1: validate everything first; raising here leaves the table,
       --  the pending SAVE, and the active SELECT/BY untouched.
+      --  Resolve each bare-name input against the live array registry.
+      for Spec of Specs loop
+         declare
+            S : Aggregate_Spec := Spec;
+         begin
+            if S.Invar_Kind = Invar_Scalar
+              and then Vars.Has_Array (To_String (S.Invar_Name))
+            then
+               S.Invar_Kind := Invar_Array_Name;
+            end if;
+            Resolved.Append (S);
+         end;
+      end loop;
+
       Validate;
+      Warn_Resizing;
 
       --  Phase 2: reflect the active SELECT, then build the output table.
       Rebuild_Filter_Map;
