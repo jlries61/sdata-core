@@ -221,7 +221,9 @@ package body SData_Core.File_IO.CSV is
                   if Field_Count <= N_Cols then
                      if F = "" or else F = "." then
                         Val := (Kind => Val_Missing);
-                     elsif Try_Fast_Float (F, Num) then
+                     elsif Col_Types (Field_Count) /= Col_String
+                        and then Try_Fast_Float (F, Num)
+                     then
                         if Col_Types (Field_Count) = Col_Integer
                            and then Num /= Float'Truncation (Num)
                         then
