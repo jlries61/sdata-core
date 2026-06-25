@@ -193,7 +193,10 @@ package body SData_Core.File_IO.OOXML is
          Rows    : Node_List;
          Success : Boolean;
 
-         function Get_Cell_Value (Cell_Node : Node) return Value is
+         function Get_Cell_Value
+            (Cell_Node   : Node;
+             Target_Type : Column_Type := Col_Numeric) return Value
+         is
             T_Attr  : constant String :=
                Get_Attribute (DOM.Core.Element (Cell_Node), "t");
             V_List  : Node_List :=
@@ -228,6 +231,11 @@ package body SData_Core.File_IO.OOXML is
                         return (Kind    => Val_String,
                                 Str_Val => To_Unbounded_String (Val_Str));
                      end;
+                  elsif Target_Type = Col_String then
+                     --  Numeric cell destined for a '$' (character) column:
+                     --  store its raw text rather than dropping it.
+                     return (Kind    => Val_String,
+                             Str_Val => To_Unbounded_String (Val_Str));
                   else
                      begin
                         return (Kind    => Val_Numeric,
@@ -348,7 +356,9 @@ package body SData_Core.File_IO.OOXML is
                         if J < Col_Count then
                            declare
                               V : constant Value :=
-                                 Get_Cell_Value (Item (Cells, J));
+                                 Get_Cell_Value
+                                    (Item (Cells, J),
+                                     Get_Column_Type (Column_Name (J + 1)));
                            begin
                               if V.Kind = Val_Numeric
                                  and then Get_Column_Type

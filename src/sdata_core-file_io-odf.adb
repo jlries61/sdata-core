@@ -44,7 +44,10 @@ package body SData_Core.File_IO.ODF is
          Tables, Rows : Node_List;
          Success : Boolean;
 
-         function Get_Cell_Value (Cell_Node : Node) return Value is
+         function Get_Cell_Value
+            (Cell_Node   : Node;
+             Target_Type : Column_Type := Col_Numeric) return Value
+         is
             Val_Type : constant String :=
                Get_Attribute (DOM.Core.Element (Cell_Node), "office:value-type");
             P_List   : Node_List :=
@@ -57,6 +60,20 @@ package body SData_Core.File_IO.ODF is
                   V_Attr : constant String :=
                      Get_Attribute (DOM.Core.Element (Cell_Node), "office:value");
                begin
+                  --  A numeric cell destined for a '$' (character) column is
+                  --  stored as its displayed text rather than dropped: prefer
+                  --  the text:p rendering, falling back to office:value.
+                  if Target_Type = Col_String then
+                     declare
+                        S : constant String :=
+                           (if Length (P_List) > 0
+                            then Get_Text (Item (P_List, 0)) else V_Attr);
+                     begin
+                        Free (P_List);
+                        return (Kind => Val_String,
+                                Str_Val => To_Unbounded_String (S));
+                     end;
+                  end if;
                   Free (P_List);
                   begin
                      return (Kind => Val_Numeric, Num_Val => Float'Value (V_Attr));
@@ -231,7 +248,13 @@ package body SData_Core.File_IO.ODF is
                                  Repeat_Count : constant Positive :=
                                     (if Repeat_Attr = "" then 1
                                      else Positive'Value (Repeat_Attr));
-                                 Val : constant Value := Get_Cell_Value (Cell);
+                                 Val : constant Value :=
+                                    Get_Cell_Value
+                                       (Cell,
+                                        (if Col_Idx <= Col_Count
+                                         then Get_Column_Type
+                                                 (Column_Name (Col_Idx))
+                                         else Col_Numeric));
                               begin
                                  for K in 1 .. Repeat_Count loop
                                     pragma Warnings (Off, K);
