@@ -214,6 +214,47 @@ package SData_Core.Commands is
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector);
 
    ----------------------------------------------------------------
+   --  TRANSPOSE — reshape the current table so that each transposed input
+   --  column becomes one output row.  Either each input row of a block
+   --  becomes one element of an output array (/ARRAY, default _X_), or
+   --  named subsets of rows become named output columns (/ID).  With an
+   --  active BY, each consecutive-key block is transposed separately into
+   --  the same fresh output table.  The active SELECT filter is respected
+   --  during the scan; on success the fresh table replaces the in-memory
+   --  table, a pending SAVE is flushed, and the active SELECT and BY are
+   --  cleared.  All validation precedes any side effect (see ADR-047).
+   --
+   --  A Transpose_Options record carries the parsed options:
+   --    Keep_List   columns/arrays to transpose (empty = every non-BY column).
+   --    Drop_List   columns/arrays to exclude from the transposed set.
+   --    Name_Col    name of the character column holding each source column's
+   --                name (empty -> default _NAME_$).
+   --    Id_Col      /ID column whose values become output column names.
+   --    Array_Name  /ARRAY base name (empty -> _X_ when neither /ID nor
+   --                /ARRAY is given).
+   --    Has_Id      True when /ID was specified.
+   --    Has_Array   True when /ARRAY was specified.
+   --  /ID and /ARRAY are mutually exclusive (enforced by the front-end
+   --  parser, error #1).
+   type Transpose_Options is record
+      Keep_List  : SData_Core.Table.Name_Vectors.Vector;
+      Drop_List  : SData_Core.Table.Name_Vectors.Vector;
+      Name_Col   : Ada.Strings.Unbounded.Unbounded_String;
+      Id_Col     : Ada.Strings.Unbounded.Unbounded_String;
+      Array_Name : Ada.Strings.Unbounded.Unbounded_String;
+      Has_Id     : Boolean := False;
+      Has_Array  : Boolean := False;
+   end record;
+
+   --  Raises SData_Core.Script_Error (per the TRANSPOSE error catalog,
+   --  ADR-047 / design spec sec 4) on any validation failure; on such a
+   --  failure the in-memory table, the pending SAVE, and the active
+   --  SELECT/BY are all left untouched.  A failure during the post-commit
+   --  SAVE flush (error #13) is rethrown as Script_Error but, as with
+   --  AGGREGATE, the in-memory replacement has already happened.
+   procedure Execute_TRANSPOSE (Options : Transpose_Options);
+
+   ----------------------------------------------------------------
    --  Execute_Commit_Step — perform the end-of-step actions shared by
    --  every front end: rebuild the SELECT filter map against the current
    --  table and, if a SAVE or table-output is pending, write the table
