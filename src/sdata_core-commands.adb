@@ -629,6 +629,60 @@ package body SData_Core.Commands is
 
    package Row_Vectors  is new Ada.Containers.Vectors (Positive, Positive);
 
+   package Tbl  renames SData_Core.Table;
+   package Eval renames SData_Core.Evaluator;
+
+   --  Shared BY-group scan (used by AGGREGATE and STATS).  A "group" is a
+   --  vector of physical row indices.  Reflects the active SELECT filter via
+   --  Rebuild_Filter_Map and partitions the logical view into consecutive
+   --  BY-key runs (the whole filtered table is one group when no BY is active).
+   package Group_Vectors is new Ada.Containers.Vectors
+     (Positive, Row_Vectors.Vector, Row_Vectors."=");
+
+   function Collect_Groups return Group_Vectors.Vector is
+      Groups : Group_Vectors.Vector;
+      Group  : Row_Vectors.Vector;
+      Prev_P : Positive := 1;
+   begin
+      Rebuild_Filter_Map;
+      for L in 1 .. Tbl.Logical_Row_Count loop
+         declare
+            P : constant Positive := Tbl.Logical_To_Physical (L);
+         begin
+            if L = 1 then
+               Group.Append (P);
+            elsif Tbl.By_Var_Count = 0
+              or else Tbl.In_Same_Group (P, Prev_P)
+            then
+               Group.Append (P);
+            else
+               Groups.Append (Group);
+               Group.Clear;
+               Group.Append (P);
+            end if;
+            Prev_P := P;
+         end;
+      end loop;
+      if not Group.Is_Empty then
+         Groups.Append (Group);
+      end if;
+      return Groups;
+   end Collect_Groups;
+
+   --  Gather one column's values across a group's physical rows.
+   function Group_Values (Rows : Row_Vectors.Vector; Col : String)
+      return Eval.Value_Array
+   is
+      A : Eval.Value_Array (1 .. Integer (Rows.Length));
+      I : Positive := 1;
+   begin
+      for P of Rows loop
+         A (I) := Tbl.Get_Value (P, Col);
+         I := I + 1;
+      end loop;
+      return A;
+   end Group_Values;
+
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
 
       package Tbl renames SData_Core.Table;
@@ -908,20 +962,6 @@ package body SData_Core.Commands is
          end loop;
       end Warn_Resizing;
 
-      --  Gather one column's values across a group's physical rows.
-      function Group_Values (Rows : Row_Vectors.Vector; Col : String)
-         return Eval.Value_Array
-      is
-         A : Eval.Value_Array (1 .. Integer (Rows.Length));
-         I : Positive := 1;
-      begin
-         for P of Rows loop
-            A (I) := Tbl.Get_Value (P, Col);
-            I := I + 1;
-         end loop;
-         return A;
-      end Group_Values;
-
       --  Emit one output row for the completed group.
       procedure Emit_Group (Rows : Row_Vectors.Vector) is
          First_Phys : constant Positive := Rows.First_Element;
@@ -952,9 +992,6 @@ package body SData_Core.Commands is
          end loop;
       end Emit_Group;
 
-      Group  : Row_Vectors.Vector;
-      Prev_P : Natural := 0;
-
    begin
       --  Phase 1: validate everything first; raising here leaves the table,
       --  the pending SAVE, and the active SELECT/BY untouched.
@@ -976,7 +1013,6 @@ package body SData_Core.Commands is
       Warn_Resizing;
 
       --  Phase 2: reflect the active SELECT, then build the output table.
-      Rebuild_Filter_Map;
       Build_Descriptors;
 
       Tbl.Initialize_Output_Table;
@@ -984,27 +1020,9 @@ package body SData_Core.Commands is
          Tbl.Add_Output_Column (To_String (D.Name), D.Ctype);
       end loop;
 
-      for L in 1 .. Tbl.Logical_Row_Count loop
-         declare
-            P : constant Positive := Tbl.Logical_To_Physical (L);
-         begin
-            if L = 1 then
-               Group.Append (P);
-            elsif Tbl.By_Var_Count = 0
-              or else Tbl.In_Same_Group (P, Prev_P)
-            then
-               Group.Append (P);
-            else
-               Emit_Group (Group);
-               Group.Clear;
-               Group.Append (P);
-            end if;
-            Prev_P := P;
-         end;
+      for G of Collect_Groups loop
+         Emit_Group (G);
       end loop;
-      if not Group.Is_Empty then
-         Emit_Group (Group);
-      end if;
 
       --  Phase 3: commit the fresh table and apply post-execution effects
       --  (spec sec 3.6).
