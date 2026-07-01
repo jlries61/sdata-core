@@ -255,6 +255,25 @@ package SData_Core.Commands is
    procedure Execute_TRANSPOSE (Options : Transpose_Options);
 
    ----------------------------------------------------------------
+   --  STATS — compute summary statistics for the chosen (or, by default,
+   --  all numeric) variables, one row per (active BY group x variable),
+   --  with one column per requested statistic.  Reuses the registered
+   --  aggregate functions.  Mirrors AGGREGATE's build-and-swap: on success
+   --  the fresh stats table replaces the in-memory table, a pending SAVE is
+   --  flushed, and the active SELECT and BY are cleared.  All validation
+   --  precedes any side effect.  Printing is the caller's concern.
+   --
+   --    Var_List   analysis variables; empty => all numeric columns (minus BY).
+   --               A whole-array base name expands to its elements.
+   --    Stat_List  registered aggregate names; empty => N MIN MEAN MAX STD.
+   type Stats_Options is record
+      Var_List  : SData_Core.Table.Name_Vectors.Vector;
+      Stat_List : SData_Core.Table.Name_Vectors.Vector;
+   end record;
+
+   procedure Execute_STATS (Options : Stats_Options);
+
+   ----------------------------------------------------------------
    --  Execute_Commit_Step — perform the end-of-step actions shared by
    --  every front end: rebuild the SELECT filter map against the current
    --  table and, if a SAVE or table-output is pending, write the table
