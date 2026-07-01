@@ -629,11 +629,63 @@ package body SData_Core.Commands is
 
    package Row_Vectors  is new Ada.Containers.Vectors (Positive, Positive);
 
+   package Tbl  renames SData_Core.Table;
+   package Eval renames SData_Core.Evaluator;
+
+   --  Shared BY-group scan (used by AGGREGATE and STATS).  A "group" is a
+   --  vector of physical row indices.  Reflects the active SELECT filter via
+   --  Rebuild_Filter_Map and partitions the logical view into consecutive
+   --  BY-key runs (the whole filtered table is one group when no BY is active).
+   package Group_Vectors is new Ada.Containers.Vectors
+     (Positive, Row_Vectors.Vector, Row_Vectors."=");
+
+   function Collect_Groups return Group_Vectors.Vector is
+      Groups : Group_Vectors.Vector;
+      Group  : Row_Vectors.Vector;
+      Prev_P : Positive := 1;
+   begin
+      Rebuild_Filter_Map;
+      for L in 1 .. Tbl.Logical_Row_Count loop
+         declare
+            P : constant Positive := Tbl.Logical_To_Physical (L);
+         begin
+            if L = 1 then
+               Group.Append (P);
+            elsif Tbl.By_Var_Count = 0
+              or else Tbl.In_Same_Group (P, Prev_P)
+            then
+               Group.Append (P);
+            else
+               Groups.Append (Group);
+               Group.Clear;
+               Group.Append (P);
+            end if;
+            Prev_P := P;
+         end;
+      end loop;
+      if not Group.Is_Empty then
+         Groups.Append (Group);
+      end if;
+      return Groups;
+   end Collect_Groups;
+
+   --  Gather one column's values across a group's physical rows.
+   function Group_Values (Rows : Row_Vectors.Vector; Col : String)
+      return Eval.Value_Array
+   is
+      A : Eval.Value_Array (1 .. Integer (Rows.Length));
+      I : Positive := 1;
+   begin
+      for P of Rows loop
+         A (I) := Tbl.Get_Value (P, Col);
+         I := I + 1;
+      end loop;
+      return A;
+   end Group_Values;
+
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
 
-      package Tbl renames SData_Core.Table;
       package Vars renames SData_Core.Variables;
-      package Eval renames SData_Core.Evaluator;
 
       --  Specs with each bare-name (Invar_Scalar) input resolved against the
       --  live array registry: a name that is a registered array becomes
@@ -908,20 +960,6 @@ package body SData_Core.Commands is
          end loop;
       end Warn_Resizing;
 
-      --  Gather one column's values across a group's physical rows.
-      function Group_Values (Rows : Row_Vectors.Vector; Col : String)
-         return Eval.Value_Array
-      is
-         A : Eval.Value_Array (1 .. Integer (Rows.Length));
-         I : Positive := 1;
-      begin
-         for P of Rows loop
-            A (I) := Tbl.Get_Value (P, Col);
-            I := I + 1;
-         end loop;
-         return A;
-      end Group_Values;
-
       --  Emit one output row for the completed group.
       procedure Emit_Group (Rows : Row_Vectors.Vector) is
          First_Phys : constant Positive := Rows.First_Element;
@@ -952,9 +990,6 @@ package body SData_Core.Commands is
          end loop;
       end Emit_Group;
 
-      Group  : Row_Vectors.Vector;
-      Prev_P : Natural := 0;
-
    begin
       --  Phase 1: validate everything first; raising here leaves the table,
       --  the pending SAVE, and the active SELECT/BY untouched.
@@ -976,7 +1011,6 @@ package body SData_Core.Commands is
       Warn_Resizing;
 
       --  Phase 2: reflect the active SELECT, then build the output table.
-      Rebuild_Filter_Map;
       Build_Descriptors;
 
       Tbl.Initialize_Output_Table;
@@ -984,27 +1018,9 @@ package body SData_Core.Commands is
          Tbl.Add_Output_Column (To_String (D.Name), D.Ctype);
       end loop;
 
-      for L in 1 .. Tbl.Logical_Row_Count loop
-         declare
-            P : constant Positive := Tbl.Logical_To_Physical (L);
-         begin
-            if L = 1 then
-               Group.Append (P);
-            elsif Tbl.By_Var_Count = 0
-              or else Tbl.In_Same_Group (P, Prev_P)
-            then
-               Group.Append (P);
-            else
-               Emit_Group (Group);
-               Group.Clear;
-               Group.Append (P);
-            end if;
-            Prev_P := P;
-         end;
+      for G of Collect_Groups loop
+         Emit_Group (G);
       end loop;
-      if not Group.Is_Empty then
-         Emit_Group (Group);
-      end if;
 
       --  Phase 3: commit the fresh table and apply post-execution effects
       --  (spec sec 3.6).
@@ -1475,6 +1491,193 @@ package body SData_Core.Commands is
       Execute_SELECT (null);                --  free the stale filter expression
       Tbl.Clear_By_Vars;                    --  grouping consumed
    end Execute_TRANSPOSE;
+
+   --------------------------------------------------------------------
+   --  Execute_STATS                                                  --
+   --------------------------------------------------------------------
+   --  Computes summary statistics for the chosen (or, by default, all
+   --  numeric) variables.  Produces one output row per (active BY group x
+   --  variable), with one column per requested statistic.  Mirrors
+   --  AGGREGATE's "validate -> scan -> build -> swap -> flush SAVE -> clear
+   --  SELECT/BY" structure.  All validation precedes any side effect.
+   procedure Execute_STATS (Options : Stats_Options) is
+      package Tbl  renames SData_Core.Table;
+      package Vars renames SData_Core.Variables;
+
+      use Ada.Strings.Unbounded;
+
+      type Var_Rec is record
+         Name    : Unbounded_String;
+         Is_Char : Boolean;
+      end record;
+      package Var_Recs is new Ada.Containers.Vectors (Positive, Var_Rec);
+
+      Stats : SData_Core.Table.Name_Vectors.Vector;
+      Vlist : Var_Recs.Vector;
+
+      function Is_By (Name : String) return Boolean is
+      begin
+         for I in 1 .. Tbl.By_Var_Count loop
+            if To_Upper (Tbl.By_Var_Name (I)) = To_Upper (Name) then
+               return True;
+            end if;
+         end loop;
+         return False;
+      end Is_By;
+
+      procedure Add_Var (Name : String) is
+      begin
+         Vlist.Append
+           ((Name    => To_Unbounded_String (Name),
+             Is_Char => Tbl."=" (Tbl.Get_Column_Type (Name), Tbl.Col_String)));
+      end Add_Var;
+   begin
+      --  1. Resolve the statistic list (default N MIN MEAN MAX STD).
+      if Options.Stat_List.Is_Empty then
+         Stats.Append (To_Unbounded_String ("N"));
+         Stats.Append (To_Unbounded_String ("MIN"));
+         Stats.Append (To_Unbounded_String ("MEAN"));
+         Stats.Append (To_Unbounded_String ("MAX"));
+         Stats.Append (To_Unbounded_String ("STD"));
+      else
+         Stats := Options.Stat_List;
+      end if;
+      for S of Stats loop
+         if not Eval.Is_Aggregate (To_String (S)) then
+            raise SData_Core.Script_Error with
+              "STATS: '" & To_String (S)
+              & "' is not a registered aggregate function";
+         end if;
+      end loop;
+
+      --  2. Resolve the variable list.
+      if Options.Var_List.Is_Empty then
+         for I in 1 .. Tbl.Column_Count loop
+            declare
+               Name : constant String := Tbl.Column_Name (I);
+            begin
+               if not Is_By (Name)
+                 and then not Tbl."=" (Tbl.Get_Column_Type (Name), Tbl.Col_String)
+               then
+                  Add_Var (Name);
+               end if;
+            end;
+         end loop;
+      else
+         for V of Options.Var_List loop
+            declare
+               Name : constant String := To_String (V);
+            begin
+               if Vars.Has_Array (Name) then
+                  declare
+                     Lo, Hi : Integer;
+                  begin
+                     Vars.Get_Array_Bounds (Name, Lo, Hi);
+                     for K in Lo .. Hi loop
+                        Add_Var (Vars.Get_Array_Element_Column (Name, K));
+                     end loop;
+                  end;
+               elsif Tbl.Has_Column (Name) then
+                  Add_Var (Name);
+               else
+                  raise SData_Core.Script_Error with
+                    "STATS: unknown variable '" & Name & "'";
+               end if;
+            end;
+         end loop;
+      end if;
+
+      if Vlist.Is_Empty then
+         raise SData_Core.Script_Error with
+           "STATS: no variables to summarize";
+      end if;
+
+      --  3. Type rule: a character variable is valid only if every requested
+      --     statistic accepts character input (i.e. only N / NMISS).
+      for V of Vlist loop
+         if V.Is_Char then
+            for S of Stats loop
+               if not Eval.Lookup (To_String (S)).Accepts_Character then
+                  raise SData_Core.Script_Error with
+                    "STATS: statistic '" & To_String (S)
+                    & "' cannot be applied to character variable '"
+                    & To_String (V.Name) & "'";
+               end if;
+            end loop;
+         end if;
+      end loop;
+
+      --  4. Build the output schema: BY vars + _NAME_$ + one col per stat.
+      Tbl.Initialize_Output_Table;
+      for I in 1 .. Tbl.By_Var_Count loop
+         Tbl.Add_Output_Column
+           (Tbl.By_Var_Name (I), Tbl.Get_Column_Type (Tbl.By_Var_Name (I)));
+      end loop;
+      Tbl.Add_Output_Column ("_NAME_$", Tbl.Col_String);
+      for S of Stats loop
+         declare
+            U : constant String := To_Upper (To_String (S));
+         begin
+            Tbl.Add_Output_Column
+              (U, (if U = "N" or else U = "NMISS"
+                   then Tbl.Col_Integer else Tbl.Col_Numeric));
+         end;
+      end loop;
+
+      --  5. Scan groups; one output row per (group x variable).
+      for G of Collect_Groups loop
+         declare
+            First_Phys : constant Positive := G.First_Element;
+         begin
+            for V of Vlist loop
+               Tbl.Add_Output_Row;
+               declare
+                  R   : constant Positive := Tbl.Output_Row_Count;
+                  Col : Positive := 1;
+               begin
+                  for I in 1 .. Tbl.By_Var_Count loop
+                     Tbl.Set_Output_Value_By_Col
+                       (R, Col,
+                        Tbl.Get_Value (First_Phys, Tbl.By_Var_Name (I)));
+                     Col := Col + 1;
+                  end loop;
+                  Tbl.Set_Output_Value_By_Col
+                    (R, Col,
+                     (Kind => Val_String, Str_Val => V.Name));
+                  Col := Col + 1;
+                  for S of Stats loop
+                     Tbl.Set_Output_Value_By_Col
+                       (R, Col,
+                        Eval.Call_Function
+                          (To_String (S),
+                           Group_Values (G, To_String (V.Name))));
+                     Col := Col + 1;
+                  end loop;
+               end;
+            end loop;
+         end;
+      end loop;
+
+      --  6. Commit, re-register arrays, flush SAVE, clear SELECT/BY.
+      Tbl.Commit_Output_Table;
+      Tbl.Clear_Index_Map;                  --  stale SELECT map no longer valid
+      Vars.Refresh_PDV_Names;
+      Vars.Register_Subscripted_Columns;    --  ADR-041 array re-detection
+
+      if SData_Core.Config.Runtime.Save_File_Active then
+         begin
+            Flush_Pending_Save;
+         exception
+            when E : others =>
+               raise SData_Core.Script_Error with
+                 "STATS: SAVE flush failed: "
+                 & Ada.Exceptions.Exception_Message (E);
+         end;
+      end if;
+
+      Execute_SELECT (null);                --  free the stale filter expression
+      Tbl.Clear_By_Vars;                    --  grouping consumed
+   end Execute_STATS;
 
    procedure Execute_Commit_Step is
    begin
