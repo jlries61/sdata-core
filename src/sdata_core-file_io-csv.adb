@@ -670,31 +670,42 @@ package body SData_Core.File_IO.CSV is
             end loop;
             Write_String (EOL);
          end if;
-         for R in 1 .. Row_Count loop
-            SData_Core.IO.Show_Progress ("SAVE", R);
-            for C in 1 .. N loop
-               declare
-                  Val : constant Value := Get_Value_Upper (R, Column_Name (C));
-               begin
-                  if Val.Kind = Val_Numeric then
-                     if Is_Inf (Val.Num_Val) then
-                        Write_String (if Val.Num_Val > 0.0 then "Inf" else "-Inf");
-                     else
-                        Write_String (Trim (Val.Num_Val'Img, Ada.Strings.Both));
+         --  Iterate the logical (post-SELECT) view: Logical_Row_Count and
+         --  Logical_To_Physical collapse to Row_Count / identity when no
+         --  filter is active, so an unfiltered SAVE is byte-for-byte
+         --  unchanged.  The caller (Execute_RUN / Commit_Step) rebuilds the
+         --  filter map before flushing, matching DISPLAY's contract.
+         for L in 1 .. Logical_Row_Count loop
+            SData_Core.IO.Show_Progress ("SAVE", L);
+            declare
+               R : constant Positive := Logical_To_Physical (L);
+            begin
+               for C in 1 .. N loop
+                  declare
+                     Val : constant Value :=
+                        Get_Value_Upper (R, Column_Name (C));
+                  begin
+                     if Val.Kind = Val_Numeric then
+                        if Is_Inf (Val.Num_Val) then
+                           Write_String
+                              (if Val.Num_Val > 0.0 then "Inf" else "-Inf");
+                        else
+                           Write_String (Trim (Val.Num_Val'Img, Ada.Strings.Both));
+                        end if;
+                     elsif Val.Kind = Val_Integer then
+                        Write_String (Trim (Val.Int_Val'Img, Ada.Strings.Both));
+                     elsif Val.Kind = Val_String then
+                        Write_String (CSV_Quote (SData_Core.Values.To_String (Val)));
                      end if;
-                  elsif Val.Kind = Val_Integer then
-                     Write_String (Trim (Val.Int_Val'Img, Ada.Strings.Both));
-                  elsif Val.Kind = Val_String then
-                     Write_String (CSV_Quote (SData_Core.Values.To_String (Val)));
+                  end;
+                  if C /= N then
+                     Write_String (D_Str);
                   end if;
-               end;
-               if C /= N then
-                  Write_String (D_Str);
-               end if;
-            end loop;
+               end loop;
+            end;
             Write_String (EOL);
          end loop;
-         SData_Core.IO.Show_Progress ("SAVE", Row_Count, Final => True);
+         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count, Final => True);
       end if;
       Ada.Streams.Stream_IO.Close (File);
    exception
