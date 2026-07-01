@@ -446,11 +446,13 @@ package body SData_Core.File_IO.ODF is
          end loop;
          Append (S1, "</table:table-row>" & ASCII.LF);
 
-         for R in 1 .. Row_Count loop
-            SData_Core.IO.Show_Progress ("SAVE", R);
+         --  Iterate the logical (post-SELECT) view; identity when unfiltered.
+         for L in 1 .. Logical_Row_Count loop
+            SData_Core.IO.Show_Progress ("SAVE", L);
             Append (S1, "<table:table-row>");
             for C in 1 .. N loop
                declare
+                  R : constant Positive := Logical_To_Physical (L);
                   V : constant Value := Get_Value (R, Column_Name (C));
                begin
                   case V.Kind is
@@ -489,7 +491,7 @@ package body SData_Core.File_IO.ODF is
             end loop;
             Append (S1, "</table:table-row>" & ASCII.LF);
          end loop;
-         SData_Core.IO.Show_Progress ("SAVE", Row_Count, Final => True);
+         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count, Final => True);
 
          Append (S1,
             "</table:table></office:spreadsheet></office:body></office:document-content>");

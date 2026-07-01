@@ -566,16 +566,20 @@ package body SData_Core.File_IO.OOXML is
          end loop;
          Append (S1, "</row>" & ASCII.LF);
 
-         for R in 1 .. Row_Count loop
-            SData_Core.IO.Show_Progress ("SAVE", R);
+         --  Iterate the logical (post-SELECT) view; identity when unfiltered.
+         --  The sheet row reference uses the logical position L (consecutive
+         --  1..N), while cell values are read from the physical row.
+         for L in 1 .. Logical_Row_Count loop
+            SData_Core.IO.Show_Progress ("SAVE", L);
             Append (S1,
-               "<row r=""" & Trim (Integer (R + 1)'Img, Ada.Strings.Both) &
+               "<row r=""" & Trim (Integer (L + 1)'Img, Ada.Strings.Both) &
                """>");
             for C in 1 .. N loop
                declare
+                  R   : constant Positive := Logical_To_Physical (L);
                   Ref : constant String :=
                      Col_To_Letters (C) &
-                     Trim (Integer (R + 1)'Img, Ada.Strings.Both);
+                     Trim (Integer (L + 1)'Img, Ada.Strings.Both);
                   V   : constant Value := Get_Value (R, Column_Name (C));
                begin
                   case V.Kind is
@@ -614,7 +618,7 @@ package body SData_Core.File_IO.OOXML is
             end loop;
             Append (S1, "</row>" & ASCII.LF);
          end loop;
-         SData_Core.IO.Show_Progress ("SAVE", Row_Count, Final => True);
+         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count, Final => True);
 
          Append (S1, "</sheetData>" & ASCII.LF);
          Append (S1, "</worksheet>");
