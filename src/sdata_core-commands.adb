@@ -685,9 +685,7 @@ package body SData_Core.Commands is
 
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
 
-      package Tbl renames SData_Core.Table;
       package Vars renames SData_Core.Variables;
-      package Eval renames SData_Core.Evaluator;
 
       --  Specs with each bare-name (Invar_Scalar) input resolved against the
       --  live array registry: a name that is a registered array becomes
