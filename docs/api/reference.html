@@ -307,6 +307,29 @@ SAVE flush (error #13) is rethrown as Script_Error but, as with
 AGGREGATE, the in-memory replacement has already happened.</div>
 </div>
 <div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Stats_Options is record
+      Var_List  : SData_Core.Table.Name_Vectors.Vector;
+      Stat_List : SData_Core.Table.Name_Vectors.Vector;
+   end record;</pre>
+<div class='doc'>--------------------------------------------------------------
+STATS — compute summary statistics for the chosen (or, by default,
+all numeric) variables, one row per (active BY group x variable),
+with one column per requested statistic.  Reuses the registered
+aggregate functions.  Mirrors AGGREGATE&#x27;s build-and-swap: on success
+the fresh stats table replaces the in-memory table, a pending SAVE is
+flushed, and the active SELECT and BY are cleared.  All validation
+precedes any side effect.  Printing is the caller&#x27;s concern.
+
+Var_List   analysis variables; empty =&gt; all numeric columns (minus BY).
+A whole-array base name expands to its elements.
+Stat_List  registered aggregate names; empty =&gt; N MIN MEAN MAX STD.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_STATS (Options : Stats_Options);</pre>
+</div>
+<div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Execute_Commit_Step;</pre>
 <div class='doc'>--------------------------------------------------------------
