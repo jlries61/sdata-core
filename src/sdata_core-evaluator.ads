@@ -148,6 +148,10 @@ package SData_Core.Evaluator is
       Accepts_Character : Boolean;
    end record;
 
+   --  True iff Name (case-insensitive) is a registered evaluator function.
+   --  Used by consumers' static analyzers to reject unknown function calls.
+   function Is_Known_Function (Name : String) return Boolean;
+
    --  True iff Name (case-insensitive) is a registered aggregate function.
    --  This is the aggregate allow-list AGGREGATE uses to reject non-aggregate
    --  functions (SQRT, LEN$, …) at parse time.

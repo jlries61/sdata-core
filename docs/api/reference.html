@@ -835,6 +835,12 @@ leaks none of the private dispatch types.  See ADR-046.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   function Is_Known_Function (Name : String) return Boolean;</pre>
+<div class='doc'>True iff Name (case-insensitive) is a registered evaluator function.
+Used by consumers&#x27; static analyzers to reject unknown function calls.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   function Is_Aggregate (Name : String) return Boolean;</pre>
 <div class='doc'>True iff Name (case-insensitive) is a registered aggregate function.
 This is the aggregate allow-list AGGREGATE uses to reject non-aggregate

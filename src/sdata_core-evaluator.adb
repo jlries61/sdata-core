@@ -131,6 +131,11 @@ package body SData_Core.Evaluator is
       return Fn_Maps.Element (Cursor).all (UC, Vals);
    end Call_Function;
 
+   function Is_Known_Function (Name : String) return Boolean is
+   begin
+      return Dispatch_Table.Contains (To_Upper (Name));
+   end Is_Known_Function;
+
    function Is_Aggregate (Name : String) return Boolean is
    begin
       return Aggregate_Meta_Table.Contains (To_Upper (Name));
