@@ -394,7 +394,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       Register_Arity ("HBOUND",   1, 1);   -- identifier-ref (array name)
       Register_Arity ("INDEX",    2, 2);   -- INDEX(haystack$,needle$)
       Register_Arity ("MATCH",    3, 3);   -- MATCH(haystack$,needle$,start)
-      Register_Arity ("MAXLEN",   0, 0);
+      Register_Arity ("MAXLEN",   1, 1);   -- MAXLEN(A$)
       Register_Arity ("MAXLVL",   0, 0);
       Register_Arity ("MAXINT",   0, 0);
       Register_Arity ("MAXNUM",   0, 0);
