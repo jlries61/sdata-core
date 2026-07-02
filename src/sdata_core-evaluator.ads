@@ -105,6 +105,13 @@ package SData_Core.Evaluator is
    --  Returns the expected kind of value based on name suffix
    function Get_Expected_Kind (Name : String) return Value_Kind;
 
+   --  Statically infer the result kind of an expression WITHOUT evaluating it.
+   --  Uses name suffixes (via Get_Expected_Kind), literal kinds, and operator
+   --  propagation only.  Returns Val_Missing when the kind cannot be determined
+   --  statically (mixed-kind operands, '.' literal, dynamic constructs) -- the
+   --  caller must treat Val_Missing as "defer, do not reject".
+   function Static_Result_Kind (Expr : Expression_Access) return Value_Kind;
+
    --  Returns True for functions whose first argument is passed as a variable
    --  *name* rather than the variable's evaluated value (LAG, NEXT, OBS and
    --  their character variants).  Used by the parser, evaluator, and any code

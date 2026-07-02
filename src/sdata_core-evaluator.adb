@@ -368,6 +368,61 @@ package body SData_Core.Evaluator is
       else return Val_Numeric; end if;
    end Get_Expected_Kind;
 
+   -----------------------
+   -- Static_Result_Kind --
+   -----------------------
+   function Static_Result_Kind (Expr : Expression_Access) return Value_Kind is
+   begin
+      if Expr = null then
+         return Val_Missing;
+      end if;
+      case Expr.Kind is
+         when Expr_String_Literal =>
+            return Val_String;
+         when Expr_Numeric_Literal =>
+            return (if Expr.Is_Integer then Val_Integer else Val_Numeric);
+         when Expr_Missing =>
+            return Val_Missing;
+         when Expr_Variable =>
+            return Get_Expected_Kind (Expr.Var_Name (1 .. Expr.Var_Len));
+         when Expr_Array_Access =>
+            return Get_Expected_Kind (Expr.Arr_Name (1 .. Expr.Arr_Len));
+         when Expr_Function_Call =>
+            --  String-returning functions end in '$' by convention; suffix
+            --  drives the kind exactly as it does for variables.
+            return Get_Expected_Kind (Expr.Func_Name (1 .. Expr.Func_Len));
+         when Expr_Unary_Op =>
+            --  Neg and Not both yield numeric.
+            return Val_Numeric;
+         when Expr_Binary_Op =>
+            declare
+               L : constant Value_Kind := Static_Result_Kind (Expr.Left);
+               R : constant Value_Kind := Static_Result_Kind (Expr.Right);
+            begin
+               case Expr.Op is
+                  when Op_Eq | Op_Ne | Op_Lt | Op_Le | Op_Gt | Op_Ge
+                     | Op_And | Op_Or | Op_Xor =>
+                     return Val_Numeric;              -- boolean result (0/1)
+                  when Op_Sub | Op_Mul | Op_Div | Op_Pow =>
+                     return Val_Numeric;              -- numeric-only operators
+                  when Op_Add =>
+                     --  '+' concatenates two strings, else numeric.  Any
+                     --  Val_Missing operand or a string/numeric mix is
+                     --  indeterminate -> defer.
+                     if L = Val_String and then R = Val_String then
+                        return Val_String;
+                     elsif (L in Val_Numeric | Val_Integer)
+                        and then (R in Val_Numeric | Val_Integer)
+                     then
+                        return Val_Numeric;
+                     else
+                        return Val_Missing;
+                     end if;
+               end case;
+            end;
+      end case;
+   end Static_Result_Kind;
+
    --------------
    -- Evaluate --
    --------------

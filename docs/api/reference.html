@@ -779,6 +779,15 @@ Supports multiple subscripts: X(1, 3, 5)</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   function Static_Result_Kind (Expr : Expression_Access) return Value_Kind;</pre>
+<div class='doc'>Statically infer the result kind of an expression WITHOUT evaluating it.
+Uses name suffixes (via Get_Expected_Kind), literal kinds, and operator
+propagation only.  Returns Val_Missing when the kind cannot be determined
+statically (mixed-kind operands, &#x27;.&#x27; literal, dynamic constructs) -- the
+caller must treat Val_Missing as &quot;defer, do not reject&quot;.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   function Is_Identifier_Ref_Function (N : String) return Boolean;</pre>
 <div class='doc'>Returns True for functions whose first argument is passed as a variable
 *name* rather than the variable&#x27;s evaluated value (LAG, NEXT, OBS and
