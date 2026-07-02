@@ -221,6 +221,22 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Aggregate_Meta_Table.Insert ("GMEAN",  Num);
       Aggregate_Meta_Table.Insert ("HMEAN",  Num);
       Aggregate_Meta_Table.Insert ("MEDIAN", Num);
+
+      --  Arity metadata.  Aggregates are variadic (row-wise across the whole
+      --  argument list / a whole group column), so Max is Natural'Last.  Most
+      --  need at least one value; N and NMISS additionally accept the zero-arg
+      --  form (N() is the group row count), hence Min = 0 for those.
+      Register_Arity ("SUM",    1, Natural'Last);
+      Register_Arity ("MEAN",   1, Natural'Last);
+      Register_Arity ("STD",    1, Natural'Last);
+      Register_Arity ("VAR",    1, Natural'Last);
+      Register_Arity ("MIN",    1, Natural'Last);
+      Register_Arity ("MAX",    1, Natural'Last);
+      Register_Arity ("N",      0, Natural'Last);
+      Register_Arity ("NMISS",  0, Natural'Last);
+      Register_Arity ("GMEAN",  1, Natural'Last);
+      Register_Arity ("HMEAN",  1, Natural'Last);
+      Register_Arity ("MEDIAN", 1, Natural'Last);
    end Register;
 
 begin

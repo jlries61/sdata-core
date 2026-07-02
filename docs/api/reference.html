@@ -779,6 +779,15 @@ Supports multiple subscripts: X(1, 3, 5)</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   function Static_Result_Kind (Expr : Expression_Access) return Value_Kind;</pre>
+<div class='doc'>Statically infer the result kind of an expression WITHOUT evaluating it.
+Uses name suffixes (via Get_Expected_Kind), literal kinds, and operator
+propagation only.  Returns Val_Missing when the kind cannot be determined
+statically (mixed-kind operands, &#x27;.&#x27; literal, dynamic constructs) -- the
+caller must treat Val_Missing as &quot;defer, do not reject&quot;.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   function Is_Identifier_Ref_Function (N : String) return Boolean;</pre>
 <div class='doc'>Returns True for functions whose first argument is passed as a variable
 *name* rather than the variable&#x27;s evaluated value (LAG, NEXT, OBS and
@@ -823,6 +832,45 @@ this side-table to (a) recognise a name as a registered aggregate and
 computation is done via Call_Function above, so this record deliberately
 carries only the accepted input-type flags — no handler access — and
 leaks none of the private dispatch types.  See ADR-046.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Known_Function (Name : String) return Boolean;</pre>
+<div class='doc'>True iff Name (case-insensitive) is a registered evaluator function.
+Used by consumers&#x27; static analyzers to reject unknown function calls.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Zero_Arg_Fallback (Name : String) return Boolean;</pre>
+<div class='doc'>True iff Name (case-insensitive) is a zero-argument fallback identifier —
+a reserved bare name (RECNO, PI, BOF, ...) that evaluates to a value when
+used WITHOUT parentheses.  Single source of truth for both the evaluator&#x27;s
+bare-identifier fallback and consumers&#x27; static analyzers.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Arity_Spec is record
+      Min_Args : Natural := 0;
+      Max_Args : Natural := Natural&#x27;Last;
+   end record;</pre>
+<div class='doc'>Per-function argument-count metadata.  A call with fewer than Min_Args
+or more than Max_Args arguments is out of range.  Max_Args = Natural&#x27;Last
+means &quot;no upper bound&quot; (variadic).  These bounds are deliberately SOUND,
+not COMPLETE: where a handler accepts an open-ended or ambiguous count
+the upper bound is left at Natural&#x27;Last so a valid call is never rejected.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Function_Arity (Name : String) return Arity_Spec;</pre>
+<div class='doc'>Returns the arity of a known function.  Raises SData_Core.Script_Error
+when Name is not a registered function -- call Is_Known_Function first.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Register_Arity (Name : String; Min_Args, Max_Args : Natural);</pre>
+<div class='doc'>Register a function&#x27;s arity.  Called by each handler family&#x27;s private
+Register procedure alongside the Dispatch_Table insert.  Name is stored
+case-insensitively (upper-cased), matching Dispatch_Table&#x27;s keys.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>

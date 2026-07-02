@@ -578,6 +578,70 @@ package body SData_Core.Evaluator.Distrib_Fns is
       Dispatch_Table.Insert ("RAN",    Handle_Ran'Access);
       Dispatch_Table.Insert ("RANDOM", Handle_Ran'Access);
       Dispatch_Table.Insert ("RND",    Handle_Ran'Access);
+
+      --  Arity metadata (one entry per Dispatch_Table insert above).
+      --  DF/CF/IF variants take x (or k) followed by the distribution
+      --  parameters; RN variants take only the parameters.  The Z/U families
+      --  accept an optional (mu,sigma)/(lo,hi) pair, hence a widened range.
+      --  PDF family
+      Register_Arity ("ZDF", 1, 3);   -- ZDF(x) or ZDF(x,mu,sigma); 2 rejected at runtime
+      Register_Arity ("NDF", 3, 3);
+      Register_Arity ("UDF", 3, 3);
+      Register_Arity ("EDF", 2, 2);
+      Register_Arity ("BDF", 3, 3);
+      Register_Arity ("PDF", 2, 2);
+      Register_Arity ("GDF", 3, 3);
+      Register_Arity ("XDF", 2, 2);
+      Register_Arity ("TDF", 2, 2);
+      Register_Arity ("FDF", 3, 3);
+      Register_Arity ("MDF", 3, 3);
+      Register_Arity ("WDF", 3, 3);
+      Register_Arity ("LDF", 1, 1);
+      --  CDF family
+      Register_Arity ("ZCF", 1, 3);   -- ZCF(x) or ZCF(x,mu,sigma); 2 rejected at runtime
+      Register_Arity ("NCF", 3, 3);
+      Register_Arity ("UCF", 3, 3);
+      Register_Arity ("ECF", 2, 2);
+      Register_Arity ("BCF", 3, 3);
+      Register_Arity ("PCF", 2, 2);
+      Register_Arity ("GCF", 3, 3);
+      Register_Arity ("XCF", 2, 2);
+      Register_Arity ("TCF", 2, 2);
+      Register_Arity ("FCF", 3, 3);
+      Register_Arity ("MCF", 3, 3);
+      Register_Arity ("WCF", 3, 3);
+      Register_Arity ("LCF", 1, 1);
+      --  IDF family
+      Register_Arity ("ZIF", 1, 3);   -- ZIF(p) or ZIF(p,mu,sigma); 2 rejected at runtime
+      Register_Arity ("NIF", 3, 3);
+      Register_Arity ("UIF", 3, 3);
+      Register_Arity ("EIF", 2, 2);
+      Register_Arity ("BIF", 3, 3);
+      Register_Arity ("LIF", 1, 1);
+      Register_Arity ("PIF", 2, 2);
+      Register_Arity ("MIF", 3, 3);
+      Register_Arity ("GIF", 3, 3);
+      Register_Arity ("XIF", 2, 2);
+      Register_Arity ("TIF", 2, 2);
+      Register_Arity ("FIF", 3, 3);
+      Register_Arity ("WIF", 3, 3);
+      --  RN family (parameters only)
+      Register_Arity ("ZRN", 0, 2);   -- ZRN() or ZRN(mu,sigma); 1 rejected at runtime
+      Register_Arity ("NRN", 2, 2);
+      Register_Arity ("URN", 0, 2);   -- URN() or URN(lo,hi); 1 rejected at runtime
+      Register_Arity ("ERN", 1, 1);
+      Register_Arity ("PRN", 1, 1);
+      Register_Arity ("GRN", 2, 2);
+      Register_Arity ("MRN", 2, 2);
+      Register_Arity ("WRN", 2, 2);
+      Register_Arity ("BRN", 2, 2);
+      Register_Arity ("LRN", 0, 0);   -- standard logistic: no parameters
+      Register_Arity ("XRN", 1, 1);
+      Register_Arity ("TRN", 1, 1);
+      Register_Arity ("FRN", 2, 2);
+      Register_Arity ("RAN",    0, 0);
+      Register_Arity ("RANDOM", 0, 0);
+      Register_Arity ("RND",    0, 0);
    end Register;
 
 begin

@@ -173,6 +173,20 @@ package body SData_Core.Evaluator.Nav_Fns is
       Dispatch_Table.Insert ("NEXTC$", Handle_Next_Val'Access);
       Dispatch_Table.Insert ("OBS",    Handle_Obs'Access);
       Dispatch_Table.Insert ("OBSC$",  Handle_Obs'Access);
+
+      --  Arity metadata (one entry per Dispatch_Table insert above).
+      Register_Arity ("RECNO",  0, 0);
+      Register_Arity ("BOF",    0, 0);
+      Register_Arity ("EOF",    0, 0);
+      Register_Arity ("BOG",    0, 0);
+      Register_Arity ("EOG",    0, 0);
+      Register_Arity ("ORD",    0, 1);   -- ORD() = recno; ORD(s$) = code point
+      Register_Arity ("LAG",    1, 2);   -- LAG(var[,n]); identifier-ref
+      Register_Arity ("LAGC$",  1, 2);   -- identifier-ref
+      Register_Arity ("NEXT",   1, 2);   -- NEXT(var[,n]); identifier-ref
+      Register_Arity ("NEXTC$", 1, 2);   -- identifier-ref
+      Register_Arity ("OBS",    2, 2);   -- OBS(var,row); identifier-ref
+      Register_Arity ("OBSC$",  2, 2);   -- identifier-ref
    end Register;
 
 begin

@@ -375,6 +375,32 @@ package body SData_Core.Evaluator.String_Fns is
       Dispatch_Table.Insert ("OCT$",   Handle_Oct'Access);
       Dispatch_Table.Insert ("BIN$",   Handle_Bin'Access);
       Dispatch_Table.Insert ("NUM$",   Handle_Num_Str'Access);
+
+      --  Arity metadata (one entry per Dispatch_Table insert above).
+      Register_Arity ("LEN",    1, 1);
+      Register_Arity ("LEFT$",  2, 2);   -- LEFT$(s$,n)
+      Register_Arity ("RIGHT$", 2, 2);   -- RIGHT$(s$,n)
+      Register_Arity ("MID$",   2, 3);   -- MID$(s$,start[,len])
+      Register_Arity ("SEG$",   3, 3);   -- SEG$(s$,start,len)
+      Register_Arity ("TRIM$",  1, 1);
+      Register_Arity ("LTRIM$", 1, 1);
+      Register_Arity ("RTRIM$", 1, 1);
+      Register_Arity ("ASCII",  1, 1);
+      Register_Arity ("ASC",    1, 1);
+      Register_Arity ("UCASE$", 1, 1);
+      Register_Arity ("UPPER$", 1, 1);
+      Register_Arity ("LCASE$", 1, 1);
+      Register_Arity ("LOWER$", 1, 1);
+      Register_Arity ("POS",    2, 3);   -- POS(needle$,haystack$[,start])
+      Register_Arity ("INSTR",  2, 3);   -- INSTR([start,]haystack$,needle$)
+      Register_Arity ("CHR$",   1, 1);
+      Register_Arity ("STR$",   1, 1);
+      Register_Arity ("VAL",    1, 1);
+      Register_Arity ("HEX$",   1, 1);
+      Register_Arity ("HEX",    1, 1);
+      Register_Arity ("OCT$",   1, 1);
+      Register_Arity ("BIN$",   1, 1);
+      Register_Arity ("NUM$",   1, 1);
    end Register;
 
 begin
