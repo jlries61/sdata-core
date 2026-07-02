@@ -152,6 +152,12 @@ package SData_Core.Evaluator is
    --  Used by consumers' static analyzers to reject unknown function calls.
    function Is_Known_Function (Name : String) return Boolean;
 
+   --  True iff Name (case-insensitive) is a zero-argument fallback identifier —
+   --  a reserved bare name (RECNO, PI, BOF, ...) that evaluates to a value when
+   --  used WITHOUT parentheses.  Single source of truth for both the evaluator's
+   --  bare-identifier fallback and consumers' static analyzers.
+   function Is_Zero_Arg_Fallback (Name : String) return Boolean;
+
    --  Per-function argument-count metadata.  A call with fewer than Min_Args
    --  or more than Max_Args arguments is out of range.  Max_Args = Natural'Last
    --  means "no upper bound" (variadic).  These bounds are deliberately SOUND,

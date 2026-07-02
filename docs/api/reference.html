@@ -840,6 +840,14 @@ leaks none of the private dispatch types.  See ADR-046.</div>
 Used by consumers&#x27; static analyzers to reject unknown function calls.</div>
 </div>
 <div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_Zero_Arg_Fallback (Name : String) return Boolean;</pre>
+<div class='doc'>True iff Name (case-insensitive) is a zero-argument fallback identifier —
+a reserved bare name (RECNO, PI, BOF, ...) that evaluates to a value when
+used WITHOUT parentheses.  Single source of truth for both the evaluator&#x27;s
+bare-identifier fallback and consumers&#x27; static analyzers.</div>
+</div>
+<div class='decl'>
 <div class='kind'>type</div>
 <pre>   type Arity_Spec is record
       Min_Args : Natural := 0;

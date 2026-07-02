@@ -136,6 +136,18 @@ package body SData_Core.Evaluator is
       return Dispatch_Table.Contains (To_Upper (Name));
    end Is_Known_Function;
 
+   function Is_Zero_Arg_Fallback (Name : String) return Boolean is
+   begin
+      return To_Upper (Name) in
+        "BOF" | "EOF" | "BOG" | "EOG" | "RECNO" | "ORD" |
+        "DATE$" | "TIME$" | "RAN" | "RANDOM" | "RND" | "LRN" |
+        "ZRN" | "URN" | "PI" | "TIMER" |
+        "ERR" | "ERL" |
+        "MAXLEN" | "MAXLVL" | "MAXINT" | "MAXNUM" |
+        "MININT" | "MINNUM" |
+        "FALSE" | "TRUE";
+   end Is_Zero_Arg_Fallback;
+
    procedure Register_Arity (Name : String; Min_Args, Max_Args : Natural) is
    begin
       Arity_Table.Include (To_Upper (Name), (Min_Args, Max_Args));
@@ -475,15 +487,9 @@ package body SData_Core.Evaluator is
                    else Get (VName));
             begin
                if VVal.Kind = Val_Missing then
-                  --  Fall back to zero-arg functions (optional parentheses)
-                  if VName in "BOF" | "EOF" | "BOG" | "EOG" | "RECNO" | "ORD" |
-                              "DATE$" | "TIME$" | "RAN" | "RANDOM" | "RND" | "LRN" |
-                              "ZRN" | "URN" | "PI" | "TIMER" |
-                              "ERR" | "ERL" |
-                              "MAXLEN" | "MAXLVL" | "MAXINT" | "MAXNUM" |
-                              "MININT" | "MINNUM" |
-                              "FALSE" | "TRUE"
-                  then
+                  --  Fall back to zero-arg functions (optional parentheses).
+                  --  Is_Zero_Arg_Fallback is the single source of truth for this set.
+                  if Is_Zero_Arg_Fallback (VName) then
                      return Evaluate_Function (VName, null);
                   end if;
                end if;
