@@ -136,6 +136,22 @@ package body SData_Core.Evaluator is
       return Dispatch_Table.Contains (To_Upper (Name));
    end Is_Known_Function;
 
+   procedure Register_Arity (Name : String; Min_Args, Max_Args : Natural) is
+   begin
+      Arity_Table.Include (To_Upper (Name), (Min_Args, Max_Args));
+   end Register_Arity;
+
+   function Function_Arity (Name : String) return Arity_Spec is
+      C : constant Arity_Maps.Cursor := Arity_Table.Find (To_Upper (Name));
+   begin
+      if Arity_Maps.Has_Element (C) then
+         return Arity_Maps.Element (C);
+      else
+         raise SData_Core.Script_Error
+           with "no arity registered for function '" & Name & "'";
+      end if;
+   end Function_Arity;
+
    function Is_Aggregate (Name : String) return Boolean is
    begin
       return Aggregate_Meta_Table.Contains (To_Upper (Name));

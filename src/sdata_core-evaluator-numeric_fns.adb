@@ -386,6 +386,55 @@ package body SData_Core.Evaluator.Numeric_Fns is
       Dispatch_Table.Insert ("TAND",   Handle_Tand_Fn'Access);
       Dispatch_Table.Insert ("ATND",   Handle_Atnd_Fn'Access);
       Dispatch_Table.Insert ("ATAN2D", Handle_Atan2d_Fn'Access);
+
+      --  Arity metadata (one entry per Dispatch_Table insert above).
+      --  Math
+      Register_Arity ("ABS",    1, 1);
+      Register_Arity ("LOG",    1, 1);
+      Register_Arity ("LN",     1, 1);
+      Register_Arity ("LOGE",   1, 1);
+      Register_Arity ("LOG10",  1, 1);
+      Register_Arity ("CLG",    1, 1);
+      Register_Arity ("LGT",    1, 1);
+      Register_Arity ("LOG2",   1, 1);
+      Register_Arity ("EXP",    1, 1);
+      Register_Arity ("ROUND",  1, 2);   -- ROUND(x[,n])
+      Register_Arity ("CEIL",   1, 1);
+      Register_Arity ("FLOOR",  1, 1);
+      Register_Arity ("INT",    1, 1);
+      Register_Arity ("FIX",    1, 1);
+      Register_Arity ("IP",     1, 1);
+      Register_Arity ("FP",     1, 1);
+      Register_Arity ("FRAC",   1, 1);
+      Register_Arity ("MOD",    2, 2);   -- MOD(x,y)
+      Register_Arity ("SQRT",   1, 1);
+      Register_Arity ("SQR",    1, 1);
+      Register_Arity ("SGN",    1, 1);
+      --  Trigonometry
+      Register_Arity ("SIN",    1, 1);
+      Register_Arity ("COS",    1, 1);
+      Register_Arity ("TAN",    1, 1);
+      Register_Arity ("ATN",    1, 1);
+      Register_Arity ("ATAN2",  2, 2);   -- ATAN2(y,x)
+      Register_Arity ("SINH",   1, 1);
+      Register_Arity ("COSH",   1, 1);
+      Register_Arity ("TANH",   1, 1);
+      Register_Arity ("HCS",    1, 1);
+      Register_Arity ("HSN",    1, 1);
+      Register_Arity ("HTN",    1, 1);
+      Register_Arity ("ARCSIN", 1, 1);
+      Register_Arity ("ARCCOS", 1, 1);
+      Register_Arity ("ARCTAN", 1, 1);
+      Register_Arity ("COT",    1, 1);
+      Register_Arity ("CSC",    1, 1);
+      Register_Arity ("SEC",    1, 1);
+      Register_Arity ("DEG",    1, 1);
+      Register_Arity ("DEGREE", 1, 1);
+      Register_Arity ("SIND",   1, 1);
+      Register_Arity ("COSD",   1, 1);
+      Register_Arity ("TAND",   1, 1);
+      Register_Arity ("ATND",   1, 1);
+      Register_Arity ("ATAN2D", 2, 2);   -- ATAN2D(y,x)
    end Register;
 
 begin

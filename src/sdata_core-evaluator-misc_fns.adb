@@ -374,6 +374,35 @@ package body SData_Core.Evaluator.Misc_Fns is
       Dispatch_Table.Insert ("RAD",     Handle_Rad'Access);
       Dispatch_Table.Insert ("RADIAN",  Handle_Rad'Access);
       Dispatch_Table.Insert ("LTW",     Handle_Ltw'Access);
+
+      --  Arity metadata (one entry per Dispatch_Table insert above).
+      Register_Arity ("MISSING",  1, 1);
+      Register_Arity ("INF",      1, 1);
+      Register_Arity ("FALSE",    0, 0);
+      Register_Arity ("TRUE",     0, 0);
+      Register_Arity ("DATE$",    0, 0);
+      Register_Arity ("TIME$",    0, 0);
+      Register_Arity ("SHELL",    1, 1);
+      Register_Arity ("NUM",      1, 1);
+      Register_Arity ("ERR",      0, 0);
+      Register_Arity ("ERL",      0, 0);
+      Register_Arity ("PI",       0, 0);
+      Register_Arity ("TIMER",    0, 0);
+      Register_Arity ("TRUNCATE", 2, 2);   -- TRUNCATE(x,places)
+      Register_Arity ("LBOUND",   1, 1);   -- identifier-ref (array name)
+      Register_Arity ("UBOUND",   1, 1);   -- identifier-ref (array name)
+      Register_Arity ("HBOUND",   1, 1);   -- identifier-ref (array name)
+      Register_Arity ("INDEX",    2, 2);   -- INDEX(haystack$,needle$)
+      Register_Arity ("MATCH",    3, 3);   -- MATCH(haystack$,needle$,start)
+      Register_Arity ("MAXLEN",   0, 0);
+      Register_Arity ("MAXLVL",   0, 0);
+      Register_Arity ("MAXINT",   0, 0);
+      Register_Arity ("MAXNUM",   0, 0);
+      Register_Arity ("MININT",   0, 0);
+      Register_Arity ("MINNUM",   0, 0);
+      Register_Arity ("RAD",      1, 1);
+      Register_Arity ("RADIAN",   1, 1);
+      Register_Arity ("LTW",      1, 1);
    end Register;
 
 begin

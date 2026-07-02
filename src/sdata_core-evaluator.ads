@@ -152,6 +152,25 @@ package SData_Core.Evaluator is
    --  Used by consumers' static analyzers to reject unknown function calls.
    function Is_Known_Function (Name : String) return Boolean;
 
+   --  Per-function argument-count metadata.  A call with fewer than Min_Args
+   --  or more than Max_Args arguments is out of range.  Max_Args = Natural'Last
+   --  means "no upper bound" (variadic).  These bounds are deliberately SOUND,
+   --  not COMPLETE: where a handler accepts an open-ended or ambiguous count
+   --  the upper bound is left at Natural'Last so a valid call is never rejected.
+   type Arity_Spec is record
+      Min_Args : Natural := 0;
+      Max_Args : Natural := Natural'Last;
+   end record;
+
+   --  Returns the arity of a known function.  Raises SData_Core.Script_Error
+   --  when Name is not a registered function -- call Is_Known_Function first.
+   function Function_Arity (Name : String) return Arity_Spec;
+
+   --  Register a function's arity.  Called by each handler family's private
+   --  Register procedure alongside the Dispatch_Table insert.  Name is stored
+   --  case-insensitively (upper-cased), matching Dispatch_Table's keys.
+   procedure Register_Arity (Name : String; Min_Args, Max_Args : Natural);
+
    --  True iff Name (case-insensitive) is a registered aggregate function.
    --  This is the aggregate allow-list AGGREGATE uses to reject non-aggregate
    --  functions (SQRT, LEN$, …) at parse time.
@@ -202,6 +221,16 @@ private
        Hash            => Ada.Strings.Hash,
        Equivalent_Keys => "=");
    Aggregate_Meta_Table : Aggregate_Meta_Maps.Map;
+
+   --  Per-function arity side-table -- populated during elaboration by each
+   --  handler family's Register procedure alongside its Dispatch_Table inserts.
+   --  Keyed by upper-cased function name.  Read by Function_Arity.
+   package Arity_Maps is new Ada.Containers.Indefinite_Hashed_Maps
+      (Key_Type        => String,
+       Element_Type    => Arity_Spec,
+       Hash            => Ada.Strings.Hash,
+       Equivalent_Keys => "=");
+   Arity_Table : Arity_Maps.Map;
 
    --  Helpers used by every handler family.
    function Has_Args (Vals : Value_Vectors.Vector; N : Positive) return Boolean;
