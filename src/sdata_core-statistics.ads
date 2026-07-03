@@ -137,6 +137,45 @@ package SData_Core.Statistics is
    procedure Set_Seed (Seed : Integer);
    function  Uniform_Random return Float;  --  Returns uniform [0,1) using the shared generator.
 
+   ------------------------------------------------------------------
+   --  Contingency-table tests (SAS PROC FREQ /CHISQ analogue).      --
+   --  Pure: take a matrix / vector of counts, return the statistics. --
+   ------------------------------------------------------------------
+   type Count_Matrix is array (Positive range <>, Positive range <>) of Natural;
+   type Count_Vector is array (Positive range <>) of Natural;
+
+   type Chi_Square_Result is record
+      Valid             : Boolean := False;
+      R, C              : Natural := 0;
+      N                 : Natural := 0;
+      DF                : Natural := 0;
+      Pearson_Stat      : Float := 0.0;   Pearson_P    : Float := 1.0;
+      LR_Stat           : Float := 0.0;   LR_P         : Float := 1.0;
+      MH_Stat           : Float := 0.0;   MH_P         : Float := 1.0;
+      Has_Yates         : Boolean := False;
+      Yates_Stat        : Float := 0.0;   Yates_P      : Float := 1.0;
+      Phi               : Float := 0.0;
+      Contingency       : Float := 0.0;
+      Cramers_V         : Float := 0.0;
+      Min_Expected      : Float := 0.0;
+      Pct_Expected_Lt_5 : Float := 0.0;
+   end record;
+
+   type GOF_Result is record
+      Valid  : Boolean := False;
+      K      : Natural := 0;    --  number of categories
+      N      : Natural := 0;
+      DF     : Natural := 0;
+      Stat   : Float := 0.0;
+      P      : Float := 1.0;
+   end record;
+
+   --  Chi-square family for an R x C table of observed counts.
+   function Chi_Square_Tests (Counts : Count_Matrix) return Chi_Square_Result;
+
+   --  Equal-proportions goodness-of-fit for a one-way count vector.
+   function Goodness_Of_Fit (Counts : Count_Vector) return GOF_Result;
+
 private
    --  Use Long_Float internally for better precision
    type Internal_Float is new Long_Float;

@@ -270,6 +270,51 @@ begin
       Assert (In_Range, "Chi_Square_RN >= 0");
    end;
 
+   ----------------------------------------------------------------------------
+   --  Chi_Square_Tests: contingency-table chi-square family
+   ----------------------------------------------------------------------------
+
+   --  ==== Chi_Square_Tests: 2x2 [[10,20],[30,40]] ====
+   declare
+      M : constant Count_Matrix (1 .. 2, 1 .. 2) :=
+        (1 => (10, 20), 2 => (30, 40));
+      R : constant Chi_Square_Result := Chi_Square_Tests (M);
+   begin
+      Assert (R.Valid,                                   "ChiSq 2x2 valid");
+      Assert (R.N = 100,                                 "ChiSq 2x2 N=100");
+      Assert (R.DF = 1,                                  "ChiSq 2x2 DF=1");
+      Assert (Approx (R.Pearson_Stat, 0.79365, 1.0e-3),  "ChiSq 2x2 Pearson");
+      Assert (Approx (R.Pearson_P,    0.373,   1.0e-2),  "ChiSq 2x2 Pearson p");
+      Assert (Approx (R.LR_Stat,      0.80424, 1.0e-3),  "ChiSq 2x2 LR");
+      Assert (R.Has_Yates,                               "ChiSq 2x2 has Yates");
+      Assert (Approx (R.Yates_Stat,   0.44643, 1.0e-3),  "ChiSq 2x2 Yates");
+      Assert (Approx (R.MH_Stat,      0.78571, 1.0e-3),  "ChiSq 2x2 MH");
+      Assert (Approx (R.Phi,          0.08909, 1.0e-3),  "ChiSq 2x2 phi");
+      Assert (Approx (R.Cramers_V,    0.08909, 1.0e-3),  "ChiSq 2x2 Cramer V");
+      Assert (Approx (R.Contingency,  0.08874, 1.0e-3),  "ChiSq 2x2 contingency");
+   end;
+
+   --  ==== Chi_Square_Tests: 2x3, no Yates, expected>=5 all ====
+   declare
+      --  [[20,30,50],[30,20,50]] : N=200, DF=2
+      M : constant Count_Matrix (1 .. 2, 1 .. 3) :=
+        (1 => (20, 30, 50), 2 => (30, 20, 50));
+      R : constant Chi_Square_Result := Chi_Square_Tests (M);
+   begin
+      Assert (R.DF = 2,                    "ChiSq 2x3 DF=2");
+      Assert (not R.Has_Yates,             "ChiSq 2x3 no Yates");
+      Assert (R.Valid,                     "ChiSq 2x3 valid");
+      Assert (Approx (R.Pct_Expected_Lt_5, 0.0, 1.0e-6), "ChiSq 2x3 no low cells");
+   end;
+
+   --  ==== Degenerate: a zero-margin column -> Valid=False ====
+   declare
+      M : constant Count_Matrix (1 .. 2, 1 .. 2) := (1 => (5, 0), 2 => (7, 0));
+      R : constant Chi_Square_Result := Chi_Square_Tests (M);
+   begin
+      Assert (not R.Valid,   "ChiSq zero-margin invalid");
+   end;
+
    --  Summary
    New_Line;
    Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
