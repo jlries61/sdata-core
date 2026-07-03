@@ -6,6 +6,7 @@ with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Containers.Vectors;
 with Ada.Exceptions;
+with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core.Config;
 with SData_Core.Signals;
@@ -234,12 +235,32 @@ package body SData_Core.Backing_Store is
       for Pos in T.Iterate loop T.Reference (Pos).Element.all.Data.Clear; end loop;
    exception
       when E : SQLite_Error =>
-         raise Script_Error with
-            "could not write dataset to disk (disk full?)"
-            & " [table=" & Name
-            & ", rows=" & Columns.Img (Memory_Rows)
-            & ", segment_start=" & Columns.Img (Start) & "]: "
-            & Ada.Exceptions.Exception_Message (E);
+         declare
+            Msg : constant String := Ada.Exceptions.Exception_Message (E);
+            Upper_Msg : constant String :=
+               Ada.Characters.Handling.To_Upper (Msg);
+         begin
+            if Ada.Strings.Fixed.Index (Upper_Msg, "TOO MANY COLUMNS") > 0
+            then
+               --  SQLite hard cap (~2000 columns per table).  Map the column
+               --  count to the user's data and explain the -m 0 workaround.
+               raise Script_Error with
+                  "dataset """ & Name & """ has too many columns for"
+                  & " the SQLite disk-spill backend"
+                  & " (" & Columns.Img (Natural (Col_Names.Length))
+                  & " columns; SQLite caps at ~2000 columns per table)."
+                  & " Use ""-m 0"" for unlimited in-memory storage, a larger"
+                  & " ""-m"" value, or reduce the number of columns."
+                  & " [SQLite: " & Msg & "]";
+            else
+               raise Script_Error with
+                  "could not write dataset to disk (disk full?)"
+                  & " [table=" & Name
+                  & ", rows=" & Columns.Img (Memory_Rows)
+                  & ", segment_start=" & Columns.Img (Start) & "]: "
+                  & Msg;
+            end if;
+         end;
    end Spill;
 
    function Fetch (Self      : in out Backing_Store;
