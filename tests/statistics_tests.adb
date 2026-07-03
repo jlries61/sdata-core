@@ -315,6 +315,30 @@ begin
       Assert (not R.Valid,   "ChiSq zero-margin invalid");
    end;
 
+   ----------------------------------------------------------------------------
+   --  Goodness_Of_Fit: equal-proportions one-way chi-square
+   ----------------------------------------------------------------------------
+
+   --  ==== Goodness_Of_Fit: [10,20,30] equal-proportions ====
+   declare
+      V : constant Count_Vector (1 .. 3) := (10, 20, 30);
+      R : constant GOF_Result := Goodness_Of_Fit (V);
+   begin
+      Assert (R.Valid,                          "GOF valid");
+      Assert (R.K = 3 and then R.N = 60,        "GOF k=3 N=60");
+      Assert (R.DF = 2,                         "GOF DF=2");
+      Assert (Approx (R.Stat, 10.0, 1.0e-4),    "GOF stat=10");
+      Assert (Approx (R.P, 0.006738, 1.0e-4),   "GOF p=exp(-5)");
+   end;
+
+   --  Single category or empty -> invalid (DF=0).
+   declare
+      V : constant Count_Vector (1 .. 1) := (1 => 42);
+      R : constant GOF_Result := Goodness_Of_Fit (V);
+   begin
+      Assert (not R.Valid,   "GOF single-category invalid");
+   end;
+
    --  Summary
    New_Line;
    Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");

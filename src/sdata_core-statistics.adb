@@ -970,11 +970,31 @@ package body SData_Core.Statistics is
    ---------------------
    -- Goodness_Of_Fit --
    ---------------------
-   --  TASK 2: implement equal-proportions goodness-of-fit.
+   --  Equal-proportions one-way goodness-of-fit.  Chi-square statistic is
+   --  sum((O_i - E)^2 / E) where E = N/K; DF = K-1.  Returns Valid=False
+   --  when K < 2 or N = 0 (DF would be 0 and the test is undefined).
    function Goodness_Of_Fit (Counts : Count_Vector) return GOF_Result is
-      pragma Unreferenced (Counts);
+      K   : constant Natural := Counts'Length;
+      Res : GOF_Result;
+      Tot : Long_Float := 0.0;
+      S   : Long_Float := 0.0;
+      E   : Long_Float;
    begin
-      return (others => <>);  --  TASK 2
+      Res.K := K;
+      for X of Counts loop Tot := Tot + Long_Float (X); end loop;
+      Res.N := Natural (Tot);
+      if K < 2 or else Tot = 0.0 then
+         Res.Valid := False; return Res;
+      end if;
+      Res.DF := K - 1;
+      E := Tot / Long_Float (K);
+      for X of Counts loop
+         S := S + (Long_Float (X) - E) ** 2 / E;
+      end loop;
+      Res.Stat := Float (S);
+      Res.P := 1.0 - Chi_Square_CDF (Res.Stat, Float (Res.DF));
+      Res.Valid := True;
+      return Res;
    end Goodness_Of_Fit;
 
 end SData_Core.Statistics;
