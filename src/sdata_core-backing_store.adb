@@ -242,15 +242,15 @@ package body SData_Core.Backing_Store is
          begin
             if Ada.Strings.Fixed.Index (Upper_Msg, "TOO MANY COLUMNS") > 0
             then
-               --  SQLite hard cap (~2000 columns per table).  Map the column
-               --  count to the user's data and explain the -m 0 workaround.
+               --  SQLite hard cap (~2000 columns per table).  Report the
+               --  column count and advise -m 0 to keep the table in memory.
+               --  Keep the message under GNAT's 200-char exception-message
+               --  limit: "dataset ""data"" has ... [SQLite: ...]" ~ 150 chars.
                raise Script_Error with
                   "dataset """ & Name & """ has too many columns for"
-                  & " the SQLite disk-spill backend"
-                  & " (" & Columns.Img (Natural (Col_Names.Length))
-                  & " columns; SQLite caps at ~2000 columns per table)."
-                  & " Use ""-m 0"" for unlimited in-memory storage, a larger"
-                  & " ""-m"" value, or reduce the number of columns."
+                  & " SQLite spill ("
+                  & Columns.Img (Natural (Col_Names.Length))
+                  & " cols, limit ~2000); use -m 0 or fewer columns"
                   & " [SQLite: " & Msg & "]";
             else
                raise Script_Error with
