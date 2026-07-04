@@ -1212,6 +1212,59 @@ sequence is reproducible.  Without this the generator self-seeds on first use.</
 <pre>   function  Uniform_Random return Float;</pre>
 <div class='doc'>Returns uniform [0,1) using the shared generator.</div>
 </div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Count_Matrix is array (Positive range &lt;&gt;, Positive range &lt;&gt;) of Natural;</pre>
+<div class='doc'>----------------------------------------------------------------
+Contingency-table tests (SAS PROC FREQ /CHISQ analogue).      --
+Pure: take a matrix / vector of counts, return the statistics. --
+----------------------------------------------------------------</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Count_Vector is array (Positive range &lt;&gt;) of Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Chi_Square_Result is record
+      Valid             : Boolean := False;
+      R, C              : Natural := 0;
+      N                 : Natural := 0;
+      DF                : Natural := 0;
+      Pearson_Stat      : Float := 0.0;   Pearson_P    : Float := 1.0;
+      LR_Stat           : Float := 0.0;   LR_P         : Float := 1.0;
+      MH_Stat           : Float := 0.0;   MH_P         : Float := 1.0;
+      Has_Yates         : Boolean := False;
+      Yates_Stat        : Float := 0.0;   Yates_P      : Float := 1.0;
+      Phi               : Float := 0.0;
+      Contingency       : Float := 0.0;
+      Cramers_V         : Float := 0.0;
+      Min_Expected      : Float := 0.0;
+      Pct_Expected_Lt_5 : Float := 0.0;
+   end record;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type GOF_Result is record
+      Valid  : Boolean := False;
+      K      : Natural := 0;
+      N      : Natural := 0;
+      DF     : Natural := 0;
+      Stat   : Float := 0.0;
+      P      : Float := 1.0;
+   end record;</pre>
+<div class='doc'>number of categories</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Chi_Square_Tests (Counts : Count_Matrix) return Chi_Square_Result;</pre>
+<div class='doc'>Chi-square family for an R x C table of observed counts.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Goodness_Of_Fit (Counts : Count_Vector) return GOF_Result;</pre>
+<div class='doc'>Equal-proportions goodness-of-fit for a one-way count vector.</div>
+</div>
 <h2 id='SData_Core.Table'>SData_Core.Table</h2>
 <p class='overview'>Package SData_Core.Table implements the Data Table Manager, providing an in-memory
 2D table structure for storing and manipulating records and columns.

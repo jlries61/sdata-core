@@ -841,4 +841,160 @@ package body SData_Core.Statistics is
       return Bisect (P, 0.0, Scale * 10.0);
    end Weibull_IDF;
 
+   ----------------------
+   -- Chi_Square_Tests --
+   ----------------------
+   function Chi_Square_Tests (Counts : Count_Matrix) return Chi_Square_Result is
+      Rn   : constant Natural := Counts'Length (1);
+      Cn   : constant Natural := Counts'Length (2);
+      Res  : Chi_Square_Result;
+      Row  : array (1 .. Rn) of Long_Float := (others => 0.0);
+      Col  : array (1 .. Cn) of Long_Float := (others => 0.0);
+      Tot  : Long_Float := 0.0;
+      Low  : Natural := 0;                 --  cells with expected < 5
+      Cells : constant Natural := Rn * Cn;
+      P_Sum, LR_Sum, Y_Sum, Min_E : Long_Float;
+   begin
+      Res.R := Rn; Res.C := Cn;
+      --  Marginals.
+      for I in 1 .. Rn loop
+         for J in 1 .. Cn loop
+            declare O : constant Long_Float := Long_Float (Counts (Counts'First (1) + I - 1,
+                                                                    Counts'First (2) + J - 1));
+            begin
+               Row (I) := Row (I) + O;
+               Col (J) := Col (J) + O;
+               Tot := Tot + O;
+            end;
+         end loop;
+      end loop;
+      Res.N := Natural (Tot);
+      Res.DF := (Rn - 1) * (Cn - 1);
+
+      --  Degenerate guard: any zero margin, or DF = 0, or N = 0.
+      if Tot = 0.0 or else Res.DF = 0 then
+         Res.Valid := False; return Res;
+      end if;
+      for I in 1 .. Rn loop
+         if Row (I) = 0.0 then Res.Valid := False; return Res; end if;
+      end loop;
+      for J in 1 .. Cn loop
+         if Col (J) = 0.0 then Res.Valid := False; return Res; end if;
+      end loop;
+
+      P_Sum := 0.0; LR_Sum := 0.0; Y_Sum := 0.0; Min_E := Long_Float'Last;
+      for I in 1 .. Rn loop
+         for J in 1 .. Cn loop
+            declare
+               O : constant Long_Float := Long_Float (Counts (Counts'First (1) + I - 1,
+                                                                Counts'First (2) + J - 1));
+               E : constant Long_Float := Row (I) * Col (J) / Tot;
+            begin
+               if E < Min_E then Min_E := E; end if;
+               if E < 5.0 then Low := Low + 1; end if;
+               P_Sum := P_Sum + (O - E) ** 2 / E;
+               if O > 0.0 then
+                  LR_Sum := LR_Sum + O * Log (O / E);
+               end if;
+               if Rn = 2 and then Cn = 2 then
+                  Y_Sum := Y_Sum + (abs (O - E) - 0.5) ** 2 / E;
+               end if;
+            end;
+         end loop;
+      end loop;
+
+      Res.Valid := True;
+      Res.Min_Expected := Float (Min_E);
+      Res.Pct_Expected_Lt_5 := Float (100.0 * Long_Float (Low) / Long_Float (Cells));
+
+      Res.Pearson_Stat := Float (P_Sum);
+      Res.Pearson_P := 1.0 - Chi_Square_CDF (Res.Pearson_Stat, Float (Res.DF));
+
+      Res.LR_Stat := Float (2.0 * LR_Sum);
+      Res.LR_P := 1.0 - Chi_Square_CDF (Res.LR_Stat, Float (Res.DF));
+
+      --  Mantel-Haenszel = (N-1) * Pearson-corr^2; for these design matrices we
+      --  use the identity (N-1) * Pearson_chisq / N only for 2x2; for general
+      --  RxC SAS uses (N-1) r^2 where r is the Pearson correlation of the
+      --  row/col scores. Use integer scores 1..R, 1..C.
+      declare
+         Mean_R, Mean_C, Sxx, Syy, Sxy : Long_Float := 0.0;
+      begin
+         for I in 1 .. Rn loop Mean_R := Mean_R + Long_Float (I) * Row (I); end loop;
+         for J in 1 .. Cn loop Mean_C := Mean_C + Long_Float (J) * Col (J); end loop;
+         Mean_R := Mean_R / Tot;  Mean_C := Mean_C / Tot;
+         for I in 1 .. Rn loop
+            Sxx := Sxx + Row (I) * (Long_Float (I) - Mean_R) ** 2;
+         end loop;
+         for J in 1 .. Cn loop
+            Syy := Syy + Col (J) * (Long_Float (J) - Mean_C) ** 2;
+         end loop;
+         for I in 1 .. Rn loop
+            for J in 1 .. Cn loop
+               declare O : constant Long_Float :=
+                  Long_Float (Counts (Counts'First (1) + I - 1, Counts'First (2) + J - 1));
+               begin
+                  Sxy := Sxy + O * (Long_Float (I) - Mean_R) * (Long_Float (J) - Mean_C);
+               end;
+            end loop;
+         end loop;
+         if Sxx > 0.0 and then Syy > 0.0 then
+            declare Rho : constant Long_Float := Sxy / Sqrt (Sxx * Syy);
+            begin
+               Res.MH_Stat := Float ((Tot - 1.0) * Rho * Rho);
+            end;
+         else
+            Res.MH_Stat := 0.0;
+         end if;
+         Res.MH_P := 1.0 - Chi_Square_CDF (Res.MH_Stat, 1.0);
+      end;
+
+      --  Association measures derived from Pearson.
+      Res.Phi := Float (Sqrt (P_Sum / Tot));
+      Res.Contingency := Float (Sqrt (P_Sum / (P_Sum + Tot)));
+      declare
+         M : constant Long_Float := Long_Float (Natural'Min (Rn - 1, Cn - 1));
+      begin
+         Res.Cramers_V := Float (Sqrt (P_Sum / (Tot * M)));
+      end;
+
+      if Rn = 2 and then Cn = 2 then
+         Res.Has_Yates := True;
+         Res.Yates_Stat := Float (Y_Sum);
+         Res.Yates_P := 1.0 - Chi_Square_CDF (Res.Yates_Stat, 1.0);
+      end if;
+
+      return Res;
+   end Chi_Square_Tests;
+
+   ---------------------
+   -- Goodness_Of_Fit --
+   ---------------------
+   --  Equal-proportions one-way goodness-of-fit.  Chi-square statistic is
+   --  sum((O_i - E)^2 / E) where E = N/K; DF = K-1.  Returns Valid=False
+   --  when K < 2 or N = 0 (DF would be 0 and the test is undefined).
+   function Goodness_Of_Fit (Counts : Count_Vector) return GOF_Result is
+      K   : constant Natural := Counts'Length;
+      Res : GOF_Result;
+      Tot : Long_Float := 0.0;
+      S   : Long_Float := 0.0;
+      E   : Long_Float;
+   begin
+      Res.K := K;
+      for X of Counts loop Tot := Tot + Long_Float (X); end loop;
+      Res.N := Natural (Tot);
+      if K < 2 or else Tot = 0.0 then
+         Res.Valid := False; return Res;
+      end if;
+      Res.DF := K - 1;
+      E := Tot / Long_Float (K);
+      for X of Counts loop
+         S := S + (Long_Float (X) - E) ** 2 / E;
+      end loop;
+      Res.Stat := Float (S);
+      Res.P := 1.0 - Chi_Square_CDF (Res.Stat, Float (Res.DF));
+      Res.Valid := True;
+      return Res;
+   end Goodness_Of_Fit;
+
 end SData_Core.Statistics;
