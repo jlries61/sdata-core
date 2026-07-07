@@ -301,6 +301,25 @@ package SData_Core.Commands is
    procedure Execute_Rebuild_Filter;
 
    ----------------------------------------------------------------
+   --  Group_Boundaries — partition the current table's SELECT-filtered
+   --  logical view into consecutive BY groups.  Rebuilds the SELECT filter
+   --  map first (so an active SELECT is honored), then returns one element per
+   --  BY group, each holding that group's physical row indices in logical
+   --  order.  With no active BY the whole filtered table is a single group;
+   --  an empty (or fully filtered-out) table yields no groups.
+   --
+   --  This is the shared grouping primitive behind AGGREGATE / TRANSPOSE /
+   --  STATS and any consumer that tabulates per BY group (e.g. sdata's TABLES).
+   --  It exists so the walk — and the mandatory Rebuild_Filter_Map that guards
+   --  the SELECT-honoring invariant — live in exactly one place.
+   package Row_Index_Vectors is
+     new Ada.Containers.Vectors (Positive, Positive);
+   package Row_Group_Vectors is
+     new Ada.Containers.Vectors
+       (Positive, Row_Index_Vectors.Vector, Row_Index_Vectors."=");
+   function Group_Boundaries return Row_Group_Vectors.Vector;
+
+   ----------------------------------------------------------------
    --  Interpreter-state mutators (added per audit Findings R1/U2/E2).
    --
    --  These wrap the corresponding SData_Core.Config.Runtime field

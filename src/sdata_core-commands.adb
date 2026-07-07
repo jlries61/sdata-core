@@ -627,21 +627,17 @@ package body SData_Core.Commands is
    --  logical view -> build a fresh output table -> swap -> flush a pending
    --  SAVE -> clear SELECT and BY.  All validation precedes any side effect.
 
-   package Row_Vectors  is new Ada.Containers.Vectors (Positive, Positive);
-
    package Tbl  renames SData_Core.Table;
    package Eval renames SData_Core.Evaluator;
 
-   --  Shared BY-group scan (used by AGGREGATE and STATS).  A "group" is a
-   --  vector of physical row indices.  Reflects the active SELECT filter via
-   --  Rebuild_Filter_Map and partitions the logical view into consecutive
-   --  BY-key runs (the whole filtered table is one group when no BY is active).
-   package Group_Vectors is new Ada.Containers.Vectors
-     (Positive, Row_Vectors.Vector, Row_Vectors."=");
-
-   function Collect_Groups return Group_Vectors.Vector is
-      Groups : Group_Vectors.Vector;
-      Group  : Row_Vectors.Vector;
+   --  Shared BY-group scan (the public grouping primitive; see commands.ads).
+   --  A "group" is a vector of physical row indices.  Reflects the active
+   --  SELECT filter via Rebuild_Filter_Map and partitions the logical view
+   --  into consecutive BY-key runs (the whole filtered table is one group when
+   --  no BY is active).  Used by AGGREGATE, STATS, TRANSPOSE, and sdata TABLES.
+   function Group_Boundaries return Row_Group_Vectors.Vector is
+      Groups : Row_Group_Vectors.Vector;
+      Group  : Row_Index_Vectors.Vector;
       Prev_P : Positive := 1;
    begin
       Rebuild_Filter_Map;
@@ -667,10 +663,10 @@ package body SData_Core.Commands is
          Groups.Append (Group);
       end if;
       return Groups;
-   end Collect_Groups;
+   end Group_Boundaries;
 
    --  Gather one column's values across a group's physical rows.
-   function Group_Values (Rows : Row_Vectors.Vector; Col : String)
+   function Group_Values (Rows : Row_Index_Vectors.Vector; Col : String)
       return Eval.Value_Array
    is
       A : Eval.Value_Array (1 .. Integer (Rows.Length));
@@ -990,7 +986,7 @@ package body SData_Core.Commands is
       end Warn_Resizing;
 
       --  Emit one output row for the completed group.
-      procedure Emit_Group (Rows : Row_Vectors.Vector) is
+      procedure Emit_Group (Rows : Row_Index_Vectors.Vector) is
          First_Phys : constant Positive := Rows.First_Element;
          R          : Positive;
       begin
@@ -1047,7 +1043,7 @@ package body SData_Core.Commands is
          Tbl.Add_Output_Column (To_String (D.Name), D.Ctype);
       end loop;
 
-      for G of Collect_Groups loop
+      for G of Group_Boundaries loop
          Emit_Group (G);
       end loop;
 
@@ -1119,6 +1115,10 @@ package body SData_Core.Commands is
       --  /ARRAY bound (max block size) and filtered row count.
       K      : Natural := 0;
       N_Rows : Natural := 0;
+
+      --  Consecutive BY groups of the SELECT-filtered view (Phase 2 assigns;
+      --  Phases 2 and 3 both iterate it).  Empty <=> N_Rows = 0.
+      Groups : Row_Group_Vectors.Vector;
 
       --  Legal column identifier: letter|'_' first; letter|digit|'_' rest;
       --  an optional single trailing '$'.
@@ -1294,16 +1294,14 @@ package body SData_Core.Commands is
       ------------------------------------------------------------------
       --  Phase 2 — reflect SELECT, then pre-scan the logical view.     --
       ------------------------------------------------------------------
-      Rebuild_Filter_Map;
+      Groups := Group_Boundaries;
       N_Rows := Tbl.Logical_Row_Count;
 
       --  Pre-scan: /ARRAY -> K (max block size); /ID -> union of derived
       --  column names (first-encounter), with per-block duplicate detection
       --  (#6), legal-identifier validation (#7) and BY/NAME collision (#10).
-      if N_Rows > 0 then
+      if not Groups.Is_Empty then
          declare
-            Prev_P      : Natural  := 0;
-            Cur_Size    : Natural  := 0;
             Block_First : Positive := 1;
             Block_Ids   : Name_Sets.Set;
 
@@ -1349,32 +1347,18 @@ package body SData_Core.Commands is
                end if;
             end Scan_Id;
          begin
-            for L in 1 .. N_Rows loop
-               declare
-                  P         : constant Positive := Tbl.Logical_To_Physical (L);
-                  New_Block : constant Boolean :=
-                    L = 1
-                    or else (Tbl.By_Var_Count /= 0
-                             and then not Tbl.In_Same_Group (P, Prev_P));
-               begin
-                  if New_Block then
-                     if Cur_Size > K then
-                        K := Cur_Size;
-                     end if;
-                     Cur_Size    := 0;
-                     Block_First := P;
-                     Block_Ids.Clear;
-                  end if;
-                  Cur_Size := Cur_Size + 1;
-                  if Id_Mode then
+            for G of Groups loop
+               if Natural (G.Length) > K then
+                  K := Natural (G.Length);
+               end if;
+               if Id_Mode then
+                  Block_First := G.First_Element;
+                  Block_Ids.Clear;
+                  for P of G loop
                      Scan_Id (P);
-                  end if;
-                  Prev_P := P;
-               end;
+                  end loop;
+               end if;
             end loop;
-            if Cur_Size > K then
-               K := Cur_Size;
-            end if;
          end;
       end if;
 
@@ -1403,11 +1387,9 @@ package body SData_Core.Commands is
 
          declare
             Name_Pos : constant Positive := Tbl.By_Var_Count + 1;
-            Group    : Row_Vectors.Vector;
-            Prev_P   : Natural := 0;
 
             --  Emit one output row per transposed column for the block.
-            procedure Emit_Block is
+            procedure Emit_Block (Group : Row_Index_Vectors.Vector) is
                First_P : constant Positive := Group.First_Element;
                Id_Pos  : Name_Maps.Map;     --  upper(colname) -> phys row
                R       : Positive;
@@ -1457,27 +1439,9 @@ package body SData_Core.Commands is
                end loop;
             end Emit_Block;
          begin
-            for L in 1 .. N_Rows loop
-               declare
-                  P : constant Positive := Tbl.Logical_To_Physical (L);
-               begin
-                  if L = 1 then
-                     Group.Append (P);
-                  elsif Tbl.By_Var_Count = 0
-                    or else Tbl.In_Same_Group (P, Prev_P)
-                  then
-                     Group.Append (P);
-                  else
-                     Emit_Block;
-                     Group.Clear;
-                     Group.Append (P);
-                  end if;
-                  Prev_P := P;
-               end;
+            for G of Groups loop
+               Emit_Block (G);
             end loop;
-            if not Group.Is_Empty then
-               Emit_Block;
-            end if;
          end;
       end if;
 
@@ -1498,8 +1462,6 @@ package body SData_Core.Commands is
    procedure Execute_STATS (Options : Stats_Options) is
       package Tbl  renames SData_Core.Table;
       package Vars renames SData_Core.Variables;
-
-      use Ada.Strings.Unbounded;
 
       type Var_Rec is record
          Name    : Unbounded_String;
@@ -1620,7 +1582,7 @@ package body SData_Core.Commands is
       end loop;
 
       --  5. Scan groups; one output row per (group x variable).
-      for G of Collect_Groups loop
+      for G of Group_Boundaries loop
          declare
             First_Phys : constant Positive := G.First_Element;
          begin
