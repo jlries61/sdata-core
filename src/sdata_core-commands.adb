@@ -679,6 +679,28 @@ package body SData_Core.Commands is
       return A;
    end Group_Values;
 
+   --  Emit the active BY variables as the leading output columns (same name and
+   --  column type as the source).  Shared schema prologue for the reshape
+   --  commands whose BY columns come first (TRANSPOSE, STATS); refactor R4.
+   procedure Add_By_Output_Columns is
+   begin
+      for I in 1 .. Tbl.By_Var_Count loop
+         Tbl.Add_Output_Column
+           (Tbl.By_Var_Name (I), Tbl.Get_Column_Type (Tbl.By_Var_Name (I)));
+      end loop;
+   end Add_By_Output_Columns;
+
+   --  Copy the active BY values into output columns 1 .. By_Var_Count of Row,
+   --  reading them from First_Phys (the group's first physical row).  Companion
+   --  to Add_By_Output_Columns; the BY columns are always the leading ones.
+   procedure Set_By_Output_Values (Row : Positive; First_Phys : Positive) is
+   begin
+      for I in 1 .. Tbl.By_Var_Count loop
+         Tbl.Set_Output_Value_By_Col
+           (Row, I, Tbl.Get_Value (First_Phys, Tbl.By_Var_Name (I)));
+      end loop;
+   end Set_By_Output_Values;
+
    --  Shared post-swap epilogue for the reshape commands (AGGREGATE, TRANSPOSE,
    --  STATS).  Commits the freshly-built output table, drops the now-stale
    --  SELECT index map, refreshes PDV names and re-detects subscripted columns
@@ -1366,10 +1388,7 @@ package body SData_Core.Commands is
       --  Phase 3 — build the fresh output table and emit rows.         --
       ------------------------------------------------------------------
       Tbl.Initialize_Output_Table;
-      for I in 1 .. Tbl.By_Var_Count loop
-         Tbl.Add_Output_Column
-           (Tbl.By_Var_Name (I), Tbl.Get_Column_Type (Tbl.By_Var_Name (I)));
-      end loop;
+      Add_By_Output_Columns;
       Tbl.Add_Output_Column (Name_Col, Tbl.Col_String);
 
       --  Value columns exist only for non-empty input (spec sec 3.7).
@@ -1408,11 +1427,7 @@ package body SData_Core.Commands is
                   begin
                      Tbl.Add_Output_Row;
                      R := Tbl.Output_Row_Count;
-                     for I in 1 .. Tbl.By_Var_Count loop
-                        Tbl.Set_Output_Value_By_Col
-                          (R, I,
-                           Tbl.Get_Value (First_P, Tbl.By_Var_Name (I)));
-                     end loop;
+                     Set_By_Output_Values (R, First_P);
                      Tbl.Set_Output_Value_By_Col
                        (R, Name_Pos,
                         (Kind => Val_String, Str_Val => To_Unbounded_String (Cn)));
@@ -1566,10 +1581,7 @@ package body SData_Core.Commands is
 
       --  4. Build the output schema: BY vars + _NAME_$ + one col per stat.
       Tbl.Initialize_Output_Table;
-      for I in 1 .. Tbl.By_Var_Count loop
-         Tbl.Add_Output_Column
-           (Tbl.By_Var_Name (I), Tbl.Get_Column_Type (Tbl.By_Var_Name (I)));
-      end loop;
+      Add_By_Output_Columns;
       Tbl.Add_Output_Column ("_NAME_$", Tbl.Col_String);
       for S of Stats loop
          declare
@@ -1592,12 +1604,8 @@ package body SData_Core.Commands is
                   R   : constant Positive := Tbl.Output_Row_Count;
                   Col : Positive := 1;
                begin
-                  for I in 1 .. Tbl.By_Var_Count loop
-                     Tbl.Set_Output_Value_By_Col
-                       (R, Col,
-                        Tbl.Get_Value (First_Phys, Tbl.By_Var_Name (I)));
-                     Col := Col + 1;
-                  end loop;
+                  Set_By_Output_Values (R, First_Phys);
+                  Col := Tbl.By_Var_Count + 1;
                   Tbl.Set_Output_Value_By_Col
                     (R, Col,
                      (Kind => Val_String, Str_Val => V.Name));
