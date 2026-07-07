@@ -1499,8 +1499,6 @@ package body SData_Core.Commands is
       package Tbl  renames SData_Core.Table;
       package Vars renames SData_Core.Variables;
 
-      use Ada.Strings.Unbounded;
-
       type Var_Rec is record
          Name    : Unbounded_String;
          Is_Char : Boolean;
