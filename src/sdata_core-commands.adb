@@ -683,6 +683,35 @@ package body SData_Core.Commands is
       return A;
    end Group_Values;
 
+   --  Shared post-swap epilogue for the reshape commands (AGGREGATE, TRANSPOSE,
+   --  STATS).  Commits the freshly-built output table, drops the now-stale
+   --  SELECT index map, refreshes PDV names and re-detects subscripted columns
+   --  (ADR-041), flushes any pending SAVE, then tears down the consumed SELECT
+   --  filter and BY grouping.  Cmd_Name names the calling command for the
+   --  SAVE-flush error message.  All three commands finalize through here so the
+   --  sequence lives in exactly one place (milestone 2026-07-06 refactor R1).
+   procedure Commit_Reshaped_Table (Cmd_Name : String) is
+   begin
+      SData_Core.Table.Commit_Output_Table;
+      SData_Core.Table.Clear_Index_Map;     --  stale SELECT map no longer valid
+      SData_Core.Variables.Refresh_PDV_Names;
+      SData_Core.Variables.Register_Subscripted_Columns;  --  ADR-041 re-detect
+
+      if SData_Core.Config.Runtime.Save_File_Active then
+         begin
+            Flush_Pending_Save;
+         exception
+            when E : others =>
+               raise SData_Core.Script_Error with
+                 Cmd_Name & ": SAVE flush failed: " &
+                 Ada.Exceptions.Exception_Message (E);
+         end;
+      end if;
+
+      Execute_SELECT (null);                --  free the stale filter expression
+      SData_Core.Table.Clear_By_Vars;       --  grouping consumed
+   end Commit_Reshaped_Table;
+
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
 
       package Vars renames SData_Core.Variables;
@@ -1024,24 +1053,7 @@ package body SData_Core.Commands is
 
       --  Phase 3: commit the fresh table and apply post-execution effects
       --  (spec sec 3.6).
-      Tbl.Commit_Output_Table;
-      Tbl.Clear_Index_Map;                  --  stale SELECT map no longer valid
-      Vars.Refresh_PDV_Names;
-      Vars.Register_Subscripted_Columns;    --  ADR-041 array re-detection
-
-      if SData_Core.Config.Runtime.Save_File_Active then
-         begin
-            Flush_Pending_Save;
-         exception
-            when E : others =>
-               raise SData_Core.Script_Error with
-                 "AGGREGATE: SAVE flush failed: " &
-                 Ada.Exceptions.Exception_Message (E);
-         end;
-      end if;
-
-      Execute_SELECT (null);                --  free the stale filter expression
-      Tbl.Clear_By_Vars;                    --  grouping consumed
+      Commit_Reshaped_Table ("AGGREGATE");
    end Execute_AGGREGATE;
 
    --------------------------------------------------------------------
@@ -1472,24 +1484,7 @@ package body SData_Core.Commands is
       ------------------------------------------------------------------
       --  Phase 4 — commit the fresh table and apply side effects.      --
       ------------------------------------------------------------------
-      Tbl.Commit_Output_Table;
-      Tbl.Clear_Index_Map;                  --  stale SELECT map no longer valid
-      Vars.Refresh_PDV_Names;
-      Vars.Register_Subscripted_Columns;    --  ADR-041: register _X_(1..K)
-
-      if SData_Core.Config.Runtime.Save_File_Active then
-         begin
-            Flush_Pending_Save;
-         exception
-            when E : others =>
-               raise SData_Core.Script_Error with
-                 "TRANSPOSE: SAVE flush failed: " &
-                 Ada.Exceptions.Exception_Message (E);
-         end;
-      end if;
-
-      Execute_SELECT (null);                --  free the stale filter expression
-      Tbl.Clear_By_Vars;                    --  grouping consumed
+      Commit_Reshaped_Table ("TRANSPOSE");
    end Execute_TRANSPOSE;
 
    --------------------------------------------------------------------
@@ -1659,24 +1654,7 @@ package body SData_Core.Commands is
       end loop;
 
       --  6. Commit, re-register arrays, flush SAVE, clear SELECT/BY.
-      Tbl.Commit_Output_Table;
-      Tbl.Clear_Index_Map;                  --  stale SELECT map no longer valid
-      Vars.Refresh_PDV_Names;
-      Vars.Register_Subscripted_Columns;    --  ADR-041 array re-detection
-
-      if SData_Core.Config.Runtime.Save_File_Active then
-         begin
-            Flush_Pending_Save;
-         exception
-            when E : others =>
-               raise SData_Core.Script_Error with
-                 "STATS: SAVE flush failed: "
-                 & Ada.Exceptions.Exception_Message (E);
-         end;
-      end if;
-
-      Execute_SELECT (null);                --  free the stale filter expression
-      Tbl.Clear_By_Vars;                    --  grouping consumed
+      Commit_Reshaped_Table ("STATS");
    end Execute_STATS;
 
    procedure Execute_Commit_Step is
