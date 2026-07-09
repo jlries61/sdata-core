@@ -10,6 +10,7 @@ package SData_Core.File_IO.OOXML is
                           Max_Rows   : Natural := 0);
 
    procedure Write_OOXML (File_Name  : String;
-                          Sheet_Name : String := "Sheet1");
+                          Sheet_Name : String := "Sheet1";
+                          Decimals   : Integer := -1);
 
 end SData_Core.File_IO.OOXML;

@@ -498,7 +498,9 @@ package body SData_Core.File_IO.OOXML is
    -----------------
    -- Write_OOXML --
    -----------------
-   procedure Write_OOXML (File_Name : String; Sheet_Name : String := "Sheet1") is
+   procedure Write_OOXML (File_Name : String; Sheet_Name : String := "Sheet1";
+                          Decimals  : Integer := -1) is
+      pragma Unreferenced (Decimals);
       use Zip.Create;
       Info          : Zip_Create_Info;
       Z_File_Stream : aliased Zip_File_Stream;
