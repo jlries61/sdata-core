@@ -201,8 +201,15 @@ package body SData_Core.Values is
             end if;
          end;
       end if;
-      Float_IO.Put (Buf, X, Aft => Decimals, Exp => 0);
-      return Trim_Trailing_Zeros (Trim (Buf, Ada.Strings.Both));
+      begin
+         Float_IO.Put (Buf, X, Aft => Decimals, Exp => 0);
+         return Trim_Trailing_Zeros (Trim (Buf, Ada.Strings.Both));
+      exception
+         when others =>
+            --  Aft > Field'Last (255) or other Put failure: more decimals than
+            --  the value's precision -> the round-trip form is the exact value.
+            return Image_Round_Trip (X);
+      end;
    end Image_Fixed_Decimals;
 
    -------------

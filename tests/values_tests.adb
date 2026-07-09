@@ -96,6 +96,8 @@ begin
    Assert (Float'Value (Image_Round_Trip (1.0 / 3.0))  = 1.0 / 3.0,  "RT 1/3 round-trips");
    Assert (Float'Value (Image_Round_Trip (123456.789)) = Float'(123456.789),
            "RT 123456.789 round-trips");
+   Assert (Float'Value (Image_Round_Trip (1.0e-30)) = Float'(1.0e-30),
+           "RT 1.0e-30 round-trips (fallback)");
    Assert (Image_Round_Trip (Pos_Inf) = "Inf",  "RT Pos_Inf");
    Assert (Image_Round_Trip (Neg_Inf) = "-Inf", "RT Neg_Inf");
 
@@ -105,6 +107,8 @@ begin
    Assert (Image_Fixed_Decimals (100.0,   2) = "100",  "FD 100 @2 trims to int");
    Assert (Image_Fixed_Decimals (3.14159, 0) = "3",    "FD 3.14159 @0");
    Assert (Image_Fixed_Decimals (3.99,    0) = "4",    "FD 3.99 @0 rounds up");
+   Assert (Image_Fixed_Decimals (3.14159, 300) = Image_Round_Trip (3.14159),
+           "FD large N -> round-trip");
 
    --  Summary
    New_Line;
