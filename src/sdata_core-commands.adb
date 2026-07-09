@@ -1603,6 +1603,10 @@ package body SData_Core.Commands is
                declare
                   R   : constant Positive := Tbl.Output_Row_Count;
                   Col : Positive := 1;
+                  --  Materialize the group's column values ONCE; every
+                  --  statistic reads the same vector (was rebuilt per statistic).
+                  Vals : constant Eval.Value_Array :=
+                    Group_Values (G, To_String (V.Name));
                begin
                   Set_By_Output_Values (R, First_Phys);
                   Col := Tbl.By_Var_Count + 1;
@@ -1613,9 +1617,7 @@ package body SData_Core.Commands is
                   for S of Stats loop
                      Tbl.Set_Output_Value_By_Col
                        (R, Col,
-                        Eval.Call_Function
-                          (To_String (S),
-                           Group_Values (G, To_String (V.Name))));
+                        Eval.Call_Function (To_String (S), Vals));
                      Col := Col + 1;
                   end loop;
                end;
