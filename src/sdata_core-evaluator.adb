@@ -787,6 +787,28 @@ package body SData_Core.Evaluator is
                else  Current.Kind := TK_Identifier;
                end if;
             end;
+            --  A '$' (character) or '%' (integer) type suffix immediately
+            --  following an identifier marks a typed column reference.  This
+            --  mini-parser -- used only for SELECT filters (sdata) and
+            --  condition expressions (data-vandal) -- resolves bare numeric
+            --  names only, so surface an actionable error instead of letting
+            --  the suffix fall through to the generic "unexpected character
+            --  '$'" arm below.  (Issue #73.)
+            if Pos <= Text'Last
+              and then (Text (Pos) = '$' or else Text (Pos) = '%')
+            then
+               declare
+                  N_Last : constant Natural :=
+                    (if Tok_Len <= Max_Tok then Tok_Len else Max_Tok);
+               begin
+                  raise SData_Core.Script_Error with
+                    "filter expression cannot reference typed variable '"
+                    & Current.Text (1 .. N_Last) & Text (Pos)
+                    & "': character ('$') and integer ('%') column references"
+                    & " are not supported in SELECT/condition filters"
+                    & " (issue #73)";
+               end;
+            end if;
             return;
          end if;
 
