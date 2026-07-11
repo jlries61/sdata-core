@@ -101,6 +101,21 @@ begin
    Assert (Image_Round_Trip (Pos_Inf) = "Inf",  "RT Pos_Inf");
    Assert (Image_Round_Trip (Neg_Inf) = "-Inf", "RT Neg_Inf");
 
+   --  RT NaN: must not raise (crash-safety net). Constructed with validity
+   --  checks off (-gnatVn, per sdata_core.gpr) so the invalid bit pattern
+   --  survives the divide; reachable in practice via
+   --  OPTIONS IEEE_DIVIDE YES followed by 0.0/0.0 into a cell, then SAVE.
+   declare
+      function Make_NaN return Float is
+         Z : Float := 0.0;
+      begin
+         return Z / Z;
+      end Make_NaN;
+      NaN_Img : constant String := Image_Round_Trip (Make_NaN);
+   begin
+      Assert (NaN_Img'Length > 0, "RT NaN does not raise, returns non-empty string");
+   end;
+
    --  Image_Fixed_Decimals: round + trim trailing zeros; N=0 -> integer.
    Assert (Image_Fixed_Decimals (3.14159, 2) = "3.14", "FD 3.14159 @2");
    Assert (Image_Fixed_Decimals (0.5,     2) = "0.5",  "FD 0.5 @2 trims");

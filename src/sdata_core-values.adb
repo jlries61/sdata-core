@@ -178,6 +178,17 @@ package body SData_Core.Values is
       --  Fallback: exponential, 9 significant digits.
       Float_IO.Put (Buf, X, Aft => 8, Exp => 2);
       return Trim (Buf, Ada.Strings.Both);
+   exception
+      --  Safety net for NaN (and any other value that slips past every
+      --  guard above, including the Aft => 1 .. 17 per-iteration handler):
+      --  the unguarded exponential fallback's Float_IO.Put is not proven
+      --  exception-free for every special value on every platform/compiler.
+      --  Mirrors the To_String_Formatted pattern so a SAVE never crashes on
+      --  a NaN cell (reachable via OPTIONS IEEE_DIVIDE YES; +Inf/-Inf are
+      --  already handled by Is_Inf above, and Float'Image renders NaN as
+      --  "NAN").
+      when others =>
+         return Trim (Float'Image (X), Ada.Strings.Both);
    end Image_Round_Trip;
 
    --------------------------
