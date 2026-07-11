@@ -114,7 +114,8 @@ friendlier than the bare Constraint_Error a slice assignment raises.</div>
       Sheet_Name  : String  := &quot;&quot;;
       Delimiter   : String  := &quot;,&quot;;
       Write_Header : Boolean := True;
-      Charset     : String  := &quot;&quot;);</pre>
+      Charset     : String  := &quot;&quot;;
+      Decimals    : Integer := -1);</pre>
 <div class='doc'>--------------------------------------------------------------
 SAVE — register a pending output dataset.
 
@@ -626,6 +627,10 @@ this field directly; Clear_Select_Filter exists so it no longer must.)</p>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Save_Charset_Len return Natural;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Decimals    return Integer;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -1615,6 +1620,23 @@ Use these wherever +Inf or -Inf must be produced at runtime.</div>
 <div class='kind'>routine</div>
 <pre>   function To_String_Formatted (V : Value) return String;</pre>
 <div class='doc'>Like To_String, but respects global precision settings for Floats.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Image_Round_Trip (X : Float) return String;</pre>
+<div class='doc'>Round-trip float rendering used by the CSV/ODF/OOXML writers for the
+default (no /DECIMALS) numeric output: the shortest fixed-notation
+decimal that reads back to exactly X, trailing zeros trimmed, with an
+exponential fallback for extreme magnitudes.  Reproduces the stored
+single-precision Float exactly (Float&#x27;Image emits only 6 significant
+digits and is lossy).</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Image_Fixed_Decimals (X : Float; Decimals : Natural) return String;</pre>
+<div class='doc'>Fixed-decimals rendering for SAVE /DECIMALS=N on CSV: round X to
+Decimals places, then trim trailing zeros and any bare &#x27;.&#x27;.
+Decimals = 0 rounds to the nearest integer.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
