@@ -58,6 +58,11 @@ package body SData_Core.Config.Runtime.Internal is
       Save_Charset_Len_Value                 := Value'Length;
    end Set_Save_Charset;
 
+   procedure Set_Save_Decimals (Value : Integer) is
+   begin
+      Save_Decimals_Value := Value;
+   end Set_Save_Decimals;
+
    procedure Set_Output_Table_Path (Value : String) is
    begin
       Output_Table_Path_Value                     := (others => ' ');

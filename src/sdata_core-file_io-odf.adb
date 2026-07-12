@@ -403,7 +403,8 @@ package body SData_Core.File_IO.ODF is
    ---------------
    -- Write_ODF --
    ---------------
-   procedure Write_ODF (File_Name : String; Sheet_Name : String := "Sheet1") is
+   procedure Write_ODF (File_Name : String; Sheet_Name : String := "Sheet1";
+                        Decimals  : Integer := -1) is
       use Zip.Create;
       Info          : Zip_Create_Info;
       Z_File_Stream : aliased Zip_File_Stream;
@@ -430,11 +431,33 @@ package body SData_Core.File_IO.ODF is
          S1 : Unbounded_String;
       begin
          Append (S1, "<?xml version=""1.0"" encoding=""UTF-8""?>" & ASCII.LF);
+         --  Common root prefix; the datastyle/style namespaces and the
+         --  automatic-styles block are added only when /DECIMALS is set.
          Append (S1,
             "<office:document-content xmlns:office=""urn:oasis:names:tc:opendocument:xmlns:office:1.0"" " &
             "xmlns:table=""urn:oasis:names:tc:opendocument:xmlns:table:1.0"" " &
-            "xmlns:text=""urn:oasis:names:tc:opendocument:xmlns:text:1.0"" " &
-            "office:version=""1.2"">" & ASCII.LF);
+            "xmlns:text=""urn:oasis:names:tc:opendocument:xmlns:text:1.0"" ");
+         if Decimals >= 0 then
+            Append (S1,
+               "xmlns:number=""urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"" " &
+               "xmlns:style=""urn:oasis:names:tc:opendocument:xmlns:style:1.0"" ");
+         end if;
+         Append (S1, "office:version=""1.2"">" & ASCII.LF);
+         if Decimals >= 0 then
+            declare
+               DP : constant String := Trim (Decimals'Img, Ada.Strings.Both);
+            begin
+               Append (S1,
+                  "<office:automatic-styles>" &
+                  "<number:number-style style:name=""NDEC"">" &
+                  "<number:number number:decimal-places=""" & DP &
+                  """ number:min-decimal-places=""" & DP & """/>" &
+                  "</number:number-style>" &
+                  "<style:style style:name=""ceDEC"" style:family=""table-cell"" " &
+                  "style:data-style-name=""NDEC""/>" &
+                  "</office:automatic-styles>" & ASCII.LF);
+            end;
+         end if;
          Append (S1, "<office:body><office:spreadsheet>" & ASCII.LF);
          Append (S1, "<table:table table:name=""" & Escape_XML (Sname) & """>" & ASCII.LF);
 
@@ -467,11 +490,25 @@ package body SData_Core.File_IO.ODF is
                                  "<text:p>" & Img & "</text:p></table:table-cell>");
                            end;
                         else
-                           Append (S1,
-                              "<table:table-cell office:value-type=""float"" office:value=""" &
-                              Trim (V.Num_Val'Img, Ada.Strings.Both) & """>" &
-                              "<text:p>" & Trim (V.Num_Val'Img, Ada.Strings.Both) &
-                              "</text:p></table:table-cell>");
+                           declare
+                              RT   : constant String :=
+                                 SData_Core.Values.Image_Round_Trip (V.Num_Val);
+                              Disp : constant String :=
+                                 (if Decimals >= 0
+                                  then SData_Core.Values.Image_Fixed_Decimals
+                                          (V.Num_Val, Decimals)
+                                  else RT);
+                              Sty  : constant String :=
+                                 (if Decimals >= 0
+                                  then " table:style-name=""ceDEC""" else "");
+                           begin
+                              Append (S1,
+                                 "<table:table-cell" & Sty &
+                                 " office:value-type=""float"" office:value=""" &
+                                 RT & """>" &
+                                 "<text:p>" & Disp &
+                                 "</text:p></table:table-cell>");
+                           end;
                         end if;
                      when Val_Integer =>
                         Append (S1,

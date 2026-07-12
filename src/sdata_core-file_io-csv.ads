@@ -16,6 +16,7 @@ package SData_Core.File_IO.CSV is
                         Delimiter       : String  := ",";
                         Write_Header    : Boolean := True;
                         Allow_Overwrite : Boolean := True;
-                        Charset         : String  := "");
+                        Charset         : String  := "";
+                        Decimals        : Integer := -1);
 
 end SData_Core.File_IO.CSV;

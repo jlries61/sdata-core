@@ -86,6 +86,45 @@ begin
    Assert (I (1) < S ("a"),            "Numeric < String (arbitrary)");
    Assert (not (S ("a") < I (1)),      "String not < Numeric (arbitrary)");
 
+   --  Image_Round_Trip: clean cases are exact; others must round-trip.
+   Assert (Image_Round_Trip (0.0)    = "0",    "RT 0.0");
+   Assert (Image_Round_Trip (150.0)  = "150",  "RT 150.0");
+   Assert (Image_Round_Trip (0.5)    = "0.5",  "RT 0.5");
+   Assert (Image_Round_Trip (-2.5)   = "-2.5", "RT -2.5");
+   Assert (Image_Round_Trip (100.0)  = "100",  "RT 100.0");
+   Assert (Float'Value (Image_Round_Trip (0.1))        = 0.1,        "RT 0.1 round-trips");
+   Assert (Float'Value (Image_Round_Trip (1.0 / 3.0))  = 1.0 / 3.0,  "RT 1/3 round-trips");
+   Assert (Float'Value (Image_Round_Trip (123456.789)) = Float'(123456.789),
+           "RT 123456.789 round-trips");
+   Assert (Float'Value (Image_Round_Trip (1.0e-30)) = Float'(1.0e-30),
+           "RT 1.0e-30 round-trips (fallback)");
+   Assert (Image_Round_Trip (Pos_Inf) = "Inf",  "RT Pos_Inf");
+   Assert (Image_Round_Trip (Neg_Inf) = "-Inf", "RT Neg_Inf");
+
+   --  RT NaN: must not raise (crash-safety net). Constructed with validity
+   --  checks off (-gnatVn, per sdata_core.gpr) so the invalid bit pattern
+   --  survives the divide; reachable in practice via
+   --  OPTIONS IEEE_DIVIDE YES followed by 0.0/0.0 into a cell, then SAVE.
+   declare
+      function Make_NaN return Float is
+         Z : Float := 0.0;
+      begin
+         return Z / Z;
+      end Make_NaN;
+      NaN_Img : constant String := Image_Round_Trip (Make_NaN);
+   begin
+      Assert (NaN_Img'Length > 0, "RT NaN does not raise, returns non-empty string");
+   end;
+
+   --  Image_Fixed_Decimals: round + trim trailing zeros; N=0 -> integer.
+   Assert (Image_Fixed_Decimals (3.14159, 2) = "3.14", "FD 3.14159 @2");
+   Assert (Image_Fixed_Decimals (0.5,     2) = "0.5",  "FD 0.5 @2 trims");
+   Assert (Image_Fixed_Decimals (100.0,   2) = "100",  "FD 100 @2 trims to int");
+   Assert (Image_Fixed_Decimals (3.14159, 0) = "3",    "FD 3.14159 @0");
+   Assert (Image_Fixed_Decimals (3.99,    0) = "4",    "FD 3.99 @0 rounds up");
+   Assert (Image_Fixed_Decimals (3.14159, 300) = Image_Round_Trip (3.14159),
+           "FD large N -> round-trip");
+
    --  Summary
    New_Line;
    Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");

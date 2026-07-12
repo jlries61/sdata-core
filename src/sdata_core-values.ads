@@ -44,6 +44,19 @@ package SData_Core.Values is
    --  Like To_String, but respects global precision settings for Floats.
    function To_String_Formatted (V : Value) return String;
 
+   --  Round-trip float rendering used by the CSV/ODF/OOXML writers for the
+   --  default (no /DECIMALS) numeric output: the shortest fixed-notation
+   --  decimal that reads back to exactly X, trailing zeros trimmed, with an
+   --  exponential fallback for extreme magnitudes.  Reproduces the stored
+   --  single-precision Float exactly (Float'Image emits only 6 significant
+   --  digits and is lossy).
+   function Image_Round_Trip (X : Float) return String;
+
+   --  Fixed-decimals rendering for SAVE /DECIMALS=N on CSV: round X to
+   --  Decimals places, then trim trailing zeros and any bare '.'.
+   --  Decimals = 0 rounds to the nearest integer.
+   function Image_Fixed_Decimals (X : Float; Decimals : Natural) return String;
+
    --  Convert V to the requested numeric-family kind.
    --  Val_Numeric <-> Val_Integer convert (Numeric -> Integer truncates
    --  toward zero, matching LET coercion); Val_Missing passes through; a

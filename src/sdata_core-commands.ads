@@ -95,7 +95,8 @@ package SData_Core.Commands is
       Sheet_Name  : String  := "";
       Delimiter   : String  := ",";
       Write_Header : Boolean := True;
-      Charset     : String  := "");
+      Charset     : String  := "";
+      Decimals    : Integer := -1);
 
    ----------------------------------------------------------------
    --  FPATH — set search directories per category.

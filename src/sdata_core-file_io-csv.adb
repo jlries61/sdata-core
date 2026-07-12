@@ -551,7 +551,8 @@ package body SData_Core.File_IO.CSV is
                         Delimiter       : String  := ",";
                         Write_Header    : Boolean := True;
                         Allow_Overwrite : Boolean := True;
-                        Charset         : String  := "") is
+                        Charset         : String  := "";
+                        Decimals        : Integer := -1) is
       use Ada.Directories;
 
       TXTFMT_Len : constant Natural := SData_Core.Config.Runtime.Options_TXTFMT_Len;
@@ -689,8 +690,13 @@ package body SData_Core.File_IO.CSV is
                         if Is_Inf (Val.Num_Val) then
                            Write_String
                               (if Val.Num_Val > 0.0 then "Inf" else "-Inf");
+                        elsif Decimals >= 0 then
+                           Write_String
+                              (SData_Core.Values.Image_Fixed_Decimals
+                                 (Val.Num_Val, Decimals));
                         else
-                           Write_String (Trim (Val.Num_Val'Img, Ada.Strings.Both));
+                           Write_String
+                              (SData_Core.Values.Image_Round_Trip (Val.Num_Val));
                         end if;
                      elsif Val.Kind = Val_Integer then
                         Write_String (Trim (Val.Int_Val'Img, Ada.Strings.Both));

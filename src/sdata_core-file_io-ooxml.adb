@@ -498,7 +498,8 @@ package body SData_Core.File_IO.OOXML is
    -----------------
    -- Write_OOXML --
    -----------------
-   procedure Write_OOXML (File_Name : String; Sheet_Name : String := "Sheet1") is
+   procedure Write_OOXML (File_Name : String; Sheet_Name : String := "Sheet1";
+                          Decimals  : Integer := -1) is
       use Zip.Create;
       Info          : Zip_Create_Info;
       Z_File_Stream : aliased Zip_File_Stream;
@@ -510,15 +511,24 @@ package body SData_Core.File_IO.OOXML is
 
       Create_Archive (Info, Z_File_Stream'Unchecked_Access, File_Name);
 
-      Add_String (Info,
-         "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" &
-         "<Types xmlns=""http://schemas.openxmlformats.org/package/2006/content-types"">" &
-         "<Default Extension=""rels"" ContentType=""application/vnd.openxmlformats-package.relationships+xml""/>" &
-         "<Default Extension=""xml"" ContentType=""application/xml""/>" &
-         "<Override PartName=""/xl/workbook.xml"" ContentType=""application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml""/>" &
-         "<Override PartName=""/xl/worksheets/sheet1.xml"" ContentType=""application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml""/>" &
-         "</Types>",
-         "[Content_Types].xml");
+      declare
+         Styles_Override : constant String :=
+            (if Decimals >= 0
+             then "<Override PartName=""/xl/styles.xml"" " &
+                  "ContentType=""application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml""/>"
+             else "");
+      begin
+         Add_String (Info,
+            "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" &
+            "<Types xmlns=""http://schemas.openxmlformats.org/package/2006/content-types"">" &
+            "<Default Extension=""rels"" ContentType=""application/vnd.openxmlformats-package.relationships+xml""/>" &
+            "<Default Extension=""xml"" ContentType=""application/xml""/>" &
+            "<Override PartName=""/xl/workbook.xml"" ContentType=""application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml""/>" &
+            "<Override PartName=""/xl/worksheets/sheet1.xml"" ContentType=""application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml""/>" &
+            Styles_Override &
+            "</Types>",
+            "[Content_Types].xml");
+      end;
 
       Add_String (Info,
          "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" &
@@ -535,12 +545,44 @@ package body SData_Core.File_IO.OOXML is
          "</workbook>",
          "xl/workbook.xml");
 
-      Add_String (Info,
-         "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" &
-         "<Relationships xmlns=""http://schemas.openxmlformats.org/package/2006/relationships"">" &
-         "<Relationship Id=""rId1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"" Target=""worksheets/sheet1.xml""/>" &
-         "</Relationships>",
-         "xl/_rels/workbook.xml.rels");
+      declare
+         Styles_Rel : constant String :=
+            (if Decimals >= 0
+             then "<Relationship Id=""rId2"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"" Target=""styles.xml""/>"
+             else "");
+      begin
+         Add_String (Info,
+            "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" &
+            "<Relationships xmlns=""http://schemas.openxmlformats.org/package/2006/relationships"">" &
+            "<Relationship Id=""rId1"" Type=""http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"" Target=""worksheets/sheet1.xml""/>" &
+            Styles_Rel &
+            "</Relationships>",
+            "xl/_rels/workbook.xml.rels");
+      end;
+
+      if Decimals >= 0 then
+         declare
+            Fmt_Code : constant String :=
+               (if Decimals = 0 then "0"
+                else "0." & (1 .. Decimals => '0'));
+         begin
+            Add_String (Info,
+               "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>" &
+               "<styleSheet xmlns=""http://schemas.openxmlformats.org/spreadsheetml/2006/main"">" &
+               "<numFmts count=""1""><numFmt numFmtId=""164"" formatCode=""" & Fmt_Code & """/></numFmts>" &
+               "<fonts count=""1""><font><sz val=""11""/><name val=""Calibri""/></font></fonts>" &
+               "<fills count=""2""><fill><patternFill patternType=""none""/></fill>" &
+               "<fill><patternFill patternType=""gray125""/></fill></fills>" &
+               "<borders count=""1""><border><left/><right/><top/><bottom/><diagonal/></border></borders>" &
+               "<cellStyleXfs count=""1""><xf numFmtId=""0"" fontId=""0"" fillId=""0"" borderId=""0""/></cellStyleXfs>" &
+               "<cellXfs count=""2"">" &
+               "<xf numFmtId=""0"" fontId=""0"" fillId=""0"" borderId=""0"" xfId=""0""/>" &
+               "<xf numFmtId=""164"" fontId=""0"" fillId=""0"" borderId=""0"" xfId=""0"" applyNumberFormat=""1""/>" &
+               "</cellXfs>" &
+               "</styleSheet>",
+               "xl/styles.xml");
+         end;
+      end if;
 
       declare
          S1 : Unbounded_String;
@@ -595,10 +637,15 @@ package body SData_Core.File_IO.OOXML is
                                  Img & "</t></is></c>");
                            end;
                         else
-                           Append (S1,
-                              "<c r=""" & Ref & """><v>" &
-                              Trim (V.Num_Val'Img, Ada.Strings.Both) &
-                              "</v></c>");
+                           declare
+                              Sattr : constant String :=
+                                 (if Decimals >= 0 then " s=""1""" else "");
+                           begin
+                              Append (S1,
+                                 "<c r=""" & Ref & """" & Sattr & "><v>" &
+                                 SData_Core.Values.Image_Round_Trip (V.Num_Val) &
+                                 "</v></c>");
+                           end;
                         end if;
                      when Val_Integer =>
                         Append (S1,

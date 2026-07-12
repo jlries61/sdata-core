@@ -12,6 +12,7 @@ with Ada.Command_Line;
 with SData_Core;
 with SData_Core.Commands;
 with SData_Core.Config.Runtime;
+with SData_Core.Config.Runtime.Internal;
 
 procedure Commands_Tests is
 
@@ -201,6 +202,14 @@ begin
    Assert (not Rt.Repeat_Active, "NEW clears Repeat_Active");
    Assert (Rt.Last_Error_Code = 0, "NEW clears Last_Error_Code");
    Assert (Rt.Last_Error_Line = 0, "NEW clears Last_Error_Line");
+
+   ---------------------------------------------------------------------
+   --  Set_Save_Decimals round-trips through the Runtime getter.
+   ---------------------------------------------------------------------
+   SData_Core.Config.Runtime.Internal.Set_Save_Decimals (2);
+   Assert (SData_Core.Config.Runtime.Save_Decimals = 2, "Save_Decimals set to 2");
+   SData_Core.Config.Runtime.Internal.Set_Save_Decimals (-1);
+   Assert (SData_Core.Config.Runtime.Save_Decimals = -1, "Save_Decimals reset to -1");
 
    --  Summary
    New_Line;

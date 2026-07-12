@@ -299,7 +299,8 @@ package body SData_Core.Commands is
              SData_Core.Config.Runtime.Save_Header,
              SData_Core.Config.Runtime.Options_SAVEOVERWRT,
              SData_Core.Config.Runtime.Save_Charset
-                (1 .. SData_Core.Config.Runtime.Save_Charset_Len));
+                (1 .. SData_Core.Config.Runtime.Save_Charset_Len),
+             SData_Core.Config.Runtime.Save_Decimals);
          if not SData_Core.Config.Quiet_Mode then
             SData_Core.IO.Put_Line
               ("Dataset saved: " &
@@ -407,7 +408,8 @@ package body SData_Core.Commands is
       Sheet_Name   : String  := "";
       Delimiter    : String  := ",";
       Write_Header : Boolean := True;
-      Charset      : String  := "")
+      Charset      : String  := "";
+      Decimals     : Integer := -1)
    is
    begin
       if File_Name'Length = 0 then
@@ -432,6 +434,7 @@ package body SData_Core.Commands is
               (SData_Core.Config.Runtime.Options_CHARSET
                   (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
          end if;
+         SData_Core.Config.Runtime.Internal.Set_Save_Decimals (Decimals);
       end;
    end Execute_SAVE;
 

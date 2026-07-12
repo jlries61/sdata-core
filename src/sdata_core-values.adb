@@ -111,6 +111,118 @@ package body SData_Core.Values is
       end case;
    end To_String_Formatted;
 
+   --  Strip trailing zeros in the fractional part and a trailing bare '.'.
+   --  Strings with no '.', or any exponent ('E'/'e'), are returned unchanged.
+   function Trim_Trailing_Zeros (S : String) return String is
+      Has_Dot : Boolean := False;
+   begin
+      for Ch of S loop
+         if Ch = 'E' or else Ch = 'e' then
+            return S;
+         elsif Ch = '.' then
+            Has_Dot := True;
+         end if;
+      end loop;
+      if not Has_Dot then
+         return S;
+      end if;
+      declare
+         Last : Integer := S'Last;
+      begin
+         while Last >= S'First and then S (Last) = '0' loop
+            Last := Last - 1;
+         end loop;
+         if Last >= S'First and then S (Last) = '.' then
+            Last := Last - 1;
+         end if;
+         return S (S'First .. Last);
+      end;
+   end Trim_Trailing_Zeros;
+
+   -----------------------
+   -- Image_Round_Trip --
+   -----------------------
+   function Image_Round_Trip (X : Float) return String is
+      package Float_IO is new Ada.Text_IO.Float_IO (Float);
+      Buf : String (1 .. 128);
+   begin
+      if Is_Inf (X) then
+         return (if X > 0.0 then "Inf" else "-Inf");
+      end if;
+      if X = 0.0 then
+         return "0";
+      end if;
+      --  Integer-valued fast path (also avoids Aft=0 in Float_IO.Put).
+      declare
+         R : constant Float := Float'Rounding (X);
+      begin
+         if R = X and then abs R < Float (Integer'Last) then
+            return Trim (Integer'Image (Integer (R)), Ada.Strings.Both);
+         end if;
+      end;
+      --  Shortest fixed-notation form (Aft >= 1) that reads back exactly.
+      for Aft in 1 .. 17 loop
+         begin
+            Float_IO.Put (Buf, X, Aft => Aft, Exp => 0);
+            declare
+               S : constant String := Trim (Buf, Ada.Strings.Both);
+            begin
+               if Float'Value (S) = X then
+                  return Trim_Trailing_Zeros (S);
+               end if;
+            end;
+         exception
+            when others => null;  --  field overflow etc.; try next Aft
+         end;
+      end loop;
+      --  Fallback: exponential, 9 significant digits.
+      Float_IO.Put (Buf, X, Aft => 8, Exp => 2);
+      return Trim (Buf, Ada.Strings.Both);
+   exception
+      --  Safety net for NaN (and any other value that slips past every
+      --  guard above, including the Aft => 1 .. 17 per-iteration handler):
+      --  the unguarded exponential fallback's Float_IO.Put is not proven
+      --  exception-free for every special value on every platform/compiler.
+      --  Mirrors the To_String_Formatted pattern so a SAVE never crashes on
+      --  a NaN cell (reachable via OPTIONS IEEE_DIVIDE YES; +Inf/-Inf are
+      --  already handled by Is_Inf above, and Float'Image renders NaN as
+      --  "NAN").
+      when others =>
+         return Trim (Float'Image (X), Ada.Strings.Both);
+   end Image_Round_Trip;
+
+   --------------------------
+   -- Image_Fixed_Decimals --
+   --------------------------
+   function Image_Fixed_Decimals (X : Float; Decimals : Natural) return String is
+      package Float_IO is new Ada.Text_IO.Float_IO (Float);
+      Buf : String (1 .. 128);
+   begin
+      if Is_Inf (X) then
+         return (if X > 0.0 then "Inf" else "-Inf");
+      end if;
+      if Decimals = 0 then
+         declare
+            R : constant Float := Float'Rounding (X);
+         begin
+            if abs R < Float (Integer'Last) then
+               return Trim (Integer'Image (Integer (R)), Ada.Strings.Both);
+            else
+               return Image_Round_Trip (R);
+            end if;
+         end;
+      end if;
+      begin
+         Float_IO.Put (Buf, X, Aft => Decimals, Exp => 0);
+         return Trim_Trailing_Zeros (Trim (Buf, Ada.Strings.Both));
+      exception
+         when others =>
+            --  Aft > Field'Last (255) or other Put failure: more decimals than
+            --  the value's precision -> the round-trip form is the exact value.
+            return Image_Round_Trip (X);
+      end;
+   end Image_Fixed_Decimals;
+
    -------------
    -- Is_True --
    -------------

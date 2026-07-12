@@ -99,7 +99,8 @@ package body SData_Core.File_IO is
                           Delimiter       : String  := ",";
                           Write_Header    : Boolean := True;
                           Allow_Overwrite : Boolean := True;
-                          Charset         : String  := "") is
+                          Charset         : String  := "";
+                          Decimals        : Integer := -1) is
       Actual_Fmt : Format_Type := Fmt;
       Ext_Idx    : Natural := 0;
       Sname      : constant String :=
@@ -129,11 +130,11 @@ package body SData_Core.File_IO is
       case Actual_Fmt is
          when SData_Core.Config.CSV =>
             Write_CSV (File_Name, Delimiter, Write_Header, Allow_Overwrite,
-                       Charset);
+                       Charset, Decimals);
          when SData_Core.Config.ODF =>
-            Write_ODF (File_Name, Sname);
+            Write_ODF (File_Name, Sname, Decimals);
          when SData_Core.Config.OOXML =>
-            Write_OOXML (File_Name, Sname);
+            Write_OOXML (File_Name, Sname, Decimals);
       end case;
    end Open_Output;
 

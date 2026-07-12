@@ -30,6 +30,7 @@ package SData_Core.Config.Runtime.Internal is
    procedure Set_Save_DLM     (Value : String);
    procedure Set_Save_Header  (Value : Boolean);
    procedure Set_Save_Charset (Value : String);
+   procedure Set_Save_Decimals (Value : Integer);
 
    --  OUTPUT_Table descriptor (Execute_OUTPUT_Table writes these).
    procedure Set_Output_Table_Path   (Value : String);
