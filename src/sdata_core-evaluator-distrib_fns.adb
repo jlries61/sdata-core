@@ -3,7 +3,7 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with SData_Core.Statistics;
-with Ada.Numerics.Elementary_Functions; use Ada.Numerics.Elementary_Functions;
+with SData_Core.Real_Functions; use SData_Core.Real_Functions;
 with SData_Core.Values; use SData_Core.Values;
 
 package body SData_Core.Evaluator.Distrib_Fns is
@@ -129,9 +129,9 @@ package body SData_Core.Evaluator.Distrib_Fns is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       declare
-         X : constant Float := Convert_To_Float (Vals.Element (1));
-         E : constant Float := Exp (-X);
-         S : constant Float := 1.0 + E;
+         X : constant Real := Convert_To_Float (Vals.Element (1));
+         E : constant Real := Exp (-X);
+         S : constant Real := 1.0 + E;
       begin
          return Num_Result (E / (S * S));
       end;
@@ -320,7 +320,7 @@ package body SData_Core.Evaluator.Distrib_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare P : constant Float := Convert_To_Float (Vals.Element (1));
+      declare P : constant Real := Convert_To_Float (Vals.Element (1));
       begin
          if P <= 0.0 or else P >= 1.0 then
             return Handle_Domain_Error ("LIF argument must be in (0, 1).");
@@ -482,7 +482,7 @@ package body SData_Core.Evaluator.Distrib_Fns is
    --  Logistic RN: sample via inversion — U(0,1) → logit(U)
    function Handle_LRN (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
-      U : constant Float := SData_Core.Statistics.Uniform_RN (0.0, 1.0);
+      U : constant Real := SData_Core.Statistics.Uniform_RN (0.0, 1.0);
    begin
       return Num_Result (Log (U / (1.0 - U)));
    end Handle_LRN;

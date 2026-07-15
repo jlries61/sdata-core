@@ -37,7 +37,7 @@ package body SData_Core.File_IO is
                (Kind => Val_Integer, Int_Val => I));
             Set_Value (I, "SALARY",
                (Kind    => Val_Numeric,
-                Num_Val => 50000.0 + Float (I - 1) * 10000.0));
+                Num_Val => 50000.0 + Real (I - 1) * 10000.0));
          end loop;
          Set_Value (1, "NAME$",
             (Kind    => Val_String,

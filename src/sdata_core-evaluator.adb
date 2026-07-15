@@ -6,7 +6,7 @@ with SData_Core.Variables; use SData_Core.Variables;
 with SData_Core.Config;
 with SData_Core.Config.Runtime;
 with Ada.Characters.Handling; use Ada.Characters.Handling;
-with Ada.Numerics.Elementary_Functions; use Ada.Numerics.Elementary_Functions;
+with SData_Core.Real_Functions; use SData_Core.Real_Functions;
 with SData_Core.IO;        use SData_Core.IO;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
@@ -179,12 +179,12 @@ package body SData_Core.Evaluator is
       return Aggregate_Meta_Table.Element (UC);
    end Lookup;
 
-   function Convert_To_Float (V : Value) return Float is
+   function Convert_To_Float (V : Value) return Real is
    begin
       case V.Kind is
          when Val_Numeric => return V.Num_Val;
-         when Val_Integer => return Float (V.Int_Val);
-         when others      => raise Constraint_Error with "Cannot convert " & V.Kind'Image & " to Float";
+         when Val_Integer => return Real (V.Int_Val);
+         when others      => raise Constraint_Error with "Cannot convert " & V.Kind'Image & " to Real";
       end case;
    end Convert_To_Float;
 
@@ -201,7 +201,7 @@ package body SData_Core.Evaluator is
       return True;
    end Has_Args;
 
-   function Num_Result (V : Float) return Value is
+   function Num_Result (V : Real) return Value is
    begin
       return (Kind => Val_Numeric, Num_Val => V);
    end Num_Result;
@@ -216,12 +216,12 @@ package body SData_Core.Evaluator is
       end if;
    end Handle_Domain_Error;
 
-   function Is_NaN (F : Float) return Boolean is
+   function Is_NaN (F : Real) return Boolean is
    begin
       return F /= F;
    end Is_NaN;
 
-   function Numeric_Result_Checked (V : Float) return Value is
+   function Numeric_Result_Checked (V : Real) return Value is
    begin
       if Is_NaN (V) then
          return Handle_Domain_Error ("Result is not a number (NaN).");
@@ -339,12 +339,12 @@ package body SData_Core.Evaluator is
                            Lo, Hi : Integer;
                         begin
                            if Lo_Val.Kind = Val_Integer then Lo := Lo_Val.Int_Val;
-                           elsif Lo_Val.Kind = Val_Numeric then Lo := Integer (Float'Floor (Lo_Val.Num_Val));
+                           elsif Lo_Val.Kind = Val_Numeric then Lo := Integer (Real'Floor (Lo_Val.Num_Val));
                            else raise SData_Core.Script_Error with "Array range lower bound must be numeric";
                            end if;
 
                            if Hi_Val.Kind = Val_Integer then Hi := Hi_Val.Int_Val;
-                           elsif Hi_Val.Kind = Val_Numeric then Hi := Integer (Float'Floor (Hi_Val.Num_Val));
+                           elsif Hi_Val.Kind = Val_Numeric then Hi := Integer (Real'Floor (Hi_Val.Num_Val));
                            else raise SData_Core.Script_Error with "Array range upper bound must be numeric";
                            end if;
 
@@ -360,7 +360,7 @@ package body SData_Core.Evaluator is
                            Idx     : Integer;
                         begin
                            if Idx_Val.Kind = Val_Integer then Idx := Idx_Val.Int_Val;
-                           else Idx := Integer (Float'Floor (Convert_To_Float (Idx_Val))); end if;
+                           else Idx := Integer (Real'Floor (Convert_To_Float (Idx_Val))); end if;
                            All_Vals.Append (Get_Array_Element (AName, Idx));
                         exception
                            when Constraint_Error => All_Vals.Append ((Kind => Val_Missing));
@@ -510,7 +510,7 @@ package body SData_Core.Evaluator is
                if Index_Val.Kind = Val_Integer then
                   Idx := Index_Val.Int_Val;
                elsif Index_Val.Kind = Val_Numeric then
-                  Idx := Integer (Float'Floor (Index_Val.Num_Val));
+                  Idx := Integer (Real'Floor (Index_Val.Num_Val));
                else
                   return (Kind => Val_Missing);
                end if;
@@ -522,7 +522,7 @@ package body SData_Core.Evaluator is
             begin
                if Expr.UOp = Op_Not then
                   if Operand_Val.Kind = Val_Missing then return (Kind => Val_Missing); end if;
-                  declare V : constant Float := Convert_To_Float (Operand_Val);
+                  declare V : constant Real := Convert_To_Float (Operand_Val);
                   begin
                      return (Kind => Val_Integer, Int_Val => (if V = 0.0 then 1 else 0));
                   end;
@@ -570,10 +570,10 @@ package body SData_Core.Evaluator is
                                  raise SData_Core.Script_Error with "Division by zero.";
                               end if;
                               return (Kind    => Val_Numeric,
-                                      Num_Val => Float (L.Int_Val) / Float (R.Int_Val));
+                                      Num_Val => Real (L.Int_Val) / Real (R.Int_Val));
                            when Op_Pow =>
                               return Numeric_Result_Checked
-                                (Float (L.Int_Val) ** Float (R.Int_Val));
+                                (Real (L.Int_Val) ** Real (R.Int_Val));
                            when Op_Eq  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val = R.Int_Val  then 1 else 0));
                            when Op_Ne  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val /= R.Int_Val then 1 else 0));
                            when Op_Lt  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val < R.Int_Val  then 1 else 0));
@@ -596,8 +596,8 @@ package body SData_Core.Evaluator is
                      end;
                   else
                      declare
-                        FL : constant Float := Convert_To_Float (L);
-                        FR : constant Float := Convert_To_Float (R);
+                        FL : constant Real := Convert_To_Float (L);
+                        FR : constant Real := Convert_To_Float (R);
                      begin
                         case Expr.Op is
                            when Op_Add => return Numeric_Result_Checked (FL + FR);
@@ -687,7 +687,7 @@ package body SData_Core.Evaluator is
                      if Index_Val.Kind = Val_Integer then
                         Idx := Index_Val.Int_Val;
                      elsif Index_Val.Kind = Val_Numeric then
-                        Idx := Integer (Float'Floor (Index_Val.Num_Val));
+                        Idx := Integer (Real'Floor (Index_Val.Num_Val));
                      else
                         return (Kind => Val_Missing);
                      end if;
@@ -1026,7 +1026,7 @@ package body SData_Core.Evaluator is
          case Current.Kind is
             when TK_Integer =>
                Node := new Expression (Expr_Numeric_Literal);
-               Node.Value      := Float (Current.Int_Val);
+               Node.Value      := Real (Current.Int_Val);
                Node.Is_Integer := True;
                Node.Int_Value  := Current.Int_Val;
                Advance;
@@ -1034,7 +1034,7 @@ package body SData_Core.Evaluator is
 
             when TK_Float =>
                Node := new Expression (Expr_Numeric_Literal);
-               Node.Value      := Float (Current.Flt_Val);
+               Node.Value      := Real (Current.Flt_Val);
                Node.Is_Integer := False;
                Advance;
                return Node;

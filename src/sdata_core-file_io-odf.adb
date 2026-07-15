@@ -76,7 +76,7 @@ package body SData_Core.File_IO.ODF is
                   end if;
                   Free (P_List);
                   begin
-                     return (Kind => Val_Numeric, Num_Val => Float'Value (V_Attr));
+                     return (Kind => Val_Numeric, Num_Val => Real'Value (V_Attr));
                   exception
                      when Constraint_Error => return (Kind => Val_Missing);
                   end;
@@ -264,7 +264,7 @@ package body SData_Core.File_IO.ODF is
                                              (Column_Name (Col_Idx))
                                              = Col_Integer
                                           and then Val.Num_Val
-                                             /= Float'Truncation (Val.Num_Val)
+                                             /= Real'Truncation (Val.Num_Val)
                                           and then
                                              not SData_Core.Config.Quiet_Mode
                                        then

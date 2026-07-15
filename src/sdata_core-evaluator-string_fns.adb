@@ -285,7 +285,7 @@ package body SData_Core.Evaluator.String_Fns is
          if V.Kind /= Val_String then return (Kind => Val_Missing); end if;
          begin
             return (Kind    => Val_Numeric,
-                    Num_Val => Float'Value (SData_Core.Values.To_String (V)));
+                    Num_Val => Real'Value (SData_Core.Values.To_String (V)));
          exception
             when Constraint_Error => return (Kind => Val_Missing);
          end;

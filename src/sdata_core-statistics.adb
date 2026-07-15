@@ -30,9 +30,9 @@ with Generic_Random_Functions;
 --
 --  Implementation strategy (why the code below looks the way it does):
 --
---  * Precision.  Every body computes in Long_Float and converts to Float only
+--  * Precision.  Every body computes in Long_Float and converts to Real only
 --    at the boundary, so tail cancellation (e.g. 1 - CDF) and log-space PMFs
---    keep their accuracy.  The public type stays Float because that is the
+--    keep their accuracy.  The public type stays Real because that is the
 --    interpreter's numeric type.
 --
 --  * Special functions are not reimplemented.  The Phi (normal) function, the
@@ -94,10 +94,10 @@ package body SData_Core.Statistics is
       Initialized := True;
    end Set_Seed;
 
-   function Uniform_Random return Float is
+   function Uniform_Random return Real is
    begin
       Ensure_Random_Init;
-      return Float (Ada.Numerics.Float_Random.Random (Generator));
+      return Real (Ada.Numerics.Float_Random.Random (Generator));
    end Uniform_Random;
 
    ----------------------
@@ -163,10 +163,10 @@ package body SData_Core.Statistics is
    -----------
    -- Z_PDF --
    -----------
-   function Z_PDF (Z : Float) return Float is
+   function Z_PDF (Z : Real) return Real is
       Constant_Part : constant Long_Float := 1.0 / Sqrt (2.0 * Ada.Numerics.Pi);
    begin
-      return Float (Constant_Part * Exp (-0.5 * (Long_Float (Z)**2)));
+      return Real (Constant_Part * Exp (-0.5 * (Long_Float (Z)**2)));
    end Z_PDF;
 
    -----------
@@ -174,9 +174,9 @@ package body SData_Core.Statistics is
    -----------
    --  Standard normal CDF Φ(z).  Delegated to MathPaqs Phi_function.Phi,
    --  which uses the rational approximation from [A&S] 26.2.17.
-   function Z_CDF (Z : Float) return Float is
+   function Z_CDF (Z : Real) return Real is
    begin
-      return Float (Long_Phi.Phi (Long_Float (Z)));
+      return Real (Long_Phi.Phi (Long_Float (Z)));
    end Z_CDF;
 
    -----------
@@ -184,16 +184,16 @@ package body SData_Core.Statistics is
    -----------
    --  Probit function Φ⁻¹(p).  Delegated to MathPaqs Phi_function.Inverse_Phi,
    --  which uses a rational approximation (Beasley-Springer-Moro or equivalent).
-   function Z_IDF (P : Float) return Float is
+   function Z_IDF (P : Real) return Real is
    begin
       if P <= 0.0 or else P >= 1.0 then raise Constraint_Error with "Probability must be in (0,1)"; end if;
-      return Float (Long_Phi.Inverse_Phi (Long_Float (P)));
+      return Real (Long_Phi.Inverse_Phi (Long_Float (P)));
    end Z_IDF;
 
    ----------------
    -- Normal_PDF --
    ----------------
-   function Normal_PDF (X, Mean, Std_Dev : Float) return Float is
+   function Normal_PDF (X, Mean, Std_Dev : Real) return Real is
    begin
       if Std_Dev <= 0.0 then raise Constraint_Error with "Standard deviation must be positive"; end if;
       return Z_PDF ((X - Mean) / Std_Dev) / Std_Dev;
@@ -202,7 +202,7 @@ package body SData_Core.Statistics is
    ----------------
    -- Normal_CDF --
    ----------------
-   function Normal_CDF (X, Mean, Std_Dev : Float) return Float is
+   function Normal_CDF (X, Mean, Std_Dev : Real) return Real is
    begin
       if Std_Dev <= 0.0 then raise Constraint_Error with "Standard deviation must be positive"; end if;
       return Z_CDF ((X - Mean) / Std_Dev);
@@ -211,7 +211,7 @@ package body SData_Core.Statistics is
    ----------------
    -- Normal_IDF --
    ----------------
-   function Normal_IDF (P, Mean, Std_Dev : Float) return Float is
+   function Normal_IDF (P, Mean, Std_Dev : Real) return Real is
    begin
       if Std_Dev <= 0.0 then raise Constraint_Error with "Standard deviation must be positive"; end if;
       return Mean + Z_IDF (P) * Std_Dev;
@@ -223,18 +223,18 @@ package body SData_Core.Statistics is
    --  Box-Muller transform: generates standard normal variates from two
    --  independent uniform(0,1) draws.  [BM58].  Delegated to MathPaqs
    --  Generic_Random_Functions.Box_Muller; only one of the two outputs is used.
-   function Normal_RN (Mean, Std_Dev : Float) return Float is
+   function Normal_RN (Mean, Std_Dev : Real) return Real is
       N1, N2 : Long_Float;
    begin
       Ensure_Random_Init;
       Long_Rand_Funcs.Box_Muller (Long_Float (Ada.Numerics.Float_Random.Random (Generator)), Long_Float (Ada.Numerics.Float_Random.Random (Generator)), N1, N2);
-      return Float (Long_Float (Mean) + N1 * Long_Float (Std_Dev));
+      return Real (Long_Float (Mean) + N1 * Long_Float (Std_Dev));
    end Normal_RN;
 
    -----------------
    -- Uniform_PDF --
    -----------------
-   function Uniform_PDF (X, Lower, Upper : Float) return Float is
+   function Uniform_PDF (X, Lower, Upper : Real) return Real is
    begin
       if Lower >= Upper then raise Constraint_Error with "Lower bound must be less than Upper bound"; end if;
       return (if X >= Lower and then X <= Upper then 1.0 / (Upper - Lower)
@@ -244,7 +244,7 @@ package body SData_Core.Statistics is
    -----------------
    -- Uniform_CDF --
    -----------------
-   function Uniform_CDF (X, Lower, Upper : Float) return Float is
+   function Uniform_CDF (X, Lower, Upper : Real) return Real is
    begin
       if Lower >= Upper then raise Constraint_Error with "Lower bound must be less than Upper bound"; end if;
       if X < Lower then return 0.0; elsif X > Upper then return 1.0; else return (X - Lower) / (Upper - Lower); end if;
@@ -253,7 +253,7 @@ package body SData_Core.Statistics is
    -----------------
    -- Uniform_IDF --
    -----------------
-   function Uniform_IDF (P, Lower, Upper : Float) return Float is
+   function Uniform_IDF (P, Lower, Upper : Real) return Real is
    begin
       if Lower >= Upper then raise Constraint_Error with "Lower bound must be less than Upper bound"; end if;
       return Lower + P * (Upper - Lower);
@@ -262,79 +262,79 @@ package body SData_Core.Statistics is
    ----------------
    -- Uniform_RN --
    ----------------
-   function Uniform_RN (Lower, Upper : Float) return Float is
+   function Uniform_RN (Lower, Upper : Real) return Real is
    begin
       Ensure_Random_Init;
-      return Lower + Ada.Numerics.Float_Random.Random (Generator) * (Upper - Lower);
+      return Lower + Real (Ada.Numerics.Float_Random.Random (Generator)) * (Upper - Lower);
    end Uniform_RN;
 
    ---------------------
    -- Exponential_PDF --
    ---------------------
-   function Exponential_PDF (X, Rate : Float) return Float is
+   function Exponential_PDF (X, Rate : Real) return Real is
    begin
       if Rate <= 0.0 then raise Constraint_Error with "Rate must be positive"; end if;
-      return (if X < 0.0 then 0.0 else Float (Long_Float (Rate) * Exp (-Long_Float (Rate) * Long_Float (X))));
+      return (if X < 0.0 then 0.0 else Real (Long_Float (Rate) * Exp (-Long_Float (Rate) * Long_Float (X))));
    end Exponential_PDF;
 
    ---------------------
    -- Exponential_CDF --
    ---------------------
-   function Exponential_CDF (X, Rate : Float) return Float is
+   function Exponential_CDF (X, Rate : Real) return Real is
    begin
       if Rate <= 0.0 then raise Constraint_Error with "Rate must be positive"; end if;
-      return (if X < 0.0 then 0.0 else Float (1.0 - Exp (-Long_Float (Rate) * Long_Float (X))));
+      return (if X < 0.0 then 0.0 else Real (1.0 - Exp (-Long_Float (Rate) * Long_Float (X))));
    end Exponential_CDF;
 
    ---------------------
    -- Exponential_IDF --
    ---------------------
    --  Method: closed-form inverse CDF, x = -ln(1 - p) / rate.
-   function Exponential_IDF (P, Rate : Float) return Float is
+   function Exponential_IDF (P, Rate : Real) return Real is
    begin
       if Rate <= 0.0 then raise Constraint_Error with "Rate must be positive"; end if;
       if P < 0.0 or else P >= 1.0 then raise Constraint_Error with "P must be in [0,1)"; end if;
-      return Float (-Log (1.0 - Long_Float (P)) / Long_Float (Rate));
+      return Real (-Log (1.0 - Long_Float (P)) / Long_Float (Rate));
    end Exponential_IDF;
 
    --------------------
    -- Exponential_RN --
    --------------------
    --  Method: inverse-CDF sampling (feed one uniform draw to Exponential_IDF).
-   function Exponential_RN (Rate : Float) return Float is
+   function Exponential_RN (Rate : Real) return Real is
    begin
       Ensure_Random_Init;
-      return Exponential_IDF (Ada.Numerics.Float_Random.Random (Generator), Rate);
+      return Exponential_IDF (Real (Ada.Numerics.Float_Random.Random (Generator)), Rate);
    end Exponential_RN;
 
    --------------
    -- Beta_PDF --
    --------------
-   function Beta_PDF (X, Alpha, Beta : Float) return Float is
+   function Beta_PDF (X, Alpha, Beta : Real) return Real is
    begin
       if Alpha <= 0.0 or else Beta <= 0.0 then raise Constraint_Error with
          "Beta distribution: shape parameters must be positive (a=" &
-         Float'Image (Alpha) & ", b=" & Float'Image (Beta) & ")";
+         Real'Image (Alpha) & ", b=" & Real'Image (Beta) & ")";
       end if;
       if X < 0.0 or else X > 1.0 then return 0.0; end if;
-      return Float ((Long_Float (X)**(Long_Float (Alpha) - 1.0) * (1.0 - Long_Float (X))**(Long_Float (Beta) - 1.0)) / Long_Beta.Beta (Long_Float (Alpha), Long_Float (Beta)));
+      return Real ((Long_Float (X)**(Long_Float (Alpha) - 1.0) * (1.0 - Long_Float (X))**(Long_Float (Beta) - 1.0)) / Long_Beta.Beta (Long_Float (Alpha), Long_Float (Beta)));
    end Beta_PDF;
 
    --------------
    -- Beta_CDF --
    --------------
-   function Beta_CDF (X, Alpha, Beta : Float) return Float is
+   function Beta_CDF (X, Alpha, Beta : Real) return Real is
    begin
       if X <= 0.0 then return 0.0; elsif X >= 1.0 then return 1.0; end if;
-      return Float (Long_Beta.Regularized_Beta (Long_Float (X), Long_Float (Alpha), Long_Float (Beta)));
+      return Real (Long_Beta.Regularized_Beta (Long_Float (X), Long_Float (Alpha), Long_Float (Beta)));
    end Beta_CDF;
 
    --------------
    -- Beta_IDF --
    --------------
-   function Beta_IDF (P, Alpha, Beta : Float) return Float is
+   function Beta_IDF (P, Alpha, Beta : Real) return Real is
    begin
-      return Float (Long_Beta.Inverse_Regularized_Beta (Long_Float (P), Long_Float (Alpha), Long_Float (Beta)));
+      return Real (Long_Beta.Inverse_Regularized_Beta (Long_Float (P), Long_Float (Alpha), Long_Float (Beta)));
    end Beta_IDF;
 
    -------------
@@ -343,9 +343,9 @@ package body SData_Core.Statistics is
    --  Method: beta variate as X / (X + Y) with X ~ Gamma(Alpha, 1) and
    --  Y ~ Gamma(Beta, 1) — exact, and reuses the gamma sampler rather than
    --  needing a dedicated beta generator.
-   function Beta_RN (Alpha, Beta : Float) return Float is
-      Y1 : constant Float := Gamma_RN (Alpha, 1.0);
-      Y2 : constant Float := Gamma_RN (Beta, 1.0);
+   function Beta_RN (Alpha, Beta : Real) return Real is
+      Y1 : constant Real := Gamma_RN (Alpha, 1.0);
+      Y2 : constant Real := Gamma_RN (Beta, 1.0);
    begin
       if Y1 + Y2 = 0.0 then return 0.0; end if;
       return Y1 / (Y1 + Y2);
@@ -354,12 +354,12 @@ package body SData_Core.Statistics is
    -----------------
    -- Poisson_PMF --
    -----------------
-   function Poisson_PMF (K, Mean : Float) return Float is
-      KI : constant Long_Float := Long_Float (Float'Floor (K));
+   function Poisson_PMF (K, Mean : Real) return Real is
+      KI : constant Long_Float := Long_Float (Real'Floor (K));
    begin
       if Mean <= 0.0 then raise Constraint_Error with "Mean must be positive"; end if;
       if K < 0.0 then return 0.0; end if;
-      return Float (Exp (-Long_Float (Mean) + KI * Log (Long_Float (Mean)) - Long_Gamma.Log_Gamma (KI + 1.0)));
+      return Real (Exp (-Long_Float (Mean) + KI * Log (Long_Float (Mean)) - Long_Gamma.Log_Gamma (KI + 1.0)));
    end Poisson_PMF;
 
    -----------------
@@ -367,14 +367,14 @@ package body SData_Core.Statistics is
    -----------------
    --  Method: direct summation of the PMF over 0 .. K — simple and exact
    --  (O(K) terms), rather than the incomplete-gamma relation.
-   function Poisson_CDF (K, Mean : Float) return Float is
-      KI : constant Integer := Integer (Float'Floor (K));
+   function Poisson_CDF (K, Mean : Real) return Real is
+      KI : constant Integer := Integer (Real'Floor (K));
       Sum : Long_Float := 0.0;
    begin
       if Mean <= 0.0 then raise Constraint_Error with "Mean must be positive"; end if;
       if K < 0.0 then return 0.0; end if;
-      for I in 0 .. KI loop Sum := Sum + Long_Float (Poisson_PMF (Float (I), Mean)); end loop;
-      return Float (Sum);
+      for I in 0 .. KI loop Sum := Sum + Long_Float (Poisson_PMF (Real (I), Mean)); end loop;
+      return Real (Sum);
    end Poisson_CDF;
 
    ----------------
@@ -382,7 +382,7 @@ package body SData_Core.Statistics is
    ----------------
    --  Method: delegated to MathPaqs Generic_Random_Functions.Poisson, driven
    --  by the shared uniform generator (local U).
-   function Poisson_RN (Mean : Float) return Float is
+   function Poisson_RN (Mean : Real) return Real is
       function U return Long_Float is
       begin
          Ensure_Random_Init;
@@ -390,20 +390,20 @@ package body SData_Core.Statistics is
       end U;
       function Poisson_Func is new Long_Rand_Funcs.Poisson (U);
    begin
-      return Float (Long_Float (Poisson_Func (Long_Float (Mean))));
+      return Real (Long_Float (Poisson_Func (Long_Float (Mean))));
    end Poisson_RN;
 
    ---------------
    -- Gamma_PDF --
    ---------------
-   function Gamma_PDF (X, Alpha, Beta : Float) return Float is
+   function Gamma_PDF (X, Alpha, Beta : Real) return Real is
    begin
       if Alpha <= 0.0 or else Beta <= 0.0 then raise Constraint_Error with
          "Gamma distribution: shape and rate must be positive (shape=" &
-         Float'Image (Alpha) & ", rate=" & Float'Image (Beta) & ")";
+         Real'Image (Alpha) & ", rate=" & Real'Image (Beta) & ")";
       end if;
       if X <= 0.0 then return 0.0; end if;
-      return Float (Exp (Long_Float (Alpha) * Log (Long_Float (Beta)) + (Long_Float (Alpha) - 1.0) * Log (Long_Float (X)) - Long_Float (Beta) * Long_Float (X) - Long_Gamma.Log_Gamma (Long_Float (Alpha))));
+      return Real (Exp (Long_Float (Alpha) * Log (Long_Float (Beta)) + (Long_Float (Alpha) - 1.0) * Log (Long_Float (X)) - Long_Float (Beta) * Long_Float (X) - Long_Gamma.Log_Gamma (Long_Float (Alpha))));
    end Gamma_PDF;
 
    ---------------
@@ -411,10 +411,10 @@ package body SData_Core.Statistics is
    ---------------
    --  CDF of Gamma(α, β) via the regularized lower incomplete gamma:
    --  F(x) = P(α, β·x).  [DLMF] 8.2.4; [A&S] 6.5.1.
-   function Gamma_CDF (X, Alpha, Beta : Float) return Float is
+   function Gamma_CDF (X, Alpha, Beta : Real) return Real is
    begin
       if X <= 0.0 then return 0.0; end if;
-      return Float (Incomplete_Gamma_P (Long_Float (Alpha), Long_Float (Beta) * Long_Float (X)));
+      return Real (Incomplete_Gamma_P (Long_Float (Alpha), Long_Float (Beta) * Long_Float (X)));
    end Gamma_CDF;
 
    --------------
@@ -423,7 +423,7 @@ package body SData_Core.Statistics is
    --  Marsaglia-Tsang squeeze method for Gamma(α, β) variates.  [MT00].
    --  For α < 1 uses the identity Gamma(α) = Gamma(α+1) · U^(1/α),
    --  where U ~ Uniform(0,1) — [MT00] eq. (4).
-   function Gamma_RN (Alpha, Beta : Float) return Float is
+   function Gamma_RN (Alpha, Beta : Real) return Real is
       A : constant Long_Float := Long_Float (Alpha);
       B : constant Long_Float := Long_Float (Beta);
       D, C, X, V, U : Long_Float;
@@ -432,14 +432,14 @@ package body SData_Core.Statistics is
       if A < 1.0 then
          --  Marsaglia and Tsang's method requires A >= 1.
          --  Relationship: Gamma(A, B) = Gamma(A+1, B) * U^(1/A)
-         return Gamma_RN (Alpha + 1.0, Beta) * Float (Long_Float (Ada.Numerics.Float_Random.Random (Generator)) ** (1.0 / A));
+         return Gamma_RN (Alpha + 1.0, Beta) * Real (Long_Float (Ada.Numerics.Float_Random.Random (Generator)) ** (1.0 / A));
       end if;
 
       D := A - 1.0 / 3.0;
       C := 1.0 / Sqrt (9.0 * D);
       loop
          loop
-            X := Long_Float (Z_IDF (Ada.Numerics.Float_Random.Random (Generator)));
+            X := Long_Float (Z_IDF (Real (Ada.Numerics.Float_Random.Random (Generator))));
             V := 1.0 + C * X;
             exit when V > 0.0;
          end loop;
@@ -447,7 +447,7 @@ package body SData_Core.Statistics is
          U := Long_Float (Ada.Numerics.Float_Random.Random (Generator));
          exit when U < 1.0 - 0.0331 * (X**4) or else Log (U) < 0.5 * (X**2) + D * (1.0 - V + Log (V));
       end loop;
-      return Float (D * V / B);
+      return Real (D * V / B);
    end Gamma_RN;
 
    --------------------
@@ -455,7 +455,7 @@ package body SData_Core.Statistics is
    --------------------
    --  chi-square(DF) = Gamma(DF/2, rate 1/2); Chi_Square_PDF/CDF/RN all reduce
    --  to the corresponding gamma routine via this identity.
-   function Chi_Square_PDF (X, DF : Float) return Float is
+   function Chi_Square_PDF (X, DF : Real) return Real is
    begin
       return Gamma_PDF (X, DF / 2.0, 0.5);
    end Chi_Square_PDF;
@@ -463,7 +463,7 @@ package body SData_Core.Statistics is
    --------------------
    -- Chi_Square_CDF --
    --------------------
-   function Chi_Square_CDF (X, DF : Float) return Float is
+   function Chi_Square_CDF (X, DF : Real) return Real is
    begin
       return Gamma_CDF (X, DF / 2.0, 0.5);
    end Chi_Square_CDF;
@@ -471,11 +471,11 @@ package body SData_Core.Statistics is
    -------------------
    -- Student_T_PDF --
    -------------------
-   function Student_T_PDF (T, DF : Float) return Float is
+   function Student_T_PDF (T, DF : Real) return Real is
       V : constant Long_Float := Long_Float (DF);
       X : constant Long_Float := Long_Float (T);
    begin
-      return Float (Exp (Long_Gamma.Log_Gamma ((V + 1.0) / 2.0) - Long_Gamma.Log_Gamma (V / 2.0)) / (Sqrt (V * Ada.Numerics.Pi) * (1.0 + (X**2) / V)**((V + 1.0) / 2.0)));
+      return Real (Exp (Long_Gamma.Log_Gamma ((V + 1.0) / 2.0) - Long_Gamma.Log_Gamma (V / 2.0)) / (Sqrt (V * Ada.Numerics.Pi) * (1.0 + (X**2) / V)**((V + 1.0) / 2.0)));
    end Student_T_PDF;
 
    -------------------
@@ -484,29 +484,29 @@ package body SData_Core.Statistics is
    --  CDF of Student's t(ν) via the regularized incomplete beta:
    --  F(t) = 1 - ½·I_{ν/(ν+t²)}(ν/2, ½)  for t > 0;  ½·I_{…}  for t ≤ 0.
    --  [A&S] 26.7.8; [NR] §6.4.
-   function Student_T_CDF (T, DF : Float) return Float is
+   function Student_T_CDF (T, DF : Real) return Real is
       V : constant Long_Float := Long_Float (DF);
       X : constant Long_Float := Long_Float (T);
       W : Long_Float;
    begin
       W := V / (V + X**2);
       if X > 0.0 then
-         return 1.0 - 0.5 * Float (Long_Beta.Regularized_Beta (W, V / 2.0, 0.5));
+         return 1.0 - 0.5 * Real (Long_Beta.Regularized_Beta (W, V / 2.0, 0.5));
       else
-         return 0.5 * Float (Long_Beta.Regularized_Beta (W, V / 2.0, 0.5));
+         return 0.5 * Real (Long_Beta.Regularized_Beta (W, V / 2.0, 0.5));
       end if;
    end Student_T_CDF;
 
    -----------
    -- F_PDF --
    -----------
-   function F_PDF (X, DF1, DF2 : Float) return Float is
+   function F_PDF (X, DF1, DF2 : Real) return Real is
       V1 : constant Long_Float := Long_Float (DF1);
       V2 : constant Long_Float := Long_Float (DF2);
       XV : constant Long_Float := Long_Float (X);
    begin
       if XV <= 0.0 then return 0.0; end if;
-      return Float (Sqrt (((V1 * XV)**V1 * V2**V2) / (V1 * XV + V2)**(V1 + V2)) / (XV * Long_Beta.Beta (V1 / 2.0, V2 / 2.0)));
+      return Real (Sqrt (((V1 * XV)**V1 * V2**V2) / (V1 * XV + V2)**(V1 + V2)) / (XV * Long_Beta.Beta (V1 / 2.0, V2 / 2.0)));
    end F_PDF;
 
    -----------
@@ -514,7 +514,7 @@ package body SData_Core.Statistics is
    -----------
    --  CDF of F(d₁, d₂) via regularized incomplete beta:
    --  F(x) = I_{d₁·x/(d₁·x+d₂)}(d₁/2, d₂/2).  [A&S] 26.6.15; [NR] §6.4.
-   function F_CDF (X, DF1, DF2 : Float) return Float is
+   function F_CDF (X, DF1, DF2 : Real) return Real is
       V1 : constant Long_Float := Long_Float (DF1);
       V2 : constant Long_Float := Long_Float (DF2);
       XV : constant Long_Float := Long_Float (X);
@@ -522,7 +522,7 @@ package body SData_Core.Statistics is
    begin
       if XV <= 0.0 then return 0.0; end if;
       W := (V1 * XV) / (V1 * XV + V2);
-      return Float (Long_Beta.Regularized_Beta (W, V1 / 2.0, V2 / 2.0));
+      return Real (Long_Beta.Regularized_Beta (W, V1 / 2.0, V2 / 2.0));
    end F_CDF;
 
    ------------------
@@ -531,21 +531,21 @@ package body SData_Core.Statistics is
    --  P(X = k) = C(n,k)·p^k·(1-p)^(n-k).  Computed in log space as
    --  log Γ(n+1) − log Γ(k+1) − log Γ(n-k+1) + k·log p + (n-k)·log(1-p)
    --  to avoid factorial overflow.  [A&S] 26.1.17.
-   function Binomial_PMF (K, N, P : Float) return Float is
-      KI : constant Long_Float := Long_Float (Float'Floor (K));
-      NI : constant Long_Float := Long_Float (Float'Floor (N));
+   function Binomial_PMF (K, N, P : Real) return Real is
+      KI : constant Long_Float := Long_Float (Real'Floor (K));
+      NI : constant Long_Float := Long_Float (Real'Floor (N));
       PF : constant Long_Float := Long_Float (P);
    begin
       if PF < 0.0 or else PF > 1.0 or else NI < 0.0 then
          raise Constraint_Error with
          "Binomial PMF: n must be non-negative and prob must be in [0,1] (n=" &
-         Float'Image (N) & ", prob=" & Float'Image (P) & ")";
+         Real'Image (N) & ", prob=" & Real'Image (P) & ")";
       end if;
       if KI < 0.0 or else KI > NI then return 0.0; end if;
       if PF = 0.0 then return (if KI = 0.0 then 1.0 else 0.0); end if;
       if PF = 1.0 then return (if KI = NI then 1.0 else 0.0); end if;
 
-      return Float (Exp (Long_Gamma.Log_Gamma (NI + 1.0) - Long_Gamma.Log_Gamma (KI + 1.0) - Long_Gamma.Log_Gamma (NI - KI + 1.0) +
+      return Real (Exp (Long_Gamma.Log_Gamma (NI + 1.0) - Long_Gamma.Log_Gamma (KI + 1.0) - Long_Gamma.Log_Gamma (NI - KI + 1.0) +
                          KI * Log (PF) + (NI - KI) * Log (1.0 - PF)));
    end Binomial_PMF;
 
@@ -554,18 +554,18 @@ package body SData_Core.Statistics is
    ------------------
    --  P(X ≤ k) = I_{1-p}(n-k, k+1)  (regularized incomplete beta).
    --  [A&S] 26.5.24; [NR] §6.4.
-   function Binomial_CDF (K, N, P : Float) return Float is
-      KI : constant Long_Float := Long_Float (Float'Floor (K));
-      NI : constant Long_Float := Long_Float (Float'Floor (N));
+   function Binomial_CDF (K, N, P : Real) return Real is
+      KI : constant Long_Float := Long_Float (Real'Floor (K));
+      NI : constant Long_Float := Long_Float (Real'Floor (N));
       PF : constant Long_Float := Long_Float (P);
    begin
       if PF < 0.0 or else PF > 1.0 or else NI < 0.0 then
          raise Constraint_Error with
          "Binomial CDF: n must be non-negative and prob must be in [0,1] (n=" &
-         Float'Image (N) & ", prob=" & Float'Image (P) & ")";
+         Real'Image (N) & ", prob=" & Real'Image (P) & ")";
       end if;
       if KI < 0.0 then return 0.0; elsif KI >= NI then return 1.0; end if;
-      return Float (Long_Beta.Regularized_Beta (1.0 - PF, NI - KI, KI + 1.0));
+      return Real (Long_Beta.Regularized_Beta (1.0 - PF, NI - KI, KI + 1.0));
    end Binomial_CDF;
 
    ------------------
@@ -573,17 +573,17 @@ package body SData_Core.Statistics is
    ------------------
    --  Method: accumulate the PMF forward until it reaches the cumulative
    --  probability P (discrete support).
-   function Binomial_IDF (P, N, Prob : Float) return Float is
-      Sum : Float := 0.0;
-      NI  : constant Integer := Integer (Float'Floor (N));
+   function Binomial_IDF (P, N, Prob : Real) return Real is
+      Sum : Real := 0.0;
+      NI  : constant Integer := Integer (Real'Floor (N));
    begin
       if P <= 0.0 then return 0.0; end if;
-      if P >= 1.0 then return Float (NI); end if;
+      if P >= 1.0 then return Real (NI); end if;
       for K in 0 .. NI loop
-         Sum := Sum + Binomial_PMF (Float (K), N, Prob);
-         if Sum >= P then return Float (K); end if;
+         Sum := Sum + Binomial_PMF (Real (K), N, Prob);
+         if Sum >= P then return Real (K); end if;
       end loop;
-      return Float (NI);
+      return Real (NI);
    end Binomial_IDF;
 
    -----------------
@@ -591,90 +591,90 @@ package body SData_Core.Statistics is
    -----------------
    --  Method: direct simulation — count successes over N independent
    --  Bernoulli(P) trials.  Exact and O(N), no approximation.
-   function Binomial_RN (N, P : Float) return Float is
-      NI : constant Integer := Integer (Float'Floor (N));
-      PF : constant Float := P;
+   function Binomial_RN (N, P : Real) return Real is
+      NI : constant Integer := Integer (Real'Floor (N));
+      PF : constant Real := P;
       Res : Integer := 0;
    begin
       Ensure_Random_Init;
       for I in 1 .. NI loop
-         if Ada.Numerics.Float_Random.Random (Generator) <= PF then
+         if Real (Ada.Numerics.Float_Random.Random (Generator)) <= PF then
             Res := Res + 1;
          end if;
       end loop;
-      return Float (Res);
+      return Real (Res);
    end Binomial_RN;
 
    -----------------
    -- Weibull_PDF --
    -----------------
-   function Weibull_PDF (X, Scale, Shape : Float) return Float is
+   function Weibull_PDF (X, Scale, Shape : Real) return Real is
       XF : constant Long_Float := Long_Float (X);
       L  : constant Long_Float := Long_Float (Scale);
       K  : constant Long_Float := Long_Float (Shape);
    begin
       if L <= 0.0 or else K <= 0.0 then raise Constraint_Error with "Scale and Shape must be positive"; end if;
       if XF < 0.0 then return 0.0; end if;
-      return Float ((K / L) * (XF / L)**(K - 1.0) * Exp (-(XF / L)**K));
+      return Real ((K / L) * (XF / L)**(K - 1.0) * Exp (-(XF / L)**K));
    end Weibull_PDF;
 
    -----------------
    -- Weibull_CDF --
    -----------------
-   function Weibull_CDF (X, Scale, Shape : Float) return Float is
+   function Weibull_CDF (X, Scale, Shape : Real) return Real is
       XF : constant Long_Float := Long_Float (X);
       L  : constant Long_Float := Long_Float (Scale);
       K  : constant Long_Float := Long_Float (Shape);
    begin
       if L <= 0.0 or else K <= 0.0 then raise Constraint_Error with "Scale and Shape must be positive"; end if;
       if XF < 0.0 then return 0.0; end if;
-      return Float (1.0 - Exp (-(XF / L)**K));
+      return Real (1.0 - Exp (-(XF / L)**K));
    end Weibull_CDF;
 
    ----------------
    -- Weibull_RN --
    ----------------
    --  Method: inverse-CDF sampling, x = Scale * (-ln(1 - U))**(1 / Shape).
-   function Weibull_RN (Scale, Shape : Float) return Float is
-      U : Float;
+   function Weibull_RN (Scale, Shape : Real) return Real is
+      U : Real;
    begin
       Ensure_Random_Init;
-      U := Ada.Numerics.Float_Random.Random (Generator);
-      return Scale * Float ((-Log (1.0 - Long_Float (U)))**(1.0 / Long_Float (Shape)));
+      U := Real (Ada.Numerics.Float_Random.Random (Generator));
+      return Scale * Real ((-Log (1.0 - Long_Float (U)))**(1.0 / Long_Float (Shape)));
    end Weibull_RN;
 
    -----------------
    -- Laplace_PDF --
    -----------------
-   function Laplace_PDF (X, Location, Scale : Float) return Float is
+   function Laplace_PDF (X, Location, Scale : Real) return Real is
       XF : constant Long_Float := Long_Float (X);
       MU : constant Long_Float := Long_Float (Location);
       B  : constant Long_Float := Long_Float (Scale);
    begin
       if B <= 0.0 then raise Constraint_Error with "Laplace scale must be positive"; end if;
-      return Float (Exp (-abs (XF - MU) / B) / (2.0 * B));
+      return Real (Exp (-abs (XF - MU) / B) / (2.0 * B));
    end Laplace_PDF;
 
    -----------------
    -- Laplace_CDF --
    -----------------
-   function Laplace_CDF (X, Location, Scale : Float) return Float is
+   function Laplace_CDF (X, Location, Scale : Real) return Real is
       XF : constant Long_Float := Long_Float (X);
       MU : constant Long_Float := Long_Float (Location);
       B  : constant Long_Float := Long_Float (Scale);
    begin
       if B <= 0.0 then raise Constraint_Error with "Laplace scale must be positive"; end if;
       if XF < MU then
-         return Float (0.5 * Exp ((XF - MU) / B));
+         return Real (0.5 * Exp ((XF - MU) / B));
       else
-         return Float (1.0 - 0.5 * Exp (-(XF - MU) / B));
+         return Real (1.0 - 0.5 * Exp (-(XF - MU) / B));
       end if;
    end Laplace_CDF;
 
    -----------------
    -- Laplace_IDF --
    -----------------
-   function Laplace_IDF (P, Location, Scale : Float) return Float is
+   function Laplace_IDF (P, Location, Scale : Real) return Real is
       PF : constant Long_Float := Long_Float (P);
       MU : constant Long_Float := Long_Float (Location);
       B  : constant Long_Float := Long_Float (Scale);
@@ -682,20 +682,20 @@ package body SData_Core.Statistics is
       if B <= 0.0 then raise Constraint_Error with "Laplace scale must be positive"; end if;
       if PF <= 0.0 or else PF >= 1.0 then return 0.0; end if; -- Should ideally handle boundary
       if PF < 0.5 then
-         return Float (MU + B * Log (2.0 * PF));
+         return Real (MU + B * Log (2.0 * PF));
       else
-         return Float (MU - B * Log (2.0 - 2.0 * PF));
+         return Real (MU - B * Log (2.0 - 2.0 * PF));
       end if;
    end Laplace_IDF;
 
    -----------------
    -- Laplace_RN --
    -----------------
-   function Laplace_RN (Location, Scale : Float) return Float is
-      U : Float;
+   function Laplace_RN (Location, Scale : Real) return Real is
+      U : Real;
    begin
       Ensure_Random_Init;
-      U := Ada.Numerics.Float_Random.Random (Generator);
+      U := Real (Ada.Numerics.Float_Random.Random (Generator));
       --  Simple inversion method
       return Laplace_IDF (U, Location, Scale);
    end Laplace_RN;
@@ -705,26 +705,26 @@ package body SData_Core.Statistics is
    -----------------
    --  Method: accumulate the PMF forward until it reaches P (discrete support,
    --  so a forward search rather than bisection); capped at K > 1e6 as a guard.
-   function Poisson_IDF (P, Lambda : Float) return Float is
+   function Poisson_IDF (P, Lambda : Real) return Real is
       PF : constant Long_Float := Long_Float (P);
       L  : constant Long_Float := Long_Float (Lambda);
       Sum : Long_Float := 0.0;
       K   : Natural := 0;
    begin
       if PF <= 0.0 then return 0.0; end if;
-      if PF >= 1.0 then return Float'Last; end if;
+      if PF >= 1.0 then return Real'Last; end if;
       loop
-         Sum := Sum + Long_Float (Poisson_PMF (Float (K), Float (L)));
+         Sum := Sum + Long_Float (Poisson_PMF (Real (K), Real (L)));
          exit when Sum >= PF or else K > 1000000;
          K := K + 1;
       end loop;
-      return Float (K);
+      return Real (K);
    end Poisson_IDF;
 
    -------------------
    -- Chi_Square_RN --
    -------------------
-   function Chi_Square_RN (DF : Float) return Float is
+   function Chi_Square_RN (DF : Real) return Real is
    begin
       return Gamma_RN (DF / 2.0, 0.5);
    end Chi_Square_RN;
@@ -734,11 +734,11 @@ package body SData_Core.Statistics is
    -------------------
    --  Method: definitional construction — Z / sqrt(V / DF), with Z standard
    --  normal and V ~ chi-square(DF).
-   function Student_T_RN (DF : Float) return Float is
-      Z : constant Float := Normal_RN (0.0, 1.0);
-      V : constant Float := Chi_Square_RN (DF);
+   function Student_T_RN (DF : Real) return Real is
+      Z : constant Real := Normal_RN (0.0, 1.0);
+      V : constant Real := Chi_Square_RN (DF);
    begin
-      return Z / Float (Sqrt (Long_Float (V / DF)));
+      return Z / Real (Sqrt (Long_Float (V / DF)));
    end Student_T_RN;
 
    ----------
@@ -746,9 +746,9 @@ package body SData_Core.Statistics is
    ----------
    --  Method: definitional construction — ratio of two independent chi-squares,
    --  each divided by its degrees of freedom: (U1/DF1) / (U2/DF2).
-   function F_RN (DF1, DF2 : Float) return Float is
-      U1 : constant Float := Chi_Square_RN (DF1);
-      U2 : constant Float := Chi_Square_RN (DF2);
+   function F_RN (DF1, DF2 : Real) return Real is
+      U1 : constant Real := Chi_Square_RN (DF1);
+      U2 : constant Real := Chi_Square_RN (DF2);
    begin
       return (U1 / DF1) / (U2 / DF2);
    end F_RN;
@@ -757,13 +757,13 @@ package body SData_Core.Statistics is
    --  Standard bisection, 100 iterations, tolerance 1e-9.  [NR] §9.1.
    --  The CDF must be monotonically non-decreasing.
    generic
-      with function CDF_Func (X : Float) return Float;
-   function Bisect_IDF (P, Lo, Hi : Float) return Float;
+      with function CDF_Func (X : Real) return Real;
+   function Bisect_IDF (P, Lo, Hi : Real) return Real;
 
-   function Bisect_IDF (P, Lo, Hi : Float) return Float is
-      L : Float := Lo;
-      H : Float := Hi;
-      M : Float;
+   function Bisect_IDF (P, Lo, Hi : Real) return Real is
+      L : Real := Lo;
+      H : Real := Hi;
+      M : Real;
    begin
       for I in 1 .. 100 loop
          M := (L + H) / 2.0;
@@ -778,25 +778,25 @@ package body SData_Core.Statistics is
    ---------------------
    --  Bisection over [0, ν + 10·√(2ν)].  Upper bound ≈ mean + 10 std devs,
    --  which contains all practically relevant quantiles.
-   function Chi_Square_IDF (P, DF : Float) return Float is
-      function CDF (X : Float) return Float is (Chi_Square_CDF (X, DF));
+   function Chi_Square_IDF (P, DF : Real) return Real is
+      function CDF (X : Real) return Real is (Chi_Square_CDF (X, DF));
       function Bisect is new Bisect_IDF (CDF);
    begin
       if P <= 0.0 then return 0.0; end if;
-      if P >= 1.0 then return Float'Last; end if;
-      return Bisect (P, 0.0, DF + 10.0 * Float (Sqrt (Long_Float (2.0 * DF))));
+      if P >= 1.0 then return Real'Last; end if;
+      return Bisect (P, 0.0, DF + 10.0 * Real (Sqrt (Long_Float (2.0 * DF))));
    end Chi_Square_IDF;
 
    -------------------
    -- Student_T_IDF --
    -------------------
    --  Bisection over [−1000, 1000].  Covers |t| to p < 3e-6 for any ν ≥ 1.
-   function Student_T_IDF (P, DF : Float) return Float is
-      function CDF (X : Float) return Float is (Student_T_CDF (X, DF));
+   function Student_T_IDF (P, DF : Real) return Real is
+      function CDF (X : Real) return Real is (Student_T_CDF (X, DF));
       function Bisect is new Bisect_IDF (CDF);
    begin
-      if P <= 0.0 then return Float'First; end if;
-      if P >= 1.0 then return Float'Last; end if;
+      if P <= 0.0 then return Real'First; end if;
+      if P >= 1.0 then return Real'Last; end if;
       return Bisect (P, -1000.0, 1000.0);
    end Student_T_IDF;
 
@@ -804,12 +804,12 @@ package body SData_Core.Statistics is
    -- F_IDF --
    ---------
    --  Bisection over [0, 1000].  Covers all practically significant F quantiles.
-   function F_IDF (P, DF1, DF2 : Float) return Float is
-      function CDF (X : Float) return Float is (F_CDF (X, DF1, DF2));
+   function F_IDF (P, DF1, DF2 : Real) return Real is
+      function CDF (X : Real) return Real is (F_CDF (X, DF1, DF2));
       function Bisect is new Bisect_IDF (CDF);
    begin
       if P <= 0.0 then return 0.0; end if;
-      if P >= 1.0 then return Float'Last; end if;
+      if P >= 1.0 then return Real'Last; end if;
       return Bisect (P, 0.0, 1000.0);
    end F_IDF;
 
@@ -818,13 +818,13 @@ package body SData_Core.Statistics is
    ---------------
    --  Bisection over [0, μ + 50σ] where μ = α/β and σ = √α/β.
    --  Upper bound covers all practically significant quantiles.
-   function Gamma_IDF (P, Shape, Rate : Float) return Float is
-      function CDF (X : Float) return Float is (Gamma_CDF (X, Shape, Rate));
+   function Gamma_IDF (P, Shape, Rate : Real) return Real is
+      function CDF (X : Real) return Real is (Gamma_CDF (X, Shape, Rate));
       function Bisect is new Bisect_IDF (CDF);
    begin
       if P <= 0.0 then return 0.0; end if;
-      if P >= 1.0 then return Float'Last; end if;
-      return Bisect (P, 0.0, Shape / Rate + 50.0 * Float (Sqrt (Long_Float (Shape))) / Rate);
+      if P >= 1.0 then return Real'Last; end if;
+      return Bisect (P, 0.0, Shape / Rate + 50.0 * Real (Sqrt (Long_Float (Shape))) / Rate);
    end Gamma_IDF;
 
    ----------------
@@ -832,12 +832,12 @@ package body SData_Core.Statistics is
    ----------------
    --  Bisection over [0, 10·λ].  For shape k ≥ 1, the 99.99th percentile
    --  is at most a few multiples of the scale λ; 10λ is a safe upper bound.
-   function Weibull_IDF (P, Shape, Scale : Float) return Float is
-      function CDF (X : Float) return Float is (Weibull_CDF (X, Scale, Shape));
+   function Weibull_IDF (P, Shape, Scale : Real) return Real is
+      function CDF (X : Real) return Real is (Weibull_CDF (X, Scale, Shape));
       function Bisect is new Bisect_IDF (CDF);
    begin
       if P <= 0.0 then return 0.0; end if;
-      if P >= 1.0 then return Float'Last; end if;
+      if P >= 1.0 then return Real'Last; end if;
       return Bisect (P, 0.0, Scale * 10.0);
    end Weibull_IDF;
 
@@ -904,14 +904,14 @@ package body SData_Core.Statistics is
       end loop;
 
       Res.Valid := True;
-      Res.Min_Expected := Float (Min_E);
-      Res.Pct_Expected_Lt_5 := Float (100.0 * Long_Float (Low) / Long_Float (Cells));
+      Res.Min_Expected := Real (Min_E);
+      Res.Pct_Expected_Lt_5 := Real (100.0 * Long_Float (Low) / Long_Float (Cells));
 
-      Res.Pearson_Stat := Float (P_Sum);
-      Res.Pearson_P := 1.0 - Chi_Square_CDF (Res.Pearson_Stat, Float (Res.DF));
+      Res.Pearson_Stat := Real (P_Sum);
+      Res.Pearson_P := 1.0 - Chi_Square_CDF (Res.Pearson_Stat, Real (Res.DF));
 
-      Res.LR_Stat := Float (2.0 * LR_Sum);
-      Res.LR_P := 1.0 - Chi_Square_CDF (Res.LR_Stat, Float (Res.DF));
+      Res.LR_Stat := Real (2.0 * LR_Sum);
+      Res.LR_P := 1.0 - Chi_Square_CDF (Res.LR_Stat, Real (Res.DF));
 
       --  Mantel-Haenszel = (N-1) * Pearson-corr^2; for these design matrices we
       --  use the identity (N-1) * Pearson_chisq / N only for 2x2; for general
@@ -941,7 +941,7 @@ package body SData_Core.Statistics is
          if Sxx > 0.0 and then Syy > 0.0 then
             declare Rho : constant Long_Float := Sxy / Sqrt (Sxx * Syy);
             begin
-               Res.MH_Stat := Float ((Tot - 1.0) * Rho * Rho);
+               Res.MH_Stat := Real ((Tot - 1.0) * Rho * Rho);
             end;
          else
             Res.MH_Stat := 0.0;
@@ -950,17 +950,17 @@ package body SData_Core.Statistics is
       end;
 
       --  Association measures derived from Pearson.
-      Res.Phi := Float (Sqrt (P_Sum / Tot));
-      Res.Contingency := Float (Sqrt (P_Sum / (P_Sum + Tot)));
+      Res.Phi := Real (Sqrt (P_Sum / Tot));
+      Res.Contingency := Real (Sqrt (P_Sum / (P_Sum + Tot)));
       declare
          M : constant Long_Float := Long_Float (Natural'Min (Rn - 1, Cn - 1));
       begin
-         Res.Cramers_V := Float (Sqrt (P_Sum / (Tot * M)));
+         Res.Cramers_V := Real (Sqrt (P_Sum / (Tot * M)));
       end;
 
       if Rn = 2 and then Cn = 2 then
          Res.Has_Yates := True;
-         Res.Yates_Stat := Float (Y_Sum);
+         Res.Yates_Stat := Real (Y_Sum);
          Res.Yates_P := 1.0 - Chi_Square_CDF (Res.Yates_Stat, 1.0);
       end if;
 
@@ -991,8 +991,8 @@ package body SData_Core.Statistics is
       for X of Counts loop
          S := S + (Long_Float (X) - E) ** 2 / E;
       end loop;
-      Res.Stat := Float (S);
-      Res.P := 1.0 - Chi_Square_CDF (Res.Stat, Float (Res.DF));
+      Res.Stat := Real (S);
+      Res.P := 1.0 - Chi_Square_CDF (Res.Stat, Real (Res.DF));
       Res.Valid := True;
       return Res;
    end Goodness_Of_Fit;

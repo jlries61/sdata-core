@@ -3,6 +3,7 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with Ada.Containers.Vectors;
+with SData_Core.Values;  use SData_Core.Values;
 
 package SData_Core.CSV is
 
@@ -11,7 +12,7 @@ package SData_Core.CSV is
    package Field_Vectors is new Ada.Containers.Vectors (Positive, Field_Pair);
 
    function Try_Fast_Float   (S         : String;
-                               Result    : out Float) return Boolean;
+                               Result    : out Real) return Boolean;
 
    function Is_Numeric_Field (F : String) return Boolean;
 

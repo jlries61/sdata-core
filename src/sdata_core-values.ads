@@ -17,7 +17,7 @@ package SData_Core.Values is
    --  is transparent; strengthened to distinct 64-bit types in a later step
    --  (Real -> 'digits 15', Int -> 'range -2**63 .. 2**63-1').  Changing
    --  precision is then a change to these two lines.
-   subtype Real is Float;
+   type Real is digits 15;                   --  portable IEEE 754 double
    subtype Int  is Integer;
 
    --  Kind of data stored in a Value record.
@@ -57,8 +57,8 @@ package SData_Core.Values is
    --  default (no /DECIMALS) numeric output: the shortest fixed-notation
    --  decimal that reads back to exactly X, trailing zeros trimmed, with an
    --  exponential fallback for extreme magnitudes.  Reproduces the stored
-   --  single-precision Float exactly (Float'Image emits only 6 significant
-   --  digits and is lossy).
+   --  double-precision Real exactly (up to 17 significant digits; Real'Image
+   --  is comparatively lossy for round-tripping).
    function Image_Round_Trip (X : Real) return String;
 
    --  Fixed-decimals rendering for SAVE /DECIMALS=N on CSV: round X to

@@ -12,16 +12,16 @@ package body SData_Core.CSV is
 
    --  Fast decimal parser: handles integers and simple N.M decimals
    --  without invoking the Ada runtime.  Scientific notation and other
-   --  edge cases fall through to Float'Value.
+   --  edge cases fall through to Real'Value.
    --  Returns True and sets Result for any valid floating-point value.
    --  Returns False only if the string cannot represent a number.
-   function Try_Fast_Float (S : String; Result : out Float) return Boolean is
+   function Try_Fast_Float (S : String; Result : out Real) return Boolean is
       T         : constant String := Ada.Strings.Fixed.Trim (S, Ada.Strings.Both);
       I         : Integer := T'First;
-      Whole     : Float   := 0.0;
-      Frac      : Float   := 0.0;
-      Denom     : Float   := 1.0;
-      Sign      : Float   := 1.0;
+      Whole     : Real   := 0.0;
+      Frac      : Real   := 0.0;
+      Denom     : Real   := 1.0;
+      Sign      : Real   := 1.0;
       After_Dot : Boolean := False;
       Has_Digit : Boolean := False;
       TU        : String (T'Range);
@@ -44,16 +44,16 @@ package body SData_Core.CSV is
                Has_Digit := True;
                if After_Dot then
                   Denom := Denom * 10.0;
-                  Frac  := Frac + Float (Character'Pos (T (I)) - 48) / Denom;
+                  Frac  := Frac + Real (Character'Pos (T (I)) - 48) / Denom;
                else
-                  Whole := Whole * 10.0 + Float (Character'Pos (T (I)) - 48);
+                  Whole := Whole * 10.0 + Real (Character'Pos (T (I)) - 48);
                end if;
             when '.' =>
                if After_Dot then return False; end if;
                After_Dot := True;
             when 'E' | 'e' | 'D' | 'd' =>
                begin
-                  Result := Float'Value (T);
+                  Result := Real'Value (T);
                   return True;
                exception
                   when Constraint_Error => return False;
@@ -68,7 +68,7 @@ package body SData_Core.CSV is
    end Try_Fast_Float;
 
    function Is_Numeric_Field (F : String) return Boolean is
-      Dummy : Float;
+      Dummy : Real;
    begin
       return Try_Fast_Float (F, Dummy);
    end Is_Numeric_Field;

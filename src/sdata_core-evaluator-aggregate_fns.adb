@@ -2,7 +2,7 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
-with Ada.Numerics.Elementary_Functions; use Ada.Numerics.Elementary_Functions;
+with SData_Core.Real_Functions; use SData_Core.Real_Functions;
 with Ada.Containers.Vectors;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core.Values; use SData_Core.Values;
@@ -48,7 +48,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       R : constant Stats_Pass_Result := Compute_Stats_Pass (Vals);
    begin
       if R.N_Count = 0 then return (Kind => Val_Missing); end if;
-      return Numeric_Result_Checked (Float (R.Sum));
+      return Numeric_Result_Checked (Real (R.Sum));
    end Handle_Sum;
 
    function Handle_Mean (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -56,7 +56,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       R : constant Stats_Pass_Result := Compute_Stats_Pass (Vals);
    begin
       if R.N_Count = 0 then return (Kind => Val_Missing); end if;
-      return Numeric_Result_Checked (Float (R.Sum / Long_Float (R.N_Count)));
+      return Numeric_Result_Checked (Real (R.Sum / Long_Float (R.N_Count)));
    end Handle_Mean;
 
    function Handle_Var_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -67,7 +67,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       if R.N_Count < 2 then return (Kind => Val_Missing); end if;
       NF := Long_Float (R.N_Count);
       return Numeric_Result_Checked
-         (Float ((R.Sum_Sq - (R.Sum ** 2 / NF)) / (NF - 1.0)));
+         (Real ((R.Sum_Sq - (R.Sum ** 2 / NF)) / (NF - 1.0)));
    end Handle_Var_Fn;
 
    function Handle_Std_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -78,7 +78,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       if R.N_Count < 2 then return (Kind => Val_Missing); end if;
       NF := Long_Float (R.N_Count);
       return Numeric_Result_Checked
-         (Sqrt (Float ((R.Sum_Sq - (R.Sum ** 2 / NF)) / (NF - 1.0))));
+         (Sqrt (Real ((R.Sum_Sq - (R.Sum ** 2 / NF)) / (NF - 1.0))));
    end Handle_Std_Fn;
 
    function Handle_Min_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -86,7 +86,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       R : constant Stats_Pass_Result := Compute_Stats_Pass (Vals);
    begin
       if R.N_Count = 0 then return (Kind => Val_Missing); end if;
-      return (Kind => Val_Numeric, Num_Val => Float (R.Min_V));
+      return (Kind => Val_Numeric, Num_Val => Real (R.Min_V));
    end Handle_Min_Fn;
 
    function Handle_Max_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -94,7 +94,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       R : constant Stats_Pass_Result := Compute_Stats_Pass (Vals);
    begin
       if R.N_Count = 0 then return (Kind => Val_Missing); end if;
-      return (Kind => Val_Numeric, Num_Val => Float (R.Max_V));
+      return (Kind => Val_Numeric, Num_Val => Real (R.Max_V));
    end Handle_Max_Fn;
 
    function Handle_N_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -130,7 +130,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
    begin
       for V of Vals loop
          if V.Kind /= Val_Missing then
-            declare FV : constant Float := Convert_To_Float (V);
+            declare FV : constant Real := Convert_To_Float (V);
             begin
                if FV <= 0.0 then return (Kind => Val_Missing); end if;
                Log_Sum := Log_Sum + Long_Float (Log (FV));
@@ -139,7 +139,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
          end if;
       end loop;
       if N_Count = 0 then return (Kind => Val_Missing); end if;
-      return Num_Result (Exp (Float (Log_Sum / Long_Float (N_Count))));
+      return Num_Result (Exp (Real (Log_Sum / Long_Float (N_Count))));
    end Handle_Gmean;
 
    function Handle_Hmean (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -158,12 +158,12 @@ package body SData_Core.Evaluator.Aggregate_Fns is
          end if;
       end loop;
       if N_Count = 0 then return (Kind => Val_Missing); end if;
-      return Num_Result (Float (Long_Float (N_Count) / Recip_Sum));
+      return Num_Result (Real (Long_Float (N_Count) / Recip_Sum));
    end Handle_Hmean;
 
    function Handle_Median (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
-      package Float_Vecs is new Ada.Containers.Vectors (Positive, Float);
+      package Float_Vecs is new Ada.Containers.Vectors (Positive, Real);
       package Float_Sort  is new Float_Vecs.Generic_Sorting;
       FVals   : Float_Vecs.Vector;
       N_Count : Natural := 0;

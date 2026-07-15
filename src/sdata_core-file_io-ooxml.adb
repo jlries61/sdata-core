@@ -239,7 +239,7 @@ package body SData_Core.File_IO.OOXML is
                   else
                      begin
                         return (Kind    => Val_Numeric,
-                                Num_Val => Float'Value (Val_Str));
+                                Num_Val => Real'Value (Val_Str));
                      exception
                         when Constraint_Error => null;
                      end;
@@ -364,7 +364,7 @@ package body SData_Core.File_IO.OOXML is
                                  and then Get_Column_Type
                                     (Column_Name (J + 1)) = Col_Integer
                                  and then V.Num_Val
-                                    /= Float'Truncation (V.Num_Val)
+                                    /= Real'Truncation (V.Num_Val)
                                  and then
                                     not SData_Core.Config.Quiet_Mode
                               then
