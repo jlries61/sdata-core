@@ -61,13 +61,13 @@ package body SData_Core.Evaluator.Misc_Fns is
    function Handle_Err_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => SData_Core.Config.Runtime.Last_Error_Code);
+      return (Kind => Val_Integer, Int_Val => Int (SData_Core.Config.Runtime.Last_Error_Code));
    end Handle_Err_Fn;
 
    function Handle_Erl_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => SData_Core.Config.Runtime.Last_Error_Line);
+      return (Kind => Val_Integer, Int_Val => Int (SData_Core.Config.Runtime.Last_Error_Line));
    end Handle_Erl_Fn;
 
    function Handle_Date (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -198,7 +198,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       begin
          Get_Array_Bounds (AName, Start_Idx, End_Idx);
          if End_Idx < Start_Idx then return (Kind => Val_Missing); end if;
-         return (Kind => Val_Integer, Int_Val => Start_Idx);
+         return (Kind => Val_Integer, Int_Val => Int (Start_Idx));
       end;
    end Handle_Lbound;
 
@@ -214,7 +214,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       begin
          Get_Array_Bounds (AName, Start_Idx, End_Idx);
          if End_Idx < Start_Idx then return (Kind => Val_Missing); end if;
-         return (Kind => Val_Integer, Int_Val => End_Idx);
+         return (Kind => Val_Integer, Int_Val => Int (End_Idx));
       end;
    end Handle_Ubound;
 
@@ -231,7 +231,7 @@ package body SData_Core.Evaluator.Misc_Fns is
          end if;
          if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => 1); end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle)));
+                 Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle))));
       end;
    end Handle_Index_Str;
 
@@ -251,17 +251,17 @@ package body SData_Core.Evaluator.Misc_Fns is
             return (Kind => Val_Missing);
          end if;
          if From > H_Str'Length or else N_Str'Length = 0 then
-            return (Kind => Val_Integer, Int_Val => (if N_Str'Length = 0 then From else 0));
+            return (Kind => Val_Integer, Int_Val => (if N_Str'Length = 0 then Int (From) else 0));
          end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Ada.Strings.Fixed.Index (H_Str, N_Str, From));
+                 Int_Val => Int (Ada.Strings.Fixed.Index (H_Str, N_Str, From)));
       end;
    end Handle_Match;
 
    function Handle_Maxlen (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => SData_Core.Config.Max_String_Len);
+      return (Kind => Val_Integer, Int_Val => Int (SData_Core.Config.Max_String_Len));
    end Handle_Maxlen;
 
    function Handle_Maxlvl (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -273,7 +273,7 @@ package body SData_Core.Evaluator.Misc_Fns is
    function Handle_Maxint (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => Integer'Last);
+      return (Kind => Val_Integer, Int_Val => Int'Last);
    end Handle_Maxint;
 
    function Handle_Maxnum (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -285,7 +285,7 @@ package body SData_Core.Evaluator.Misc_Fns is
    function Handle_Minint (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => Integer'First);
+      return (Kind => Val_Integer, Int_Val => Int'First);
    end Handle_Minint;
 
    function Handle_Minnum (Name : String; Vals : Value_Vectors.Vector) return Value is

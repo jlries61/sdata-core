@@ -1029,7 +1029,7 @@ package body SData_Core.Commands is
                   when Src_Count =>
                      Tbl.Set_Output_Value_By_Col
                        (R, J, (Kind    => Val_Integer,
-                               Int_Val => Integer (Rows.Length)));
+                               Int_Val => Int (Rows.Length)));
                   when Src_Fn =>
                      Tbl.Set_Output_Value_By_Col
                        (R, J, Eval.Call_Function

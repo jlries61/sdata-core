@@ -62,7 +62,7 @@ package SData_Core.Evaluator is
          when Expr_Numeric_Literal =>
             Value      : Real;
             Is_Integer : Boolean := False;
-            Int_Value  : Integer := 0;
+            Int_Value  : Int := 0;
          when Expr_String_Literal =>
             Str_Value : Ada.Strings.Unbounded.Unbounded_String;
          when Expr_Variable =>

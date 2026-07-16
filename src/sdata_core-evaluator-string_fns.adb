@@ -39,7 +39,7 @@ package body SData_Core.Evaluator.String_Fns is
       declare V : constant Value := Vals.Element (1);
       begin
          if V.Kind = Val_String then
-            return (Kind => Val_Integer, Int_Val => Length (V.Str_Val));
+            return (Kind => Val_Integer, Int_Val => Int (Length (V.Str_Val)));
          else
             return (Kind => Val_Missing);
          end if;
@@ -219,10 +219,10 @@ package body SData_Core.Evaluator.String_Fns is
          if Needle.Kind /= Val_String or else Haystack.Kind /= Val_String then
             return (Kind => Val_Missing);
          end if;
-         if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => From); end if;
+         if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => Int (From)); end if;
          if From > Length (Haystack.Str_Val) then return (Kind => Val_Integer, Int_Val => 0); end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle), From));
+                 Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle), From)));
       end;
    end Handle_Pos;
 
@@ -247,10 +247,10 @@ package body SData_Core.Evaluator.String_Fns is
             if Needle.Kind /= Val_String or else Haystack.Kind /= Val_String then
                return (Kind => Val_Missing);
             end if;
-            if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => Start_Pos); end if;
+            if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => Int (Start_Pos)); end if;
             if Start_Pos > Length (Haystack.Str_Val) then return (Kind => Val_Integer, Int_Val => 0); end if;
             return (Kind    => Val_Integer,
-                    Int_Val => Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle), Start_Pos));
+                    Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle), Start_Pos)));
          end;
       end;
    end Handle_Instr;
@@ -321,7 +321,7 @@ package body SData_Core.Evaluator.String_Fns is
          S : constant String := (if V.Kind = Val_String then To_String (V.Str_Val)
                                  else Integer'Image (Integer (Convert_To_Float (V))));
       begin
-         return (Kind => Val_Integer, Int_Val => Integer'Value ("16#" & S & "#"));
+         return (Kind => Val_Integer, Int_Val => Int'Value ("16#" & S & "#"));
       exception
          when Constraint_Error => return (Kind => Val_Missing);
       end;

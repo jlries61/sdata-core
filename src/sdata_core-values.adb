@@ -35,7 +35,7 @@ package body SData_Core.Values is
          when Val_Integer =>
             if V.Kind = Val_Numeric then
                return (Kind    => Val_Integer,
-                       Int_Val => Integer (Real'Truncation (V.Num_Val)));
+                       Int_Val => Int (Real'Truncation (V.Num_Val)));
             end if;
             raise Conversion_Error
               with "cannot convert string value to integer";
@@ -64,7 +64,7 @@ package body SData_Core.Values is
             end;
          when Val_Integer =>
             declare
-               Img : constant String := Integer'Image (V.Int_Val);
+               Img : constant String := Int'Image (V.Int_Val);
             begin
                return Trim (Img, Ada.Strings.Both);
             end;

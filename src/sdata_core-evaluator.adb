@@ -338,12 +338,12 @@ package body SData_Core.Evaluator is
                            Hi_Val : constant Value := Evaluate (Sub_List.Expr_End);
                            Lo, Hi : Integer;
                         begin
-                           if Lo_Val.Kind = Val_Integer then Lo := Lo_Val.Int_Val;
+                           if Lo_Val.Kind = Val_Integer then Lo := Integer (Lo_Val.Int_Val);
                            elsif Lo_Val.Kind = Val_Numeric then Lo := Integer (Real'Floor (Lo_Val.Num_Val));
                            else raise SData_Core.Script_Error with "Array range lower bound must be numeric";
                            end if;
 
-                           if Hi_Val.Kind = Val_Integer then Hi := Hi_Val.Int_Val;
+                           if Hi_Val.Kind = Val_Integer then Hi := Integer (Hi_Val.Int_Val);
                            elsif Hi_Val.Kind = Val_Numeric then Hi := Integer (Real'Floor (Hi_Val.Num_Val));
                            else raise SData_Core.Script_Error with "Array range upper bound must be numeric";
                            end if;
@@ -359,7 +359,7 @@ package body SData_Core.Evaluator is
                            Idx_Val : constant Value := Evaluate (Sub_List.Expr);
                            Idx     : Integer;
                         begin
-                           if Idx_Val.Kind = Val_Integer then Idx := Idx_Val.Int_Val;
+                           if Idx_Val.Kind = Val_Integer then Idx := Integer (Idx_Val.Int_Val);
                            else Idx := Integer (Real'Floor (Convert_To_Float (Idx_Val))); end if;
                            All_Vals.Append (Get_Array_Element (AName, Idx));
                         exception
@@ -508,7 +508,7 @@ package body SData_Core.Evaluator is
                Idx : Integer;
             begin
                if Index_Val.Kind = Val_Integer then
-                  Idx := Index_Val.Int_Val;
+                  Idx := Integer (Index_Val.Int_Val);
                elsif Index_Val.Kind = Val_Numeric then
                   Idx := Integer (Real'Floor (Index_Val.Num_Val));
                else
@@ -534,7 +534,7 @@ package body SData_Core.Evaluator is
                elsif Operand_Val.Kind = Val_Integer then
                   case Expr.UOp is
                      when Op_Neg =>
-                        if Operand_Val.Int_Val = Integer'First then
+                        if Operand_Val.Int_Val = Int'First then
                            raise Constraint_Error with "Integer overflow in unary negation";
                         end if;
                         return (Kind => Val_Integer, Int_Val => -Operand_Val.Int_Val);
@@ -585,14 +585,17 @@ package body SData_Core.Evaluator is
                            when Op_Xor => return (Kind => Val_Integer, Int_Val => (if (L.Int_Val /= 0) /= (R.Int_Val /= 0) then 1 else 0));
                         end case;
                         if Expr.Op in Op_Add .. Op_Mul then
-                           if Res64 < Interfaces.Integer_64 (Integer'First)
-                              or else Res64 > Interfaces.Integer_64 (Integer'Last)
-                           then
-                              raise Constraint_Error with "Integer overflow in " & Expr.Op'Image;
-                           end if;
-                           return (Kind => Val_Integer, Int_Val => Integer (Res64));
+                           return (Kind => Val_Integer, Int_Val => Int (Res64));
                         end if;
                         return (Kind => Val_Missing);
+                     exception
+                        --  Int and Interfaces.Integer_64 share the -2**63 ..
+                        --  2**63-1 range, so a true 64-bit overflow surfaces as
+                        --  Constraint_Error from the Add/Sub/Mul above; re-raise
+                        --  it with the documented message.
+                        when Constraint_Error =>
+                           raise Constraint_Error
+                             with "Integer overflow in " & Expr.Op'Image;
                      end;
                   else
                      declare
@@ -685,7 +688,7 @@ package body SData_Core.Evaluator is
                      Idx : Integer;
                   begin
                      if Index_Val.Kind = Val_Integer then
-                        Idx := Index_Val.Int_Val;
+                        Idx := Integer (Index_Val.Int_Val);
                      elsif Index_Val.Kind = Val_Numeric then
                         Idx := Integer (Real'Floor (Index_Val.Num_Val));
                      else
@@ -732,7 +735,7 @@ package body SData_Core.Evaluator is
          Kind     : Mini_Token_Kind := TK_EOF;
          Text     : String (1 .. Max_Tok) := (others => ' ');
          Text_Len : Natural := 0;
-         Int_Val  : Integer     := 0;
+         Int_Val  : Int         := 0;
          Flt_Val  : Long_Float  := 0.0;
       end record;
 
@@ -890,7 +893,7 @@ package body SData_Core.Evaluator is
                   else
                      Current.Kind    := TK_Integer;
                      begin
-                        Current.Int_Val := Integer'Value (Raw);
+                        Current.Int_Val := Int'Value (Raw);
                      exception
                         when Constraint_Error =>
                            --  Too large for Integer; demote to float.

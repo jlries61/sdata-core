@@ -25,8 +25,8 @@ package body SData_Core.Evaluator.Nav_Fns is
    begin
       return (Kind    => Val_Integer,
               Int_Val => (if SData_Core.Table.Is_Filtered
-                          then Integer (SData_Core.Table.Get_Logical_Record_Index)
-                          else Integer (SData_Core.Table.Get_Current_Record_Index)));
+                          then Int (SData_Core.Table.Get_Logical_Record_Index)
+                          else Int (SData_Core.Table.Get_Current_Record_Index)));
    end Handle_Recno;
 
    function Handle_Ord (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -44,8 +44,8 @@ package body SData_Core.Evaluator.Nav_Fns is
       end if;
       return (Kind    => Val_Integer,
               Int_Val => (if SData_Core.Table.Is_Filtered
-                          then Integer (SData_Core.Table.Get_Logical_Record_Index)
-                          else Integer (SData_Core.Table.Get_Current_Record_Index)));
+                          then Int (SData_Core.Table.Get_Logical_Record_Index)
+                          else Int (SData_Core.Table.Get_Current_Record_Index)));
    end Handle_Ord;
 
    function Handle_BOF (Name : String; Vals : Value_Vectors.Vector) return Value is

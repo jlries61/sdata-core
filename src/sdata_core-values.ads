@@ -18,7 +18,7 @@ package SData_Core.Values is
    --  (Real -> 'digits 15', Int -> 'range -2**63 .. 2**63-1').  Changing
    --  precision is then a change to these two lines.
    type Real is digits 15;                   --  portable IEEE 754 double
-   subtype Int  is Integer;
+   type Int is range -2**63 .. 2**63 - 1;   --  portable 64-bit signed
 
    --  Kind of data stored in a Value record.
    type Value_Kind is (Val_Numeric, Val_Integer, Val_String, Val_Missing);

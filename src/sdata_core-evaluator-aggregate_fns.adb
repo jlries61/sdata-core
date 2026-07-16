@@ -108,7 +108,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
             Count := Count + 1;
          end if;
       end loop;
-      return (Kind => Val_Integer, Int_Val => Count);
+      return (Kind => Val_Integer, Int_Val => Int (Count));
    end Handle_N_Fn;
 
    function Handle_Nmiss_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -120,7 +120,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
             Count := Count + 1;
          end if;
       end loop;
-      return (Kind => Val_Integer, Int_Val => Count);
+      return (Kind => Val_Integer, Int_Val => Int (Count));
    end Handle_Nmiss_Fn;
 
    function Handle_Gmean (Name : String; Vals : Value_Vectors.Vector) return Value is
