@@ -735,9 +735,9 @@ hi part of the range</div>
 <pre>   type Expression (Kind : Expression_Kind) is record
       case Kind is
          when Expr_Numeric_Literal =&gt;
-            Value      : Float;
+            Value      : Real;
             Is_Integer : Boolean := False;
-            Int_Value  : Integer := 0;
+            Int_Value  : Int := 0;
          when Expr_String_Literal =&gt;
             Str_Value : Ada.Strings.Unbounded.Unbounded_String;
          when Expr_Variable =&gt;
@@ -778,8 +778,8 @@ Supports multiple subscripts: X(1, 3, 5)</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Convert_To_Float (V : Value) return Float;</pre>
-<div class='doc'>Converts any numeric value kind to Float for calculation.</div>
+<pre>   function Convert_To_Real (V : Value) return Real;</pre>
+<div class='doc'>Converts any numeric value kind to Real for calculation.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -906,7 +906,7 @@ SData_Core.Script_Error with a descriptive message on syntax error.</div>
 <h2 id='SData_Core.Statistics'>SData_Core.Statistics</h2>
 <p class='overview'>Package SData_Core.Statistics provides probability-distribution and
 random-variate functions for the distributions the interpreter exposes.
-All values are Float; the bodies compute in Long_Float for precision.
+All values are Real; the bodies compute in Long_Float for precision.
 
 Naming convention.  Each distribution offers some of these, by suffix:
 _PDF  probability *density* (continuous distributions)
@@ -931,283 +931,283 @@ first argument is a cumulative probability, not the success
 probability.  Each is flagged again at the declaration below.</p>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Z_PDF (Z : Float) return Float;</pre>
+<pre>   function Z_PDF (Z : Real) return Real;</pre>
 <div class='doc'>Standard Normal (Z) -- mean 0, standard deviation 1.
 Density phi(z).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Z_CDF (Z : Float) return Float;</pre>
+<pre>   function Z_CDF (Z : Real) return Real;</pre>
 <div class='doc'>CDF Phi(z).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Z_IDF (P : Float) return Float;</pre>
+<pre>   function Z_IDF (P : Real) return Real;</pre>
 <div class='doc'>Quantile (probit) Phi^-1(p).  P must lie in the open interval (0,1).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Normal_PDF (X, Mean, Std_Dev : Float) return Float;</pre>
+<pre>   function Normal_PDF (X, Mean, Std_Dev : Real) return Real;</pre>
 <div class='doc'>General Normal(Mean, Std_Dev).  Std_Dev must be positive.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Normal_CDF (X, Mean, Std_Dev : Float) return Float;</pre>
+<pre>   function Normal_CDF (X, Mean, Std_Dev : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Normal_IDF (P, Mean, Std_Dev : Float) return Float;</pre>
+<pre>   function Normal_IDF (P, Mean, Std_Dev : Real) return Real;</pre>
 <div class='doc'>Quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Normal_RN  (Mean, Std_Dev : Float) return Float;</pre>
+<pre>   function Normal_RN  (Mean, Std_Dev : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Uniform_PDF (X, Lower, Upper : Float) return Float;</pre>
+<pre>   function Uniform_PDF (X, Lower, Upper : Real) return Real;</pre>
 <div class='doc'>Continuous Uniform on the interval [Lower, Upper].  Requires
 Lower &lt; Upper.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Uniform_CDF (X, Lower, Upper : Float) return Float;</pre>
+<pre>   function Uniform_CDF (X, Lower, Upper : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Uniform_IDF (P, Lower, Upper : Float) return Float;</pre>
+<pre>   function Uniform_IDF (P, Lower, Upper : Real) return Real;</pre>
 <div class='doc'>Quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Uniform_RN  (Lower, Upper : Float) return Float;</pre>
+<pre>   function Uniform_RN  (Lower, Upper : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Exponential_PDF (X, Rate : Float) return Float;</pre>
+<pre>   function Exponential_PDF (X, Rate : Real) return Real;</pre>
 <div class='doc'>Exponential with rate parameter Rate (= lambda), which must be
 positive.  The mean is 1/Rate.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Exponential_CDF (X, Rate : Float) return Float;</pre>
+<pre>   function Exponential_CDF (X, Rate : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Exponential_IDF (P, Rate : Float) return Float;</pre>
+<pre>   function Exponential_IDF (P, Rate : Real) return Real;</pre>
 <div class='doc'>Quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Exponential_RN  (Rate : Float) return Float;</pre>
+<pre>   function Exponential_RN  (Rate : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Beta_PDF (X, Alpha, Beta : Float) return Float;</pre>
+<pre>   function Beta_PDF (X, Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>Beta(Alpha, Beta) on [0,1].  Alpha and Beta are shape parameters and
 must both be positive.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Beta_CDF (X, Alpha, Beta : Float) return Float;</pre>
+<pre>   function Beta_CDF (X, Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Beta_IDF (P, Alpha, Beta : Float) return Float;</pre>
+<pre>   function Beta_IDF (P, Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>Quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Beta_RN  (Alpha, Beta : Float) return Float;</pre>
+<pre>   function Beta_RN  (Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Poisson_PMF (K, Mean : Float) return Float;</pre>
+<pre>   function Poisson_PMF (K, Mean : Real) return Real;</pre>
 <div class='doc'>Poisson (discrete) with mean Mean (= lambda), which must be positive.
 K is floored to an integer count.
 Mass P(X = K).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Poisson_CDF (K, Mean : Float) return Float;</pre>
+<pre>   function Poisson_CDF (K, Mean : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Poisson_RN  (Mean : Float) return Float;</pre>
+<pre>   function Poisson_RN  (Mean : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Gamma_PDF (X, Alpha, Beta : Float) return Float;</pre>
+<pre>   function Gamma_PDF (X, Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>Gamma(Alpha, Beta) where Alpha is the shape and Beta is the *rate*
 (NOT the scale).  Both must be positive; the mean is Alpha/Beta.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Gamma_CDF (X, Alpha, Beta : Float) return Float;</pre>
+<pre>   function Gamma_CDF (X, Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Gamma_RN  (Alpha, Beta : Float) return Float;</pre>
+<pre>   function Gamma_RN  (Alpha, Beta : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Chi_Square_PDF (X, DF : Float) return Float;</pre>
+<pre>   function Chi_Square_PDF (X, DF : Real) return Real;</pre>
 <div class='doc'>Chi-square with DF degrees of freedom (equivalently Gamma(DF/2, 1/2)).
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Chi_Square_CDF (X, DF : Float) return Float;</pre>
+<pre>   function Chi_Square_CDF (X, DF : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Student_T_PDF (T, DF : Float) return Float;</pre>
+<pre>   function Student_T_PDF (T, DF : Real) return Real;</pre>
 <div class='doc'>Student&#x27;s t with DF degrees of freedom.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Student_T_CDF (T, DF : Float) return Float;</pre>
+<pre>   function Student_T_CDF (T, DF : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function F_PDF (X, DF1, DF2 : Float) return Float;</pre>
+<pre>   function F_PDF (X, DF1, DF2 : Real) return Real;</pre>
 <div class='doc'>Snedecor&#x27;s F with DF1 (numerator) and DF2 (denominator) degrees of
 freedom.
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function F_CDF (X, DF1, DF2 : Float) return Float;</pre>
+<pre>   function F_CDF (X, DF1, DF2 : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Binomial_PMF (K, N, P : Float) return Float;</pre>
+<pre>   function Binomial_PMF (K, N, P : Real) return Real;</pre>
 <div class='doc'>Binomial (discrete): N trials (floored) each succeeding with
 probability P in [0,1]; K is the floored success count.
 Mass P(X = K).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Binomial_CDF (K, N, P : Float) return Float;</pre>
+<pre>   function Binomial_CDF (K, N, P : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Binomial_IDF (P, N, Prob : Float) return Float;</pre>
+<pre>   function Binomial_IDF (P, N, Prob : Real) return Real;</pre>
 <div class='doc'>Quantile.  NOTE the argument roles: P is the cumulative probability
 (quantile input) and Prob is the per-trial success probability.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Binomial_RN  (N, P : Float) return Float;</pre>
+<pre>   function Binomial_RN  (N, P : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Weibull_PDF (X, Scale, Shape : Float) return Float;</pre>
+<pre>   function Weibull_PDF (X, Scale, Shape : Real) return Real;</pre>
 <div class='doc'>Weibull(Scale, Shape) where Scale = lambda and Shape = k; both must be
 positive.  (Weibull_IDF below takes the two in the opposite order.)
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Weibull_CDF (X, Scale, Shape : Float) return Float;</pre>
+<pre>   function Weibull_CDF (X, Scale, Shape : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Weibull_RN  (Scale, Shape : Float) return Float;</pre>
+<pre>   function Weibull_RN  (Scale, Shape : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Laplace_PDF (X, Location, Scale : Float) return Float;</pre>
+<pre>   function Laplace_PDF (X, Location, Scale : Real) return Real;</pre>
 <div class='doc'>Laplace(Location, Scale) where Location is the mean (mu) and Scale is
 the positive diversity parameter (b).
 Density.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Laplace_CDF (X, Location, Scale : Float) return Float;</pre>
+<pre>   function Laplace_CDF (X, Location, Scale : Real) return Real;</pre>
 <div class='doc'>CDF.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Laplace_IDF (P, Location, Scale : Float) return Float;</pre>
+<pre>   function Laplace_IDF (P, Location, Scale : Real) return Real;</pre>
 <div class='doc'>Quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Laplace_RN  (Location, Scale : Float) return Float;</pre>
+<pre>   function Laplace_RN  (Location, Scale : Real) return Real;</pre>
 <div class='doc'>One variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Poisson_IDF    (P, Lambda      : Float) return Float;</pre>
+<pre>   function Poisson_IDF    (P, Lambda      : Real) return Real;</pre>
 <div class='doc'>Quantiles and random variates added after the blocks above; each
 belongs to the distribution named in its identifier.
 Poisson quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Chi_Square_IDF (P, DF          : Float) return Float;</pre>
+<pre>   function Chi_Square_IDF (P, DF          : Real) return Real;</pre>
 <div class='doc'>Chi-square quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Student_T_IDF  (P, DF          : Float) return Float;</pre>
+<pre>   function Student_T_IDF  (P, DF          : Real) return Real;</pre>
 <div class='doc'>Student&#x27;s t quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function F_IDF          (P, DF1, DF2    : Float) return Float;</pre>
+<pre>   function F_IDF          (P, DF1, DF2    : Real) return Real;</pre>
 <div class='doc'>F quantile.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Gamma_IDF      (P, Shape, Rate : Float) return Float;</pre>
+<pre>   function Gamma_IDF      (P, Shape, Rate : Real) return Real;</pre>
 <div class='doc'>Gamma quantile.  Like Gamma_*, the second shape argument is a rate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Weibull_IDF    (P, Shape, Scale : Float) return Float;</pre>
+<pre>   function Weibull_IDF    (P, Shape, Scale : Real) return Real;</pre>
 <div class='doc'>Weibull quantile.  CAUTION: Shape and Scale are in the *reverse* order
 to Weibull_PDF/CDF/RN, which take (Scale, Shape).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Chi_Square_RN (DF : Float) return Float;</pre>
+<pre>   function Chi_Square_RN (DF : Real) return Real;</pre>
 <div class='doc'>Chi-square variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Student_T_RN (DF : Float) return Float;</pre>
+<pre>   function Student_T_RN (DF : Real) return Real;</pre>
 <div class='doc'>Student&#x27;s t variate.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function F_RN (DF1, DF2 : Float) return Float;</pre>
+<pre>   function F_RN (DF1, DF2 : Real) return Real;</pre>
 <div class='doc'>F variate.</div>
 </div>
 <div class='decl'>
@@ -1218,7 +1218,7 @@ sequence is reproducible.  Without this the generator self-seeds on first use.</
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function  Uniform_Random return Float;</pre>
+<pre>   function  Uniform_Random return Real;</pre>
 <div class='doc'>Returns uniform [0,1) using the shared generator.</div>
 </div>
 <div class='decl'>
@@ -1240,16 +1240,16 @@ Pure: take a matrix / vector of counts, return the statistics. --
       R, C              : Natural := 0;
       N                 : Natural := 0;
       DF                : Natural := 0;
-      Pearson_Stat      : Float := 0.0;   Pearson_P    : Float := 1.0;
-      LR_Stat           : Float := 0.0;   LR_P         : Float := 1.0;
-      MH_Stat           : Float := 0.0;   MH_P         : Float := 1.0;
+      Pearson_Stat      : Real := 0.0;   Pearson_P    : Real := 1.0;
+      LR_Stat           : Real := 0.0;   LR_P         : Real := 1.0;
+      MH_Stat           : Real := 0.0;   MH_P         : Real := 1.0;
       Has_Yates         : Boolean := False;
-      Yates_Stat        : Float := 0.0;   Yates_P      : Float := 1.0;
-      Phi               : Float := 0.0;
-      Contingency       : Float := 0.0;
-      Cramers_V         : Float := 0.0;
-      Min_Expected      : Float := 0.0;
-      Pct_Expected_Lt_5 : Float := 0.0;
+      Yates_Stat        : Real := 0.0;   Yates_P      : Real := 1.0;
+      Phi               : Real := 0.0;
+      Contingency       : Real := 0.0;
+      Cramers_V         : Real := 0.0;
+      Min_Expected      : Real := 0.0;
+      Pct_Expected_Lt_5 : Real := 0.0;
    end record;</pre>
 </div>
 <div class='decl'>
@@ -1259,8 +1259,8 @@ Pure: take a matrix / vector of counts, return the statistics. --
       K      : Natural := 0;
       N      : Natural := 0;
       DF     : Natural := 0;
-      Stat   : Float := 0.0;
-      P      : Float := 1.0;
+      Stat   : Real := 0.0;
+      P      : Real := 1.0;
    end record;</pre>
 <div class='doc'>number of categories</div>
 </div>
@@ -1576,6 +1576,22 @@ It provides a variant record type &#x27;Value&#x27; that can represent numeric (
 integer (Integer), string, or missing values, along with utility functions.</p>
 <div class='decl'>
 <div class='kind'>type</div>
+<pre>   type Real is digits 15;</pre>
+<div class='doc'>The interpreter&#x27;s numeric value types, defined once here and used
+everywhere (see doc/specs/2026-07-13-64bit-numeric-types-design.md).
+Introduced first as subtypes of the predefined types so the migration
+is transparent; strengthened to distinct 64-bit types in a later step
+(Real -&gt; &#x27;digits 15&#x27;, Int -&gt; &#x27;range -2**63 .. 2**63-1&#x27;).  Changing
+precision is then a change to these two lines.
+portable IEEE 754 double</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Int is range -2**63 .. 2**63 - 1;</pre>
+<div class='doc'>portable 64-bit signed</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
 <pre>   type Value_Kind is (Val_Numeric, Val_Integer, Val_String, Val_Missing);</pre>
 <div class='doc'>Kind of data stored in a Value record.</div>
 </div>
@@ -1584,9 +1600,9 @@ integer (Integer), string, or missing values, along with utility functions.</p>
 <pre>   type Value (Kind : Value_Kind := Val_Missing) is record
       case Kind is
          when Val_Numeric =&gt;
-            Num_Val : Float;
+            Num_Val : Real;
          when Val_Integer =&gt;
-            Int_Val : Integer;
+            Int_Val : Int;
          when Val_String =&gt;
             Str_Val : Ada.Strings.Unbounded.Unbounded_String;
          when Val_Missing =&gt;
@@ -1602,19 +1618,19 @@ Integers are formatted without decimals or scientific notation.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Is_Inf (F : Float) return Boolean;</pre>
+<pre>   function Is_Inf (F : Real) return Boolean;</pre>
 <div class='doc'>Returns True for IEEE 754 positive or negative infinity.
 Returns False for finite values, Missing, and NaN.</div>
 </div>
 <div class='decl'>
 <div class='kind'>value</div>
-<pre>   Pos_Inf : Float;</pre>
+<pre>   Pos_Inf : Real;</pre>
 <div class='doc'>IEEE 754 infinity sentinels produced at package elaboration.
 Use these wherever +Inf or -Inf must be produced at runtime.</div>
 </div>
 <div class='decl'>
 <div class='kind'>value</div>
-<pre>   Neg_Inf : Float;</pre>
+<pre>   Neg_Inf : Real;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -1623,17 +1639,17 @@ Use these wherever +Inf or -Inf must be produced at runtime.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Image_Round_Trip (X : Float) return String;</pre>
+<pre>   function Image_Round_Trip (X : Real) return String;</pre>
 <div class='doc'>Round-trip float rendering used by the CSV/ODF/OOXML writers for the
 default (no /DECIMALS) numeric output: the shortest fixed-notation
 decimal that reads back to exactly X, trailing zeros trimmed, with an
 exponential fallback for extreme magnitudes.  Reproduces the stored
-single-precision Float exactly (Float&#x27;Image emits only 6 significant
-digits and is lossy).</div>
+double-precision Real exactly (up to 17 significant digits; Real&#x27;Image
+is comparatively lossy for round-tripping).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Image_Fixed_Decimals (X : Float; Decimals : Natural) return String;</pre>
+<pre>   function Image_Fixed_Decimals (X : Real; Decimals : Natural) return String;</pre>
 <div class='doc'>Fixed-decimals rendering for SAVE /DECIMALS=N on CSV: round X to
 Decimals places, then trim trailing zeros and any bare &#x27;.&#x27;.
 Decimals = 0 rounds to the nearest integer.</div>
