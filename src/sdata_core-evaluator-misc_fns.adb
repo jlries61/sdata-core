@@ -177,8 +177,8 @@ package body SData_Core.Evaluator.Misc_Fns is
    begin
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
       declare
-         X      : constant Real   := Convert_To_Float (Vals.Element (1));
-         Places : constant Integer := Integer (Convert_To_Float (Vals.Element (2)));
+         X      : constant Real   := Convert_To_Real (Vals.Element (1));
+         Places : constant Integer := Integer (Convert_To_Real (Vals.Element (2)));
          Factor : constant Real   := 10.0 ** Real (Places);
       begin
          if Places < 0 then return (Kind => Val_Missing); end if;
@@ -242,7 +242,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       declare
          Haystack : constant Value   := Vals.Element (1);
          Needle   : constant Value   := Vals.Element (2);
-         Start    : constant Integer := Integer (Convert_To_Float (Vals.Element (3)));
+         Start    : constant Integer := Integer (Convert_To_Real (Vals.Element (3)));
          H_Str    : constant String  := SData_Core.Values.To_String (Haystack);
          N_Str    : constant String  := SData_Core.Values.To_String (Needle);
          From     : constant Positive := Positive'Max (Start, 1);
@@ -298,7 +298,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Convert_To_Float (Vals.Element (1)) * Ada.Numerics.Pi / 180.0);
+      return Num_Result (Convert_To_Real (Vals.Element (1)) * Ada.Numerics.Pi / 180.0);
    end Handle_Rad;
 
    --  LTW(X) — Lambert W function W₀(x), principal branch (x ≥ -1/e).
@@ -309,7 +309,7 @@ package body SData_Core.Evaluator.Misc_Fns is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       declare
-         X : constant Real := Convert_To_Float (Vals.Element (1));
+         X : constant Real := Convert_To_Real (Vals.Element (1));
          W : Real;
          EW, WEW, F, Fp, Fpp : Real;
       begin

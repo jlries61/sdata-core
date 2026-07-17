@@ -100,7 +100,7 @@ package SData_Core.Evaluator is
    function Evaluate (Expr : Expression_Access) return Value;
 
    --  Converts any numeric value kind to Real for calculation.
-   function Convert_To_Float (V : Value) return Real;
+   function Convert_To_Real (V : Value) return Real;
 
    --  Returns the expected kind of value based on name suffix
    function Get_Expected_Kind (Name : String) return Value_Kind;

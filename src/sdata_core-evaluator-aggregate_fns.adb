@@ -26,7 +26,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
          if V.Kind = Val_Missing then
             R.NMISS_Count := R.NMISS_Count + 1;
          else
-            declare FV : constant Long_Float := Long_Float (Convert_To_Float (V));
+            declare FV : constant Long_Float := Long_Float (Convert_To_Real (V));
             begin
                R.N_Count := R.N_Count + 1;
                R.Sum     := R.Sum + FV;
@@ -130,7 +130,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
    begin
       for V of Vals loop
          if V.Kind /= Val_Missing then
-            declare FV : constant Real := Convert_To_Float (V);
+            declare FV : constant Real := Convert_To_Real (V);
             begin
                if FV <= 0.0 then return (Kind => Val_Missing); end if;
                Log_Sum := Log_Sum + Long_Float (Log (FV));
@@ -149,7 +149,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
    begin
       for V of Vals loop
          if V.Kind /= Val_Missing then
-            declare FV : constant Long_Float := Long_Float (Convert_To_Float (V));
+            declare FV : constant Long_Float := Long_Float (Convert_To_Real (V));
             begin
                if FV = 0.0 then return (Kind => Val_Missing); end if;
                Recip_Sum := Recip_Sum + 1.0 / FV;
@@ -172,7 +172,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
          declare V : constant Value := Vals.Element (I);
          begin
             if V.Kind /= Val_Missing then
-               FVals.Append (Convert_To_Float (V));
+               FVals.Append (Convert_To_Real (V));
                N_Count := N_Count + 1;
             end if;
          end;

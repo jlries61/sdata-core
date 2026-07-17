@@ -179,14 +179,14 @@ package body SData_Core.Evaluator is
       return Aggregate_Meta_Table.Element (UC);
    end Lookup;
 
-   function Convert_To_Float (V : Value) return Real is
+   function Convert_To_Real (V : Value) return Real is
    begin
       case V.Kind is
          when Val_Numeric => return V.Num_Val;
          when Val_Integer => return Real (V.Int_Val);
          when others      => raise Constraint_Error with "Cannot convert " & V.Kind'Image & " to Real";
       end case;
-   end Convert_To_Float;
+   end Convert_To_Real;
 
    --  Has_Args(Vals, N): returns True iff at least N arguments were supplied
    --  and none of the first N is missing.  Missing propagation is automatic
@@ -360,7 +360,7 @@ package body SData_Core.Evaluator is
                            Idx     : Integer;
                         begin
                            if Idx_Val.Kind = Val_Integer then Idx := Integer (Idx_Val.Int_Val);
-                           else Idx := Integer (Real'Floor (Convert_To_Float (Idx_Val))); end if;
+                           else Idx := Integer (Real'Floor (Convert_To_Real (Idx_Val))); end if;
                            All_Vals.Append (Get_Array_Element (AName, Idx));
                         exception
                            when Constraint_Error => All_Vals.Append ((Kind => Val_Missing));
@@ -522,7 +522,7 @@ package body SData_Core.Evaluator is
             begin
                if Expr.UOp = Op_Not then
                   if Operand_Val.Kind = Val_Missing then return (Kind => Val_Missing); end if;
-                  declare V : constant Real := Convert_To_Float (Operand_Val);
+                  declare V : constant Real := Convert_To_Real (Operand_Val);
                   begin
                      return (Kind => Val_Integer, Int_Val => (if V = 0.0 then 1 else 0));
                   end;
@@ -599,8 +599,8 @@ package body SData_Core.Evaluator is
                      end;
                   else
                      declare
-                        FL : constant Real := Convert_To_Float (L);
-                        FR : constant Real := Convert_To_Float (R);
+                        FL : constant Real := Convert_To_Real (L);
+                        FR : constant Real := Convert_To_Real (R);
                      begin
                         case Expr.Op is
                            when Op_Add => return Numeric_Result_Checked (FL + FR);

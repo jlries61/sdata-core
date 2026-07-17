@@ -19,14 +19,14 @@ package body SData_Core.Evaluator.Numeric_Fns is
       if Vals.Element (1).Kind = Val_Integer then
          return (Kind => Val_Integer, Int_Val => abs Vals.Element (1).Int_Val);
       else
-         return Num_Result (abs Convert_To_Float (Vals.Element (1)));
+         return Num_Result (abs Convert_To_Real (Vals.Element (1)));
       end if;
    end Handle_Abs;
 
    function Handle_Log_Nat (Name : String; Vals : Value_Vectors.Vector) return Value is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V <= 0.0 then
             return Handle_Domain_Error ("Argument to " & Name & " must be positive.");
@@ -38,7 +38,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
    function Handle_Log10_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V <= 0.0 then
             return Handle_Domain_Error ("Argument to " & Name & " must be positive.");
@@ -50,7 +50,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
    function Handle_Log2_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V <= 0.0 then
             return Handle_Domain_Error ("Argument to " & Name & " must be positive.");
@@ -62,7 +62,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
    function Handle_Exp_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V > 88.0 then
             return Handle_Domain_Error ("Argument to " & Name & " is too large (overflow).");
@@ -76,12 +76,12 @@ package body SData_Core.Evaluator.Numeric_Fns is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       declare
-         V        : constant Real := Convert_To_Float (Vals.Element (1));
+         V        : constant Real := Convert_To_Real (Vals.Element (1));
          Decimals : Real := 0.0;
          Factor   : Real;
       begin
          if Integer (Vals.Length) >= 2 and then Vals.Element (2).Kind /= Val_Missing then
-            Decimals := Convert_To_Float (Vals.Element (2));
+            Decimals := Convert_To_Real (Vals.Element (2));
          end if;
          Factor := 10.0 ** Decimals;
          return Num_Result (Real'Rounding (V * Factor) / Factor);
@@ -92,28 +92,28 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Real'Ceiling (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Real'Ceiling (Convert_To_Real (Vals.Element (1))));
    end Handle_Ceil_Fn;
 
    function Handle_Floor_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Real'Floor (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Real'Floor (Convert_To_Real (Vals.Element (1))));
    end Handle_Floor_Fn;
 
    function Handle_Fix_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Real'Truncation (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Real'Truncation (Convert_To_Real (Vals.Element (1))));
    end Handle_Fix_Fn;
 
    function Handle_Fp_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin return Num_Result (V - Real'Truncation (V)); end;
    end Handle_Fp_Fn;
 
@@ -122,8 +122,8 @@ package body SData_Core.Evaluator.Numeric_Fns is
    begin
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
       declare
-         V1 : constant Real := Convert_To_Float (Vals.Element (1));
-         V2 : constant Real := Convert_To_Float (Vals.Element (2));
+         V1 : constant Real := Convert_To_Real (Vals.Element (1));
+         V2 : constant Real := Convert_To_Real (Vals.Element (2));
       begin
          if V2 /= 0.0 then return Num_Result (V1 - Real'Floor (V1 / V2) * V2);
          else return Handle_Domain_Error ("Division by zero in MOD."); end if;
@@ -134,7 +134,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V >= 0.0 then return Num_Result (Sqrt (V));
          else return Handle_Domain_Error ("Argument to SQRT must be non-negative."); end if;
@@ -145,7 +145,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V > 0.0 then return (Kind => Val_Integer, Int_Val => 1);
          elsif V < 0.0 then return (Kind => Val_Integer, Int_Val => -1);
@@ -162,78 +162,78 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Sin (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Sin (Convert_To_Real (Vals.Element (1))));
    end Handle_Sin_Fn;
 
    function Handle_Cos_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Cos (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Cos (Convert_To_Real (Vals.Element (1))));
    end Handle_Cos_Fn;
 
    function Handle_Tan_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Tan (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Tan (Convert_To_Real (Vals.Element (1))));
    end Handle_Tan_Fn;
 
    function Handle_Atn_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Arctan (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Arctan (Convert_To_Real (Vals.Element (1))));
    end Handle_Atn_Fn;
 
    function Handle_Atan2_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
-      return Num_Result (Arctan (Convert_To_Float (Vals.Element (1)),
-                                 Convert_To_Float (Vals.Element (2))));
+      return Num_Result (Arctan (Convert_To_Real (Vals.Element (1)),
+                                 Convert_To_Real (Vals.Element (2))));
    end Handle_Atan2_Fn;
 
    function Handle_Sinh_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Sinh (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Sinh (Convert_To_Real (Vals.Element (1))));
    end Handle_Sinh_Fn;
 
    function Handle_Cosh_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Cosh (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Cosh (Convert_To_Real (Vals.Element (1))));
    end Handle_Cosh_Fn;
 
    function Handle_Tanh_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Tanh (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Tanh (Convert_To_Real (Vals.Element (1))));
    end Handle_Tanh_Fn;
 
    function Handle_Hcs_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (1.0 / Cosh (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (1.0 / Cosh (Convert_To_Real (Vals.Element (1))));
    end Handle_Hcs_Fn;
 
    function Handle_Hsn_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (1.0 / Sinh (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (1.0 / Sinh (Convert_To_Real (Vals.Element (1))));
    end Handle_Hsn_Fn;
 
    function Handle_Htn_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin return Num_Result (Cosh (V) / Sinh (V)); end;
    end Handle_Htn_Fn;
 
@@ -241,7 +241,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V < -1.0 or else V > 1.0 then
             return Handle_Domain_Error ("ARCSIN argument must be in [-1, 1].");
@@ -254,7 +254,7 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin
          if V < -1.0 or else V > 1.0 then
             return Handle_Domain_Error ("ARCCOS argument must be in [-1, 1].");
@@ -267,14 +267,14 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Arctan (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (Arctan (Convert_To_Real (Vals.Element (1))));
    end Handle_Arctan_Fn;
 
    function Handle_Cot_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare V : constant Real := Convert_To_Float (Vals.Element (1));
+      declare V : constant Real := Convert_To_Real (Vals.Element (1));
       begin return Num_Result (Cos (V) / Sin (V)); end;
    end Handle_Cot_Fn;
 
@@ -282,57 +282,57 @@ package body SData_Core.Evaluator.Numeric_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (1.0 / Sin (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (1.0 / Sin (Convert_To_Real (Vals.Element (1))));
    end Handle_Csc_Fn;
 
    function Handle_Sec_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (1.0 / Cos (Convert_To_Float (Vals.Element (1))));
+      return Num_Result (1.0 / Cos (Convert_To_Real (Vals.Element (1))));
    end Handle_Sec_Fn;
 
    function Handle_Deg_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Convert_To_Float (Vals.Element (1)) * 180.0 / Ada.Numerics.Pi);
+      return Num_Result (Convert_To_Real (Vals.Element (1)) * 180.0 / Ada.Numerics.Pi);
    end Handle_Deg_Fn;
 
    function Handle_Sind_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Sin (Convert_To_Float (Vals.Element (1)) * Ada.Numerics.Pi / 180.0));
+      return Num_Result (Sin (Convert_To_Real (Vals.Element (1)) * Ada.Numerics.Pi / 180.0));
    end Handle_Sind_Fn;
 
    function Handle_Cosd_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Cos (Convert_To_Float (Vals.Element (1)) * Ada.Numerics.Pi / 180.0));
+      return Num_Result (Cos (Convert_To_Real (Vals.Element (1)) * Ada.Numerics.Pi / 180.0));
    end Handle_Cosd_Fn;
 
    function Handle_Tand_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Tan (Convert_To_Float (Vals.Element (1)) * Ada.Numerics.Pi / 180.0));
+      return Num_Result (Tan (Convert_To_Real (Vals.Element (1)) * Ada.Numerics.Pi / 180.0));
    end Handle_Tand_Fn;
 
    function Handle_Atnd_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Arctan (Convert_To_Float (Vals.Element (1))) * 180.0 / Ada.Numerics.Pi);
+      return Num_Result (Arctan (Convert_To_Real (Vals.Element (1))) * 180.0 / Ada.Numerics.Pi);
    end Handle_Atnd_Fn;
 
    function Handle_Atan2d_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
-      return Num_Result (Arctan (Convert_To_Float (Vals.Element (1)),
-                                 Convert_To_Float (Vals.Element (2))) * 180.0 / Ada.Numerics.Pi);
+      return Num_Result (Arctan (Convert_To_Real (Vals.Element (1)),
+                                 Convert_To_Real (Vals.Element (2))) * 180.0 / Ada.Numerics.Pi);
    end Handle_Atan2d_Fn;
 
    ---------------------------------------------------------------------------

@@ -52,7 +52,7 @@ package body SData_Core.Evaluator.String_Fns is
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
       declare
          V : constant Value   := Vals.Element (1);
-         N : constant Integer := Integer (Convert_To_Float (Vals.Element (2)));
+         N : constant Integer := Integer (Convert_To_Real (Vals.Element (2)));
          R : Value (Val_String);
       begin
          if V.Kind /= Val_String then return (Kind => Val_Missing); end if;
@@ -70,7 +70,7 @@ package body SData_Core.Evaluator.String_Fns is
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
       declare
          V     : constant Value   := Vals.Element (1);
-         N     : constant Integer := Integer (Convert_To_Float (Vals.Element (2)));
+         N     : constant Integer := Integer (Convert_To_Real (Vals.Element (2)));
          R     : Value (Val_String);
          Start : Integer;
       begin
@@ -91,9 +91,9 @@ package body SData_Core.Evaluator.String_Fns is
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
       declare
          V     : constant Value   := Vals.Element (1);
-         Start : constant Integer := Integer (Convert_To_Float (Vals.Element (2)));
+         Start : constant Integer := Integer (Convert_To_Real (Vals.Element (2)));
          Len   : constant Integer :=
-            (if Has_Args (Vals, 3) then Integer (Convert_To_Float (Vals.Element (3)))
+            (if Has_Args (Vals, 3) then Integer (Convert_To_Real (Vals.Element (3)))
              else Length (V.Str_Val));
          R     : Value (Val_String);
          S, E  : Integer;
@@ -114,8 +114,8 @@ package body SData_Core.Evaluator.String_Fns is
       if not Has_Args (Vals, 3) then return (Kind => Val_Missing); end if;
       declare
          V     : constant Value   := Vals.Element (1);
-         Start : Integer          := Integer (Convert_To_Float (Vals.Element (2)));
-         Len   : constant Integer := Integer (Convert_To_Float (Vals.Element (3)));
+         Start : Integer          := Integer (Convert_To_Real (Vals.Element (2)));
+         Len   : constant Integer := Integer (Convert_To_Real (Vals.Element (3)));
          R     : Value (Val_String);
          S, E  : Integer;
       begin
@@ -214,7 +214,7 @@ package body SData_Core.Evaluator.String_Fns is
          Needle   : constant Value := Vals.Element (1);
          Haystack : constant Value := Vals.Element (2);
          Start_V  : constant Value := (if Has_Args (Vals, 3) then Vals.Element (3) else (Kind => Val_Integer, Int_Val => 1));
-         From     : constant Positive := Positive'Max (Integer (Convert_To_Float (Start_V)), 1);
+         From     : constant Positive := Positive'Max (Integer (Convert_To_Real (Start_V)), 1);
       begin
          if Needle.Kind /= Val_String or else Haystack.Kind /= Val_String then
             return (Kind => Val_Missing);
@@ -236,7 +236,7 @@ package body SData_Core.Evaluator.String_Fns is
          N_Idx     : Positive := 2;
       begin
          if Has_Args (Vals, 3) then
-            Start_Pos := Positive'Max (Integer (Convert_To_Float (Vals.Element (1))), 1);
+            Start_Pos := Positive'Max (Integer (Convert_To_Real (Vals.Element (1))), 1);
             H_Idx := 2;
             N_Idx := 3;
          end if;
@@ -260,7 +260,7 @@ package body SData_Core.Evaluator.String_Fns is
       R : Value (Val_String);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      declare Code : constant Integer := Integer (Convert_To_Float (Vals.Element (1)));
+      declare Code : constant Integer := Integer (Convert_To_Real (Vals.Element (1)));
       begin
          R.Str_Val := To_Unbounded_String ("" & Character'Val (Code));
          return R;
@@ -308,7 +308,7 @@ package body SData_Core.Evaluator.String_Fns is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       R.Str_Val := To_Unbounded_String
-         (To_Base_String (Integer (Convert_To_Float (Vals.Element (1))), 16));
+         (To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), 16));
       return R;
    end Handle_Hex;
 
@@ -319,7 +319,7 @@ package body SData_Core.Evaluator.String_Fns is
       declare
          V : constant Value := Vals.Element (1);
          S : constant String := (if V.Kind = Val_String then To_String (V.Str_Val)
-                                 else Integer'Image (Integer (Convert_To_Float (V))));
+                                 else Integer'Image (Integer (Convert_To_Real (V))));
       begin
          return (Kind => Val_Integer, Int_Val => Int'Value ("16#" & S & "#"));
       exception
@@ -333,7 +333,7 @@ package body SData_Core.Evaluator.String_Fns is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       R.Str_Val := To_Unbounded_String
-         (To_Base_String (Integer (Convert_To_Float (Vals.Element (1))), 8));
+         (To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), 8));
       return R;
    end Handle_Oct;
 
@@ -343,7 +343,7 @@ package body SData_Core.Evaluator.String_Fns is
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       R.Str_Val := To_Unbounded_String
-         (To_Base_String (Integer (Convert_To_Float (Vals.Element (1))), 2));
+         (To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), 2));
       return R;
    end Handle_Bin;
 
