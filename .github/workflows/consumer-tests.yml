@@ -56,13 +56,11 @@ jobs:
           # release: replace the tag below; the cache key in the next step
           # rotates automatically off alire.toml.
           #
-          # TEMPORARY (feat/64bit-numeric-types, PR #82): retargeted from the
-          # v0.14.0 tag to sdata's companion migration branch so this gate
-          # validates the coordinated 64-bit change instead of compiling
-          # pre-migration sdata against the new API.  MUST be reverted to the
-          # sdata release tag that ships the migration before this PR merges
-          # (do not merge with a branch ref here).
-          ref: feat/64bit-numeric-types
+          # v0.15.0 is the first sdata release that consumes the 64-bit
+          # numeric API (sdata-core ^0.2.0).  It replaces the temporary
+          # feat/64bit-numeric-types branch ref used while PR #82 and sdata
+          # PR #58 were in flight.
+          ref: v0.15.0
           path: sdata
 
       - name: Set up Alire
