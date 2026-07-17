@@ -22,8 +22,8 @@ procedure Values_Tests is
       end if;
    end Assert;
 
-   function N (X : Float)   return Value is ((Kind => Val_Numeric, Num_Val => X));
-   function I (X : Integer) return Value is ((Kind => Val_Integer, Int_Val => X));
+   function N (X : Real)    return Value is ((Kind => Val_Numeric, Num_Val => X));
+   function I (X : Int)     return Value is ((Kind => Val_Integer, Int_Val => X));
    function S (T : String)  return Value is
       ((Kind => Val_String, Str_Val => To_Unbounded_String (T)));
    M : constant Value := (Kind => Val_Missing);
@@ -106,8 +106,8 @@ begin
    --  survives the divide; reachable in practice via
    --  OPTIONS IEEE_DIVIDE YES followed by 0.0/0.0 into a cell, then SAVE.
    declare
-      function Make_NaN return Float is
-         Z : Float := 0.0;
+      function Make_NaN return Real is
+         Z : Real := 0.0;
       begin
          return Z / Z;
       end Make_NaN;

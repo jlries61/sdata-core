@@ -22,6 +22,9 @@
 with Ada.Text_IO;          use Ada.Text_IO;
 with Ada.Command_Line;
 with SData_Core.Statistics; use SData_Core.Statistics;
+with SData_Core.Values;     use SData_Core.Values;
+--  The Statistics API returns Real (SData_Core.Values); this makes the type
+--  name and its arithmetic/relational operators directly visible here.
 
 procedure Statistics_Tests is
 
@@ -38,12 +41,12 @@ procedure Statistics_Tests is
    end Assert;
 
    --  Absolute-tolerance float comparison.
-   function Approx (A, B : Float; Tol : Float := 1.0e-4) return Boolean is
+   function Approx (A, B : Real; Tol : Real := 1.0e-4) return Boolean is
    begin
       return abs (A - B) <= Tol;
    end Approx;
 
-   Sqrt_2pi_Inv : constant Float := 0.3989422804;  -- 1 / sqrt(2*pi)
+   Sqrt_2pi_Inv : constant Real := 0.3989422804;  -- 1 / sqrt(2*pi)
 
 begin
    Put_Line ("=== Statistics_Tests ===");
@@ -209,8 +212,8 @@ begin
    ----------------------------------------------------------------------------
    declare
       N_Draw : constant := 2000;
-      Sum    : Float := 0.0;
-      X      : Float;
+      Sum    : Real := 0.0;
+      X      : Real;
       In_Range : Boolean := True;
    begin
       Set_Seed (12345);
@@ -220,7 +223,7 @@ begin
          Sum := Sum + X;
       end loop;
       Assert (In_Range, "Uniform_Random in [0,1)");
-      Assert (Approx (Sum / Float (N_Draw), 0.5, 0.05), "Uniform_Random sample mean ~ 0.5");
+      Assert (Approx (Sum / Real (N_Draw), 0.5, 0.05), "Uniform_Random sample mean ~ 0.5");
 
       --  Support membership for each *_RN (seeded, deterministic).
       Set_Seed (777);
