@@ -25,8 +25,8 @@ package body SData_Core.Evaluator.Nav_Fns is
    begin
       return (Kind    => Val_Integer,
               Int_Val => (if SData_Core.Table.Is_Filtered
-                          then Integer (SData_Core.Table.Get_Logical_Record_Index)
-                          else Integer (SData_Core.Table.Get_Current_Record_Index)));
+                          then Int (SData_Core.Table.Get_Logical_Record_Index)
+                          else Int (SData_Core.Table.Get_Current_Record_Index)));
    end Handle_Recno;
 
    function Handle_Ord (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -44,8 +44,8 @@ package body SData_Core.Evaluator.Nav_Fns is
       end if;
       return (Kind    => Val_Integer,
               Int_Val => (if SData_Core.Table.Is_Filtered
-                          then Integer (SData_Core.Table.Get_Logical_Record_Index)
-                          else Integer (SData_Core.Table.Get_Current_Record_Index)));
+                          then Int (SData_Core.Table.Get_Logical_Record_Index)
+                          else Int (SData_Core.Table.Get_Current_Record_Index)));
    end Handle_Ord;
 
    function Handle_BOF (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -93,7 +93,7 @@ package body SData_Core.Evaluator.Nav_Fns is
              else SData_Core.Table.Get_Current_Record_Index);
       begin
          if Var.Kind /= Val_String then return (Kind => Val_Missing); end if;
-         N := Integer (Convert_To_Float (N_Val));
+         N := Integer (Convert_To_Real (N_Val));
          if N <= 0 or else Log_Idx <= N then return (Kind => Val_Missing); end if;
          declare
             Phys_Curr : constant Positive := SData_Core.Table.Logical_To_Physical (Log_Idx);
@@ -125,7 +125,7 @@ package body SData_Core.Evaluator.Nav_Fns is
              else SData_Core.Table.Row_Count);
       begin
          if Var.Kind /= Val_String then return (Kind => Val_Missing); end if;
-         N := Integer (Convert_To_Float (N_Val));
+         N := Integer (Convert_To_Real (N_Val));
          if N <= 0 or else (Log_Idx + N) > Log_Count then return (Kind => Val_Missing); end if;
          declare
             Phys_Curr : constant Positive := SData_Core.Table.Logical_To_Physical (Log_Idx);
@@ -149,7 +149,7 @@ package body SData_Core.Evaluator.Nav_Fns is
          Row     : Integer;
       begin
          if Var.Kind /= Val_String then return (Kind => Val_Missing); end if;
-         Row := Integer (Convert_To_Float (Row_Val));
+         Row := Integer (Convert_To_Real (Row_Val));
          if Row < 1 or else Row > SData_Core.Table.Row_Count then
             return (Kind => Val_Missing);
          end if;

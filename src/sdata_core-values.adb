@@ -12,9 +12,9 @@ package body SData_Core.Values is
    --------------
    -- Is_Inf --
    --------------
-   function Is_Inf (F : Float) return Boolean is
+   function Is_Inf (F : Real) return Boolean is
    begin
-      return F > Float'Last or else F < Float'First;
+      return F > Real'Last or else F < Real'First;
    end Is_Inf;
 
    -------------------
@@ -28,14 +28,14 @@ package body SData_Core.Values is
       case Target is
          when Val_Numeric =>
             if V.Kind = Val_Integer then
-               return (Kind => Val_Numeric, Num_Val => Float (V.Int_Val));
+               return (Kind => Val_Numeric, Num_Val => Real (V.Int_Val));
             end if;
             raise Conversion_Error
               with "cannot convert string value to numeric";
          when Val_Integer =>
             if V.Kind = Val_Numeric then
                return (Kind    => Val_Integer,
-                       Int_Val => Integer (Float'Truncation (V.Num_Val)));
+                       Int_Val => Int (Real'Truncation (V.Num_Val)));
             end if;
             raise Conversion_Error
               with "cannot convert string value to integer";
@@ -58,13 +58,13 @@ package body SData_Core.Values is
                return (if V.Num_Val > 0.0 then "Inf" else "-Inf");
             end if;
             declare
-               Img : constant String := Float'Image (V.Num_Val);
+               Img : constant String := Real'Image (V.Num_Val);
             begin
                return Trim (Img, Ada.Strings.Both);
             end;
          when Val_Integer =>
             declare
-               Img : constant String := Integer'Image (V.Int_Val);
+               Img : constant String := Int'Image (V.Int_Val);
             begin
                return Trim (Img, Ada.Strings.Both);
             end;
@@ -86,7 +86,7 @@ package body SData_Core.Values is
                return (if V.Num_Val > 0.0 then "Inf" else "-Inf");
             end if;
             declare
-               package Float_IO is new Ada.Text_IO.Float_IO (Float);
+               package Float_IO is new Ada.Text_IO.Float_IO (Real);
                Img : String (1 .. 100);
                Aft_Count : constant Natural := SData_Core.Config.Print_Digits;
             begin
@@ -105,7 +105,7 @@ package body SData_Core.Values is
                return Trim (Img, Ada.Strings.Both);
             exception
                when others =>
-                  return Trim (Float'Image (V.Num_Val), Ada.Strings.Both);
+                  return Trim (Real'Image (V.Num_Val), Ada.Strings.Both);
             end;
          when others => return To_String (V);
       end case;
@@ -142,8 +142,8 @@ package body SData_Core.Values is
    -----------------------
    -- Image_Round_Trip --
    -----------------------
-   function Image_Round_Trip (X : Float) return String is
-      package Float_IO is new Ada.Text_IO.Float_IO (Float);
+   function Image_Round_Trip (X : Real) return String is
+      package Float_IO is new Ada.Text_IO.Float_IO (Real);
       Buf : String (1 .. 128);
    begin
       if Is_Inf (X) then
@@ -154,9 +154,9 @@ package body SData_Core.Values is
       end if;
       --  Integer-valued fast path (also avoids Aft=0 in Float_IO.Put).
       declare
-         R : constant Float := Float'Rounding (X);
+         R : constant Real := Real'Rounding (X);
       begin
-         if R = X and then abs R < Float (Integer'Last) then
+         if R = X and then abs R < Real (Integer'Last) then
             return Trim (Integer'Image (Integer (R)), Ada.Strings.Both);
          end if;
       end;
@@ -167,7 +167,7 @@ package body SData_Core.Values is
             declare
                S : constant String := Trim (Buf, Ada.Strings.Both);
             begin
-               if Float'Value (S) = X then
+               if Real'Value (S) = X then
                   return Trim_Trailing_Zeros (S);
                end if;
             end;
@@ -175,8 +175,8 @@ package body SData_Core.Values is
             when others => null;  --  field overflow etc.; try next Aft
          end;
       end loop;
-      --  Fallback: exponential, 9 significant digits.
-      Float_IO.Put (Buf, X, Aft => 8, Exp => 2);
+      --  Fallback: exponential, 17 significant digits (double round-trip).
+      Float_IO.Put (Buf, X, Aft => 16, Exp => 2);
       return Trim (Buf, Ada.Strings.Both);
    exception
       --  Safety net for NaN (and any other value that slips past every
@@ -185,17 +185,17 @@ package body SData_Core.Values is
       --  exception-free for every special value on every platform/compiler.
       --  Mirrors the To_String_Formatted pattern so a SAVE never crashes on
       --  a NaN cell (reachable via OPTIONS IEEE_DIVIDE YES; +Inf/-Inf are
-      --  already handled by Is_Inf above, and Float'Image renders NaN as
+      --  already handled by Is_Inf above, and Real'Image renders NaN as
       --  "NAN").
       when others =>
-         return Trim (Float'Image (X), Ada.Strings.Both);
+         return Trim (Real'Image (X), Ada.Strings.Both);
    end Image_Round_Trip;
 
    --------------------------
    -- Image_Fixed_Decimals --
    --------------------------
-   function Image_Fixed_Decimals (X : Float; Decimals : Natural) return String is
-      package Float_IO is new Ada.Text_IO.Float_IO (Float);
+   function Image_Fixed_Decimals (X : Real; Decimals : Natural) return String is
+      package Float_IO is new Ada.Text_IO.Float_IO (Real);
       Buf : String (1 .. 128);
    begin
       if Is_Inf (X) then
@@ -203,9 +203,9 @@ package body SData_Core.Values is
       end if;
       if Decimals = 0 then
          declare
-            R : constant Float := Float'Rounding (X);
+            R : constant Real := Real'Rounding (X);
          begin
-            if abs R < Float (Integer'Last) then
+            if abs R < Real (Integer'Last) then
                return Trim (Integer'Image (Integer (R)), Ada.Strings.Both);
             else
                return Image_Round_Trip (R);
@@ -248,9 +248,9 @@ package body SData_Core.Values is
       if L.Kind /= R.Kind then
          --  Promotion logic for comparison
          if L.Kind = Val_Numeric and then R.Kind = Val_Integer then
-            return L.Num_Val = Float (R.Int_Val);
+            return L.Num_Val = Real (R.Int_Val);
          elsif L.Kind = Val_Integer and then R.Kind = Val_Numeric then
-            return Float (L.Int_Val) = R.Num_Val;
+            return Real (L.Int_Val) = R.Num_Val;
          end if;
          return False;
       end if;
@@ -278,17 +278,17 @@ package body SData_Core.Values is
 
       if L.Kind = Val_Numeric or else L.Kind = Val_Integer then
          declare
-            FL : constant Float :=
-               (if L.Kind = Val_Numeric then L.Num_Val else Float (L.Int_Val));
+            FL : constant Real :=
+               (if L.Kind = Val_Numeric then L.Num_Val else Real (L.Int_Val));
          begin
             if R.Kind = Val_Numeric or else R.Kind = Val_Integer then
                declare
                   --  FR is only safe to compute once R is known to be
                   --  Numeric or Integer; computing it earlier would fail
                   --  the discriminant check for R = String.
-                  FR : constant Float :=
+                  FR : constant Real :=
                      (if R.Kind = Val_Numeric then R.Num_Val
-                                              else Float (R.Int_Val));
+                                              else Real (R.Int_Val));
                begin
                   return FL < FR;
                end;
@@ -307,14 +307,14 @@ package body SData_Core.Values is
    end "<";
 
 begin
-   --  Float'Last * 2.0 must be computed at runtime to avoid the
+   --  Real'Last * 2.0 must be computed at runtime to avoid the
    --  static-expression Constraint_Error GNAT raises at compile time.
    --  Big cannot be constant for the same reason; suppress the spurious warning.
    --  Validity checks are disabled project-wide via -gnatVn (see sdata_core.gpr)
    --  because this package legitimately stores IEEE 754 infinity in float vars.
    declare
       pragma Warnings (Off, "could be declared constant");
-      Big : Float := Float'Last;
+      Big : Real := Real'Last;
       pragma Warnings (On, "could be declared constant");
    begin
       Pos_Inf :=  Big * 2.0;

@@ -8,6 +8,7 @@ with Ada.Containers.Vectors;
 with Ada.Exceptions;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada_Sqlite3.Wide;
 with SData_Core.Config;
 with SData_Core.Signals;
 with SData_Core.Values; use SData_Core.Values;
@@ -216,8 +217,16 @@ package body SData_Core.Backing_Store is
                   Val : constant Value := Ref.Element.all.Data.Element (R);
                begin
                   case Val.Kind is
-                     when Val_Numeric => Stmt.Bind_Double (C + 1, Val.Num_Val);
-                     when Val_Integer => Stmt.Bind_Int (C + 1, Val.Int_Val);
+                     --  Bind via the 64-bit path (Ada_Sqlite3.Wide) rather
+                     --  than the high-level Bind_Double, which narrows to 32-bit
+                     --  Float in ada_sqlite3 0.1.1 -- spilled numerics must keep
+                     --  the same double precision as the in-memory table (#54).
+                     when Val_Numeric =>
+                        Ada_Sqlite3.Wide.Bind_Double64
+                          (Stmt, C + 1, Long_Float (Val.Num_Val));
+                     when Val_Integer =>
+                        Ada_Sqlite3.Wide.Bind_Int64
+                          (Stmt, C + 1, Long_Long_Integer (Val.Int_Val));
                      when Val_String  => Stmt.Bind_Text (C + 1, To_String (Val.Str_Val));
                      when Val_Missing => Stmt.Bind_Null (C + 1);
                   end case;
@@ -328,9 +337,12 @@ package body SData_Core.Backing_Store is
                      if Stmt.Column_Is_Null (I) then
                         Val := (Kind => Val_Missing);
                      elsif Typ = Ada_Sqlite3.Float_Type then
-                        Val := (Kind => Val_Numeric, Num_Val => Stmt.Column_Double (I));
+                        Val := (Kind => Val_Numeric,
+                                Num_Val => Real
+                                  (Ada_Sqlite3.Wide.Column_Double64 (Stmt, I)));
                      elsif Typ = Ada_Sqlite3.Integer_Type then
-                        Val := (Kind => Val_Integer, Int_Val => Stmt.Column_Int (I));
+                        Val := (Kind => Val_Integer, Int_Val => Int
+                                  (Ada_Sqlite3.Wide.Column_Int64 (Stmt, I)));
                      else
                         Val := (Kind    => Val_String,
                                 Str_Val => To_Unbounded_String (Stmt.Column_Text (I)));

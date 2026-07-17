@@ -60,9 +60,9 @@ package SData_Core.Evaluator is
    type Expression (Kind : Expression_Kind) is record
       case Kind is
          when Expr_Numeric_Literal =>
-            Value      : Float;
+            Value      : Real;
             Is_Integer : Boolean := False;
-            Int_Value  : Integer := 0;
+            Int_Value  : Int := 0;
          when Expr_String_Literal =>
             Str_Value : Ada.Strings.Unbounded.Unbounded_String;
          when Expr_Variable =>
@@ -99,8 +99,8 @@ package SData_Core.Evaluator is
    --  Computes the value of an AST expression.
    function Evaluate (Expr : Expression_Access) return Value;
 
-   --  Converts any numeric value kind to Float for calculation.
-   function Convert_To_Float (V : Value) return Float;
+   --  Converts any numeric value kind to Real for calculation.
+   function Convert_To_Real (V : Value) return Real;
 
    --  Returns the expected kind of value based on name suffix
    function Get_Expected_Kind (Name : String) return Value_Kind;
@@ -240,8 +240,8 @@ private
 
    --  Helpers used by every handler family.
    function Has_Args (Vals : Value_Vectors.Vector; N : Positive) return Boolean;
-   function Num_Result (V : Float) return Value;
+   function Num_Result (V : Real) return Value;
    function Handle_Domain_Error (Msg : String) return Value;
-   function Numeric_Result_Checked (V : Float) return Value;
+   function Numeric_Result_Checked (V : Real) return Value;
 
 end SData_Core.Evaluator;

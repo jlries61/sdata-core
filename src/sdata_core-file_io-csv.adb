@@ -194,7 +194,7 @@ package body SData_Core.File_IO.CSV is
                Delim_Pos : constant Natural :=
                   CSV_Field_End (Line, Start, Delimiter);
                Val : Value;
-               Num : Float;
+               Num : Real;
             begin
                declare
                   Raw : constant String :=
@@ -225,7 +225,7 @@ package body SData_Core.File_IO.CSV is
                         and then Try_Fast_Float (F, Num)
                      then
                         if Col_Types (Field_Count) = Col_Integer
-                           and then Num /= Float'Truncation (Num)
+                           and then Num /= Real'Truncation (Num)
                         then
                            SData_Core.IO.Put_Line_Error
                               ("Warning: """ & File_Name & """, data row" &

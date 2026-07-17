@@ -29,18 +29,18 @@ procedure Call_Function_Tests is
       end if;
    end Assert;
 
-   function N (X : Float)   return Value is ((Kind => Val_Numeric, Num_Val => X));
-   function I (X : Integer) return Value is ((Kind => Val_Integer, Int_Val => X));
+   function N (X : Real)    return Value is ((Kind => Val_Numeric, Num_Val => X));
+   function I (X : Int)     return Value is ((Kind => Val_Integer, Int_Val => X));
    function S (T : String)  return Value is
       ((Kind => Val_String, Str_Val => To_Unbounded_String (T)));
 
-   function Near (R : Value; Expected : Float; Eps : Float := 1.0e-6)
+   function Near (R : Value; Expected : Real; Eps : Real := 1.0e-6)
       return Boolean is
    begin
       if R.Kind = Val_Numeric then
          return abs (R.Num_Val - Expected) <= Eps;
       elsif R.Kind = Val_Integer then
-         return abs (Float (R.Int_Val) - Expected) <= Eps;
+         return abs (Real (R.Int_Val) - Expected) <= Eps;
       end if;
       return False;
    end Near;

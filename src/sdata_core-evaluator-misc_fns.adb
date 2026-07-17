@@ -2,7 +2,7 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
-with Ada.Numerics.Elementary_Functions; use Ada.Numerics.Elementary_Functions;
+with SData_Core.Real_Functions; use SData_Core.Real_Functions;
 with Ada.Numerics;
 with Ada.Calendar;
 with Ada.Strings.Fixed;
@@ -61,13 +61,13 @@ package body SData_Core.Evaluator.Misc_Fns is
    function Handle_Err_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => SData_Core.Config.Runtime.Last_Error_Code);
+      return (Kind => Val_Integer, Int_Val => Int (SData_Core.Config.Runtime.Last_Error_Code));
    end Handle_Err_Fn;
 
    function Handle_Erl_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => SData_Core.Config.Runtime.Last_Error_Line);
+      return (Kind => Val_Integer, Int_Val => Int (SData_Core.Config.Runtime.Last_Error_Line));
    end Handle_Erl_Fn;
 
    function Handle_Date (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -106,7 +106,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       Buf       : String (1 .. 8);
    begin
       Ada.Calendar.Split (Now, Y, Mo, D, Sec);
-      Total_Sec := Natural (Float'Floor (Float (Sec)));
+      Total_Sec := Natural (Real'Floor (Real (Sec)));
       H  := Total_Sec / 3600;
       Mi := (Total_Sec mod 3600) / 60;
       S  := Total_Sec mod 60;
@@ -150,7 +150,7 @@ package body SData_Core.Evaluator.Misc_Fns is
          elsif V.Kind = Val_String then
             begin
                return (Kind    => Val_Numeric,
-                       Num_Val => Float'Value (SData_Core.Values.To_String (V)));
+                       Num_Val => Real'Value (SData_Core.Values.To_String (V)));
             exception
                when Constraint_Error => return (Kind => Val_Missing);
             end;
@@ -169,7 +169,7 @@ package body SData_Core.Evaluator.Misc_Fns is
    function Handle_Timer (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return Num_Result (Float (Ada.Calendar.Seconds (Ada.Calendar.Clock)));
+      return Num_Result (Real (Ada.Calendar.Seconds (Ada.Calendar.Clock)));
    end Handle_Timer;
 
    function Handle_Truncate (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -177,12 +177,12 @@ package body SData_Core.Evaluator.Misc_Fns is
    begin
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
       declare
-         X      : constant Float   := Convert_To_Float (Vals.Element (1));
-         Places : constant Integer := Integer (Convert_To_Float (Vals.Element (2)));
-         Factor : constant Float   := 10.0 ** Float (Places);
+         X      : constant Real   := Convert_To_Real (Vals.Element (1));
+         Places : constant Integer := Integer (Convert_To_Real (Vals.Element (2)));
+         Factor : constant Real   := 10.0 ** Real (Places);
       begin
          if Places < 0 then return (Kind => Val_Missing); end if;
-         return Num_Result (Float'Truncation (X * Factor) / Factor);
+         return Num_Result (Real'Truncation (X * Factor) / Factor);
       end;
    end Handle_Truncate;
 
@@ -198,7 +198,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       begin
          Get_Array_Bounds (AName, Start_Idx, End_Idx);
          if End_Idx < Start_Idx then return (Kind => Val_Missing); end if;
-         return (Kind => Val_Integer, Int_Val => Start_Idx);
+         return (Kind => Val_Integer, Int_Val => Int (Start_Idx));
       end;
    end Handle_Lbound;
 
@@ -214,7 +214,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       begin
          Get_Array_Bounds (AName, Start_Idx, End_Idx);
          if End_Idx < Start_Idx then return (Kind => Val_Missing); end if;
-         return (Kind => Val_Integer, Int_Val => End_Idx);
+         return (Kind => Val_Integer, Int_Val => Int (End_Idx));
       end;
    end Handle_Ubound;
 
@@ -231,7 +231,7 @@ package body SData_Core.Evaluator.Misc_Fns is
          end if;
          if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => 1); end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle)));
+                 Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle))));
       end;
    end Handle_Index_Str;
 
@@ -242,7 +242,7 @@ package body SData_Core.Evaluator.Misc_Fns is
       declare
          Haystack : constant Value   := Vals.Element (1);
          Needle   : constant Value   := Vals.Element (2);
-         Start    : constant Integer := Integer (Convert_To_Float (Vals.Element (3)));
+         Start    : constant Integer := Integer (Convert_To_Real (Vals.Element (3)));
          H_Str    : constant String  := SData_Core.Values.To_String (Haystack);
          N_Str    : constant String  := SData_Core.Values.To_String (Needle);
          From     : constant Positive := Positive'Max (Start, 1);
@@ -251,17 +251,17 @@ package body SData_Core.Evaluator.Misc_Fns is
             return (Kind => Val_Missing);
          end if;
          if From > H_Str'Length or else N_Str'Length = 0 then
-            return (Kind => Val_Integer, Int_Val => (if N_Str'Length = 0 then From else 0));
+            return (Kind => Val_Integer, Int_Val => (if N_Str'Length = 0 then Int (From) else 0));
          end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Ada.Strings.Fixed.Index (H_Str, N_Str, From));
+                 Int_Val => Int (Ada.Strings.Fixed.Index (H_Str, N_Str, From)));
       end;
    end Handle_Match;
 
    function Handle_Maxlen (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => SData_Core.Config.Max_String_Len);
+      return (Kind => Val_Integer, Int_Val => Int (SData_Core.Config.Max_String_Len));
    end Handle_Maxlen;
 
    function Handle_Maxlvl (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -273,45 +273,45 @@ package body SData_Core.Evaluator.Misc_Fns is
    function Handle_Maxint (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => Integer'Last);
+      return (Kind => Val_Integer, Int_Val => Int'Last);
    end Handle_Maxint;
 
    function Handle_Maxnum (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return Num_Result (Float'Last);
+      return Num_Result (Real'Last);
    end Handle_Maxnum;
 
    function Handle_Minint (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return (Kind => Val_Integer, Int_Val => Integer'First);
+      return (Kind => Val_Integer, Int_Val => Int'First);
    end Handle_Minint;
 
    function Handle_Minnum (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
    begin
-      return Num_Result (Float'Model_Small);
+      return Num_Result (Real'Model_Small);
    end Handle_Minnum;
 
    function Handle_Rad (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      return Num_Result (Convert_To_Float (Vals.Element (1)) * Ada.Numerics.Pi / 180.0);
+      return Num_Result (Convert_To_Real (Vals.Element (1)) * Ada.Numerics.Pi / 180.0);
    end Handle_Rad;
 
    --  LTW(X) — Lambert W function W₀(x), principal branch (x ≥ -1/e).
    --  Uses Halley's method; typically converges in 5-10 iterations.
    function Handle_Ltw (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
-      E_Inv : constant Float := 1.0 / Ada.Numerics.e;
+      E_Inv : constant Real := 1.0 / Ada.Numerics.e;
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       declare
-         X : constant Float := Convert_To_Float (Vals.Element (1));
-         W : Float;
-         EW, WEW, F, Fp, Fpp : Float;
+         X : constant Real := Convert_To_Real (Vals.Element (1));
+         W : Real;
+         EW, WEW, F, Fp, Fpp : Real;
       begin
          if X < -E_Inv then
             return Handle_Domain_Error ("LTW: argument must be >= -1/e (~-0.3679).");
@@ -329,13 +329,13 @@ package body SData_Core.Evaluator.Misc_Fns is
             Fp  := EW * (W + 1.0);
             Fpp := EW * (W + 2.0);
             declare
-               Denom : constant Float := Fp - F * Fpp / (2.0 * Fp);
+               Denom : constant Real := Fp - F * Fpp / (2.0 * Fp);
             begin
-               exit when abs Denom < Float'Model_Small;
-               declare Step : constant Float := F / Denom;
+               exit when abs Denom < Real'Model_Small;
+               declare Step : constant Real := F / Denom;
                begin
                   W := W - Step;
-                  exit when abs Step < Float'Epsilon * abs W + Float'Model_Small;
+                  exit when abs Step < Real'Epsilon * abs W + Real'Model_Small;
                end;
             end;
          end loop;

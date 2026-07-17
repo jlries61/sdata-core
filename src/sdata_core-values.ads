@@ -11,6 +11,15 @@ with Ada.Strings.Unbounded;
 package SData_Core.Values is
    pragma Elaborate_Body;
 
+   --  The interpreter's numeric value types, defined once here and used
+   --  everywhere (see doc/specs/2026-07-13-64bit-numeric-types-design.md).
+   --  Introduced first as subtypes of the predefined types so the migration
+   --  is transparent; strengthened to distinct 64-bit types in a later step
+   --  (Real -> 'digits 15', Int -> 'range -2**63 .. 2**63-1').  Changing
+   --  precision is then a change to these two lines.
+   type Real is digits 15;                   --  portable IEEE 754 double
+   type Int is range -2**63 .. 2**63 - 1;   --  portable 64-bit signed
+
    --  Kind of data stored in a Value record.
    type Value_Kind is (Val_Numeric, Val_Integer, Val_String, Val_Missing);
 
@@ -18,9 +27,9 @@ package SData_Core.Values is
    type Value (Kind : Value_Kind := Val_Missing) is record
       case Kind is
          when Val_Numeric =>
-            Num_Val : Float;
+            Num_Val : Real;
          when Val_Integer =>
-            Int_Val : Integer;
+            Int_Val : Int;
          when Val_String =>
             Str_Val : Ada.Strings.Unbounded.Unbounded_String;
          when Val_Missing =>
@@ -34,12 +43,12 @@ package SData_Core.Values is
 
    --  Returns True for IEEE 754 positive or negative infinity.
    --  Returns False for finite values, Missing, and NaN.
-   function Is_Inf (F : Float) return Boolean;
+   function Is_Inf (F : Real) return Boolean;
 
    --  IEEE 754 infinity sentinels produced at package elaboration.
    --  Use these wherever +Inf or -Inf must be produced at runtime.
-   Pos_Inf : Float;
-   Neg_Inf : Float;
+   Pos_Inf : Real;
+   Neg_Inf : Real;
 
    --  Like To_String, but respects global precision settings for Floats.
    function To_String_Formatted (V : Value) return String;
@@ -48,14 +57,14 @@ package SData_Core.Values is
    --  default (no /DECIMALS) numeric output: the shortest fixed-notation
    --  decimal that reads back to exactly X, trailing zeros trimmed, with an
    --  exponential fallback for extreme magnitudes.  Reproduces the stored
-   --  single-precision Float exactly (Float'Image emits only 6 significant
-   --  digits and is lossy).
-   function Image_Round_Trip (X : Float) return String;
+   --  double-precision Real exactly (up to 17 significant digits; Real'Image
+   --  is comparatively lossy for round-tripping).
+   function Image_Round_Trip (X : Real) return String;
 
    --  Fixed-decimals rendering for SAVE /DECIMALS=N on CSV: round X to
    --  Decimals places, then trim trailing zeros and any bare '.'.
    --  Decimals = 0 rounds to the nearest integer.
-   function Image_Fixed_Decimals (X : Float; Decimals : Natural) return String;
+   function Image_Fixed_Decimals (X : Real; Decimals : Natural) return String;
 
    --  Convert V to the requested numeric-family kind.
    --  Val_Numeric <-> Val_Integer convert (Numeric -> Integer truncates
