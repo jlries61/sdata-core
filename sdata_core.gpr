@@ -22,10 +22,16 @@ library project SData_Core is
    --  development and validation profiles.  Release builds stay free of
    --  assertion overhead.  See Kleppmann K3 in the milestone audit.
    Assert_Switches := ();
+   --  'when others' rather than naming validation/development so the case is
+   --  exhaustive even when Build_Profile is an *untyped* string -- as it is in
+   --  the stand-in config synthesised by the downstream packaging builds (RPM /
+   --  dsc / SlackBuild), where the Alire-generated typed Build_Kind is absent.
+   --  Under Alire's typed config the three profiles are the only values, so
+   --  'others' is exactly {validation, development} and behaviour is unchanged.
    case Sdata_Core_Config.Build_Profile is
       when "release" =>
          Assert_Switches := ();
-      when "validation" | "development" =>
+      when others =>
          Assert_Switches := ("-gnata");
    end case;
 
