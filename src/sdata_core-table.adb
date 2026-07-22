@@ -210,6 +210,14 @@ package body SData_Core.Table is
    --  if the value kind is incompatible with the column type.
    function Coerce_Value (Val : Value; Col_Typ : Column_Type; Col_Name : String) return Value is
    begin
+      --  Issue #55: a zero-length character value IS the missing value.
+      --  Normalize it here so no column/PDV ever stores an empty string;
+      --  this keeps N/NMISS, BY-group distinctness, comparison, and SAVE
+      --  consistent for every consumer (sdata and data-vandal).
+      if Val.Kind = Val_String and then Length (Val.Str_Val) = 0 then
+         return (Kind => Val_Missing);
+      end if;
+
       if Val.Kind = Val_Missing then
          return Val;
       end if;
