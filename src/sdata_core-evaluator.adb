@@ -457,9 +457,11 @@ package body SData_Core.Evaluator is
    end Static_Result_Kind;
 
    --------------
-   -- Evaluate --
+   -- Eval_Raw --
    --------------
-   function Evaluate (Expr : Expression_Access) return Value is
+   --  Raw expression evaluation.  Every recursive sub-evaluation below calls
+   --  the public Evaluate wrapper, so intermediate results are normalized too.
+   function Eval_Raw (Expr : Expression_Access) return Value is
    begin
       if Expr = null then return (Kind => Val_Missing); end if;
 
@@ -701,6 +703,22 @@ package body SData_Core.Evaluator is
                end if;
             end;
       end case;
+   end Eval_Raw;
+
+   --------------
+   -- Evaluate --
+   --------------
+   function Evaluate (Expr : Expression_Access) return Value is
+      Result : constant Value := Eval_Raw (Expr);
+   begin
+      --  Issue #55: a zero-length character value IS the missing value.
+      --  Normalizing here (and, via the recursion above, at every level)
+      --  makes LEN("")/empty-concat/TRIM$("") propagate missing while the
+      --  MISSING/N/NMISS family stays correct.
+      if Result.Kind = Val_String and then Length (Result.Str_Val) = 0 then
+         return (Kind => Val_Missing);
+      end if;
+      return Result;
    end Evaluate;
    pragma Annotate (GNATcheck, Exempt_Off, "Recursive_Subprograms");
 
