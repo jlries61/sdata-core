@@ -310,6 +310,12 @@ package body SData_Core.Evaluator is
                   begin
                      Get_Array_Bounds (VName, Start_Idx, End_Idx);
                      for I in Start_Idx .. End_Idx loop
+                        --  Array elements are appended raw, not through the
+                        --  Evaluate wrapper.  Safe under the #55 invariant: a
+                        --  zero-length Val_String never reaches storage (every
+                        --  assignment RHS is Evaluate-normalized and every write
+                        --  passes Coerce_Value), so a stored element is already
+                        --  normalized (an empty character value is Val_Missing).
                         All_Vals.Append (Get_Array_Element (VName, I));
                      end loop;
                   end;
@@ -457,9 +463,11 @@ package body SData_Core.Evaluator is
    end Static_Result_Kind;
 
    --------------
-   -- Evaluate --
+   -- Eval_Raw --
    --------------
-   function Evaluate (Expr : Expression_Access) return Value is
+   --  Raw expression evaluation.  Every recursive sub-evaluation below calls
+   --  the public Evaluate wrapper, so intermediate results are normalized too.
+   function Eval_Raw (Expr : Expression_Access) return Value is
    begin
       if Expr = null then return (Kind => Val_Missing); end if;
 
@@ -701,6 +709,22 @@ package body SData_Core.Evaluator is
                end if;
             end;
       end case;
+   end Eval_Raw;
+
+   --------------
+   -- Evaluate --
+   --------------
+   function Evaluate (Expr : Expression_Access) return Value is
+      Result : constant Value := Eval_Raw (Expr);
+   begin
+      --  Issue #55: a zero-length character value IS the missing value.
+      --  Normalizing here (and, via the recursion above, at every level)
+      --  makes LEN("")/empty-concat/TRIM$("") propagate missing while the
+      --  MISSING/N/NMISS family stays correct.
+      if Result.Kind = Val_String and then Length (Result.Str_Val) = 0 then
+         return (Kind => Val_Missing);
+      end if;
+      return Result;
    end Evaluate;
    pragma Annotate (GNATcheck, Exempt_Off, "Recursive_Subprograms");
 
