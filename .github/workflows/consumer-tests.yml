@@ -56,11 +56,9 @@ jobs:
           # release: replace the tag below; the cache key in the next step
           # rotates automatically off alire.toml.
           #
-          # v0.15.0 is the first sdata release that consumes the 64-bit
-          # numeric API (sdata-core ^0.2.0).  It replaces the temporary
-          # feat/64bit-numeric-types branch ref used while PR #82 and sdata
-          # PR #58 were in flight.
-          ref: v0.15.0
+          # v0.16.0 is the first sdata release that consumes sdata-core
+          # ^0.3.0 (empty character value is the missing value, #55).
+          ref: v0.16.0
           path: sdata
 
       - name: Set up Alire
