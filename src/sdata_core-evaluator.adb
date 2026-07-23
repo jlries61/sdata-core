@@ -310,6 +310,12 @@ package body SData_Core.Evaluator is
                   begin
                      Get_Array_Bounds (VName, Start_Idx, End_Idx);
                      for I in Start_Idx .. End_Idx loop
+                        --  Array elements are appended raw, not through the
+                        --  Evaluate wrapper.  Safe under the #55 invariant: a
+                        --  zero-length Val_String never reaches storage (every
+                        --  assignment RHS is Evaluate-normalized and every write
+                        --  passes Coerce_Value), so a stored element is already
+                        --  normalized (an empty character value is Val_Missing).
                         All_Vals.Append (Get_Array_Element (VName, I));
                      end loop;
                   end;
