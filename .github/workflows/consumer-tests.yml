@@ -56,9 +56,10 @@ jobs:
           # release: replace the tag below; the cache key in the next step
           # rotates automatically off alire.toml.
           #
-          # v0.16.0 is the first sdata release that consumes sdata-core
-          # ^0.3.0 (empty character value is the missing value, #55).
-          ref: v0.16.0
+          # v0.16.1 is the first sdata release with test coverage for the
+          # Parse_Expression $/% suffix fix (#73); no sdata source change,
+          # test-only (sdata-core ^0.3.1).
+          ref: v0.16.1
           path: sdata
 
       - name: Set up Alire
