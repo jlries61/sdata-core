@@ -1,12 +1,19 @@
 # Architecture Decision Records
 
 This directory holds ADRs for decisions made **within** sdata-core after its
-extraction from the sdata interpreter.
+extraction from the sdata interpreter — but it is **not** the complete record of
+post-extraction decisions about this crate. sdata's own ADR series
+(`../sdata/doc/adrs.md`, numbered `ADR-NNN` — distinct from this directory's
+`ADR-NNNN`) keeps growing after the extraction, and several of those later
+entries are decisions about *this crate's* public surface (`Commands`,
+`Evaluator`), recorded there simply because the deciding session was rooted in
+sdata. **Check both series** before assuming a structural question is settled
+or unsettled; this crate's own source comments cite sdata's ADRs directly
+(`grep -rn "ADR-0[0-9][0-9]" src/`) with no local copy to resolve against.
 
-ADRs about the extraction itself, the boundary contract, and pre-extraction
-design choices live in the sdata repository at
-[`../sdata/doc/adrs.md`](https://github.com/jlries61/sdata/blob/main/doc/adrs.md).
-The relevant historical entries there are:
+Historical entries in `../sdata/doc/adrs.md` relevant to this crate, current as
+of 2026-07-24 (sdata's series continues to grow — check its own index table
+for anything numbered past ADR-049 before assuming this list is complete):
 
 - **ADR-039** — extraction of sdata-core as a separate Alire crate
 - **ADR-040** — sdata-core deliberately holds no lexer / AST / parser (closed
@@ -16,10 +23,22 @@ The relevant historical entries there are:
   data-vandal-style "OUTPUT writes the dataset" semantics
 - **ADR-043** — per-application version constants (sdata-core's version is
   independent of sdata's)
+- **ADR-045** — promoting the reserved-keyword USE warning into sdata-core
+  (`Commands.Warn_Reserved_Columns`), keeping per-consumer keyword lists
+- **ADR-046** — `Execute_AGGREGATE` design (active-BY grouping, build-and-swap,
+  aggregate metadata side-table) — cited directly in `commands.ads`/`.adb`
+- **ADR-047** — `Execute_TRANSPOSE` design (type-uniformity, union-of-IDs,
+  max-K padding, output-collision rules) — cited directly in
+  `commands.ads`/`.adb`
+- **ADR-048** — `Execute_STATS` design (transposed-AGGREGATE layout,
+  shared group-scan helper)
 
-Use the sdata-side ADRs for "why is sdata-core shaped the way it is at the
-boundary?" Use the ones in *this* directory for "why did sdata-core make
-decision X *after* extraction?"
+Use the ADRs in *this* directory for decisions this crate's own contributors
+made about its internal structure (e.g. the `Table` decomposition, ADR-0007).
+Use sdata's series above for decisions about this crate's public command
+surface that were made from a session rooted in sdata — which, given both
+consumers' `CLAUDE.md` files correctly instruct editing this crate's `src/`
+directly, is common, not exceptional.
 
 ## Index
 

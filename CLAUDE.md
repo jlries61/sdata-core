@@ -142,6 +142,16 @@ change is unavoidable:
 2. Update both consumers' dispatch sites in the same logical change set.
 3. Re-run both test suites.
 4. Consider bumping sdata-core's version (see §Versioning).
+5. **If step 2 can't land in the same sitting** (the consumer-side adoption is
+   deferred to a later session, possibly days out), record it as pending work
+   in *that consumer's own* `.ssd/current.yml`/`current.notes.yml` — not just
+   this crate's. A session rooted in sdata or data-vandal has no visibility
+   into this crate's notes and no reason to go looking for a breaking change
+   it doesn't yet know exists; the reverse of the gap ADR-0009 closed (a
+   consumer-rooted session not checking *this* crate's tracker) is a
+   sdata-core-rooted session not writing to *the consumer's* tracker in the
+   first place. Mirror the existing `archived_cross_repo_work` convention in
+   `current.notes.yml` (see ADR-0001) for the sdata-core side of the record.
 
 `SData_Core.Evaluator.Parse_Expression (Text : String)` is also part of the
 public contract — it's how each consumer's parser hands SELECT expressions
@@ -227,13 +237,32 @@ ADR with status and date. New decisions go here.
 ### Inherited from sdata
 
 Decisions about the extraction itself and the boundary contract still live in
-the sdata repository:
+the sdata repository. **Important:** sdata's own ADR series (`ADR-NNN`, distinct
+numbering from this crate's `ADR-NNNN`) did not stop at the extraction —
+sdata keeps recording new decisions there even when they're actually about
+*this crate's* public surface, because the deciding session was rooted in
+sdata. Several of this crate's own source comments cite these by number
+(`grep -rn "ADR-0[0-9][0-9]" src/` to find current citations) with no local
+copy to resolve them against, so treat sdata's ADR file as a second,
+still-growing inherited series, not a closed one:
 
-- **`../sdata/doc/adrs.md`** — pre-extraction and boundary ADRs.
-  ADR-039 covers this crate's extraction; ADR-040 the no-lexer/AST/parser
-  rationale; ADR-041 the subscripted-column auto-detection; ADR-042 the
+- **`../sdata/doc/adrs.md`** — pre-extraction and boundary ADRs (ADR-039
+  covers this crate's extraction; ADR-040 the no-lexer/AST/parser rationale;
+  ADR-041 the subscripted-column auto-detection; ADR-042 the
   `Execute_OUTPUT_Table` parallel entry point; ADR-043 per-application
-  version constants.
+  version constants) **plus later ADRs about this crate's own command
+  surface**: ADR-045 (promoting the reserved-keyword warning here), ADR-046
+  (`Execute_AGGREGATE`), ADR-047 (`Execute_TRANSPOSE`), ADR-048
+  (`Execute_STATS`) — all cited directly in `commands.ads`/`commands.adb`.
+  This list (through ADR-049 as of 2026-07-24) **will already be behind** by
+  the time you read it if sdata has added a command since; check sdata's own
+  ADR index table for anything past the last number named here before
+  assuming this list is complete.
+- **`../sdata/doc/specs/2026-06-01-aggregate-design.md`** and
+  **`2026-06-01-transpose-design.md`** — the design specs `commands.adb`'s own
+  comments point to ("see the design spec sec N") for `Execute_AGGREGATE` /
+  `Execute_TRANSPOSE`. Read these, not just the ADR, before changing either
+  procedure's validation order or error catalog.
 - **`../sdata/doc/specs/2026-05-19-data-vandal-design.md`** — the full design
   spec for the data-vandal extraction that drove this crate's creation.
   Read first when reasoning about the consumer boundary.
@@ -241,4 +270,5 @@ the sdata repository:
   documents the three-crate layout and the package split.
 
 Consult an ADR before proposing a structural change that might relitigate a
-settled question.
+settled question — checking only this crate's own `docs/decisions/` is not
+sufficient; the decision may live in sdata's series instead (see above).
