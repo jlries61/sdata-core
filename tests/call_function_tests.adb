@@ -17,55 +17,39 @@ with Test_Support;          use Test_Support;
 
 procedure Call_Function_Tests is
 
-   function N (X : Real)    return Value is ((Kind => Val_Numeric, Num_Val => X));
-   function I (X : Int)     return Value is ((Kind => Val_Integer, Int_Val => X));
-   function S (T : String)  return Value is
-      ((Kind => Val_String, Str_Val => To_Unbounded_String (T)));
-
-   function Near (R : Value; Expected : Real; Eps : Real := 1.0e-6)
-      return Boolean is
-   begin
-      if R.Kind = Val_Numeric then
-         return abs (R.Num_Val - Expected) <= Eps;
-      elsif R.Kind = Val_Integer then
-         return abs (Real (R.Int_Val) - Expected) <= Eps;
-      end if;
-      return False;
-   end Near;
-
    No_Args : constant Value_Array (1 .. 0) := (others => (Kind => Val_Missing));
 
 begin
    Put_Line ("=== Call_Function_Tests ===");
 
    --  Numeric family (Numeric_Fns)
-   Assert (Near (Call_Function ("SQRT", (1 => N (4.0))),  2.0), "SQRT(4) = 2");
+   Assert (Near (Call_Function ("SQRT", (1 => Num (4.0))),  2.0), "SQRT(4) = 2");
    Assert (Near (Call_Function ("SQRT", (1 => I (9))),    3.0), "SQRT(9 as Integer) = 3");
-   Assert (Near (Call_Function ("ABS",  (1 => N (-3.0))), 3.0), "ABS(-3.0) = 3.0");
+   Assert (Near (Call_Function ("ABS",  (1 => Num (-3.0))), 3.0), "ABS(-3.0) = 3.0");
    Assert (Near (Call_Function ("ABS",  (1 => I (-7))),   7.0), "ABS(-7 as Integer)");
 
    --  String family (String_Fns)
    declare
-      R : constant Value := Call_Function ("UPPER$", (1 => S ("abc")));
+      R : constant Value := Call_Function ("UPPER$", (1 => Str ("abc")));
    begin
       Assert (R.Kind = Val_String
               and then To_String (R.Str_Val) = "ABC",
               "UPPER$('abc') = 'ABC'");
    end;
    declare
-      R : constant Value := Call_Function ("LEN", (1 => S ("hello")));
+      R : constant Value := Call_Function ("LEN", (1 => Str ("hello")));
    begin
       Assert (Near (R, 5.0), "LEN('hello') = 5");
    end;
 
    --  Aggregate family (Aggregate_Fns) — multi-arg dispatch
-   Assert (Near (Call_Function ("SUM", (N (1.0), N (2.0), N (3.0))), 6.0),
+   Assert (Near (Call_Function ("SUM", (Num (1.0), Num (2.0), Num (3.0))), 6.0),
            "SUM(1, 2, 3) = 6");
-   Assert (Near (Call_Function ("MEAN", (N (2.0), N (4.0), N (6.0))), 4.0),
+   Assert (Near (Call_Function ("MEAN", (Num (2.0), Num (4.0), Num (6.0))), 4.0),
            "MEAN(2, 4, 6) = 4");
-   Assert (Near (Call_Function ("MIN", (N (3.0), N (1.0), N (2.0))), 1.0),
+   Assert (Near (Call_Function ("MIN", (Num (3.0), Num (1.0), Num (2.0))), 1.0),
            "MIN(3, 1, 2) = 1");
-   Assert (Near (Call_Function ("MAX", (N (3.0), N (1.0), N (2.0))), 3.0),
+   Assert (Near (Call_Function ("MAX", (Num (3.0), Num (1.0), Num (2.0))), 3.0),
            "MAX(3, 1, 2) = 3");
 
    --  Misc family — zero-arg constant
@@ -76,7 +60,7 @@ begin
    declare
       R : Value;
    begin
-      R := Call_Function ("NOSUCH_FN", (1 => N (0.0)));
+      R := Call_Function ("NOSUCH_FN", (1 => Num (0.0)));
       Assert (False, "NOSUCH_FN should have raised Script_Error (got "
                       & To_String (R) & ")");
    exception
