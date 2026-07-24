@@ -20,11 +20,6 @@ procedure Aggregate_Exec_Test is
 
    package Tbl renames SData_Core.Table;
 
-   function Num (X : Real)    return Value is ((Kind => Val_Numeric, Num_Val => X));
-
-   function Near (R : Value; Expected : Real) return Boolean is
-     (R.Kind = Val_Numeric and then abs (R.Num_Val - Expected) <= 1.0e-6);
-
    function Spec (Outvar, Fn : String;
                   Kind : Aggregate_Invar_Kind;
                   Invar : String := "";

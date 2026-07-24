@@ -27,14 +27,6 @@ procedure Transpose_Test is
 
    package Tbl renames SData_Core.Table;
 
-   function Num (X : Real) return Value is ((Kind => Val_Numeric, Num_Val => X));
-
-   function Str (S : String) return Value is
-     ((Kind => Val_String, Str_Val => To_Unbounded_String (S)));
-
-   function Near (R : Value; Expected : Real) return Boolean is
-     (R.Kind = Val_Numeric and then abs (R.Num_Val - Expected) <= 1.0e-6);
-
    --  Build the fixture table: ID$ = (A,B,C), SCORE = (95,87,92),
    --  HEIGHT = (170,165,180) -- mirrors sdata's transpose_simple.csv
    --  fixture (tests/data/transpose_simple.csv) so this driver's
