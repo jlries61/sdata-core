@@ -66,8 +66,10 @@ for per-PR work, and `/ssd gate` for the shippable-state check.
 - Session continuity across days is preserved via `current.yml` +
   `current.notes.yml`, so a multi-step audit chain doesn't need to be
   re-explained at each resumption.
-- Cross-repo work (e.g., sdata-side migrations) is tracked under
-  `current.notes.yml.cross_repo_work` so the audit chain doesn't
+- Cross-repo work (e.g., sdata-side migrations) is tracked under the
+  top-level `archived_cross_repo_work` key in `current.notes.yml` (corrected
+  2026-07-24 — this originally said `current.notes.yml.cross_repo_work`,
+  which was never the actual key in use) so the audit chain doesn't
   forget about it.
 
 **Negative**
