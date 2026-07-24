@@ -4,23 +4,11 @@
 --  Plain inline assertions; no framework.
 
 with Ada.Text_IO;          use Ada.Text_IO;
-with Ada.Command_Line;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core.Values;    use SData_Core.Values;
+with Test_Support;         use Test_Support;
 
 procedure Values_Tests is
-
-   Passed, Failed : Natural := 0;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
 
    function N (X : Real)    return Value is ((Kind => Val_Numeric, Num_Val => X));
    function I (X : Int)     return Value is ((Kind => Val_Integer, Int_Val => X));
@@ -125,10 +113,5 @@ begin
    Assert (Image_Fixed_Decimals (3.14159, 300) = Image_Round_Trip (3.14159),
            "FD large N -> round-trip");
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Values_Tests;

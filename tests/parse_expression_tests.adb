@@ -6,24 +6,12 @@
 --  Plain inline assertions; no framework.
 
 with Ada.Text_IO;          use Ada.Text_IO;
-with Ada.Command_Line;
 with Ada.Exceptions;
 with SData_Core;
 with SData_Core.Evaluator; use SData_Core.Evaluator;
+with Test_Support;         use Test_Support;
 
 procedure Parse_Expression_Tests is
-
-   Passed, Failed : Natural := 0;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
 
    procedure Parses_To (Text     : String;
                         Expected : Expression_Kind;
@@ -35,9 +23,8 @@ procedure Parse_Expression_Tests is
       Free_Expression (Expr);
    exception
       when E : others =>
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name & " raised "
-                   & Ada.Exceptions.Exception_Name (E));
+         Assert (False, Name & " raised "
+                 & Ada.Exceptions.Exception_Name (E));
    end Parses_To;
 
    procedure Rejects (Text : String; Name : String) is
@@ -45,12 +32,11 @@ procedure Parse_Expression_Tests is
    begin
       Expr := Parse_Expression (Text);
       --  No exception: the parse should have rejected the input.
-      Failed := Failed + 1;
-      Put_Line ("  FAIL: " & Name & " (expected Script_Error)");
+      Assert (False, Name & " (expected Script_Error)");
       Free_Expression (Expr);
    exception
       when SData_Core.Script_Error =>
-         Passed := Passed + 1;
+         Assert (True, Name);
    end Rejects;
 
 begin
@@ -87,10 +73,5 @@ begin
    Rejects ("A + (",        "Open paren after operator");
    Rejects ("",             "Empty input");
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Parse_Expression_Tests;

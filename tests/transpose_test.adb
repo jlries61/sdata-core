@@ -15,29 +15,17 @@
 --  unlike them, had no in-crate driver.
 
 with Ada.Text_IO;              use Ada.Text_IO;
-with Ada.Command_Line;
 with Ada.Exceptions;
 with Ada.Strings.Unbounded;    use Ada.Strings.Unbounded;
 with SData_Core;
 with SData_Core.Commands;      use SData_Core.Commands;
 with SData_Core.Table;
 with SData_Core.Values;        use SData_Core.Values;
+with Test_Support;             use Test_Support;
 
 procedure Transpose_Test is
 
    package Tbl renames SData_Core.Table;
-
-   Passed, Failed : Natural := 0;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
 
    function Num (X : Real) return Value is ((Kind => Val_Numeric, Num_Val => X));
 
@@ -190,10 +178,5 @@ begin
    Assert (Tbl.Column_Count = 3 and then Tbl.Row_Count = 3,
            "#5: table untouched after /ID error");
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Transpose_Test;

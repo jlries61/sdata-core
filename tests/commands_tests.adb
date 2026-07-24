@@ -8,29 +8,18 @@
 --  Plain inline assertions; no framework.
 
 with Ada.Text_IO;              use Ada.Text_IO;
-with Ada.Command_Line;
 with SData_Core;
 with SData_Core.Commands;
 with SData_Core.Config.Runtime;
 with SData_Core.Config.Runtime.Internal;
+with Test_Support;             use Test_Support;
 
 procedure Commands_Tests is
 
    package Rt renames SData_Core.Config.Runtime;
    package Cmd renames SData_Core.Commands;
 
-   Passed, Failed : Natural := 0;
-   Raised         : Boolean;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
+   Raised : Boolean;
 
    --  Effective (trimmed) views of the padded string OPTIONS accessors.
    function CSVDLM return String is
@@ -211,10 +200,5 @@ begin
    SData_Core.Config.Runtime.Internal.Set_Save_Decimals (-1);
    Assert (SData_Core.Config.Runtime.Save_Decimals = -1, "Save_Decimals reset to -1");
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Commands_Tests;

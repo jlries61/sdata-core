@@ -22,29 +22,17 @@
 --  math, not the command procedure itself.
 
 with Ada.Text_IO;              use Ada.Text_IO;
-with Ada.Command_Line;
 with Ada.Exceptions;
 with Ada.Strings.Unbounded;    use Ada.Strings.Unbounded;
 with SData_Core;
 with SData_Core.Commands;      use SData_Core.Commands;
 with SData_Core.Table;
 with SData_Core.Values;        use SData_Core.Values;
+with Test_Support;             use Test_Support;
 
 procedure Stats_Test is
 
    package Tbl renames SData_Core.Table;
-
-   Passed, Failed : Natural := 0;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
 
    function Num (X : Real) return Value is ((Kind => Val_Numeric, Num_Val => X));
 
@@ -191,10 +179,5 @@ begin
    Assert (Raised, "char-mismatch: raises Script_Error");
    Assert (Tbl.Column_Count = 1, "char-mismatch: table untouched after error");
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Stats_Test;
