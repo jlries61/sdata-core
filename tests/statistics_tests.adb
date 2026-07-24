@@ -20,25 +20,13 @@
 --  Plain inline assertions; no framework.
 
 with Ada.Text_IO;          use Ada.Text_IO;
-with Ada.Command_Line;
 with SData_Core.Statistics; use SData_Core.Statistics;
 with SData_Core.Values;     use SData_Core.Values;
+with Test_Support;          use Test_Support;
 --  The Statistics API returns Real (SData_Core.Values); this makes the type
 --  name and its arithmetic/relational operators directly visible here.
 
 procedure Statistics_Tests is
-
-   Passed, Failed : Natural := 0;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
 
    --  Absolute-tolerance float comparison.
    function Approx (A, B : Real; Tol : Real := 1.0e-4) return Boolean is
@@ -342,10 +330,5 @@ begin
       Assert (not R.Valid,   "GOF single-category invalid");
    end;
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Statistics_Tests;

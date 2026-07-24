@@ -11,6 +11,10 @@ seam that the `Config.Runtime` privatization made testable in isolation.
 | `values_tests.adb` | `Is_Inf`, `To_String`, `Is_True`, `"="`, `"<"` across every `Value_Kind` permutation |
 | `parse_expression_tests.adb` | `Parse_Expression` round-trips for each `Expression_Kind` plus malformed inputs |
 | `call_function_tests.adb` | `Call_Function` against one representative from each registered family (Numeric, String, Aggregate, Misc) plus unknown-name handling |
+| `aggregate_meta_test.adb` | `SData_Core.Evaluator`'s aggregate-function metadata registry — `Lookup`, `Is_Aggregate`, `Accepts_Character`/`Accepts_Numeric` flags for every registered aggregate function |
+| `aggregate_exec_test.adb` | `SData_Core.Commands.Execute_AGGREGATE` Runtime-stateful command seam — one row per BY group, SUM/MEAN/N over a scalar column, BY-list consumed afterward, and validation errors (unknown variable, character-type mismatch) aborting before any mutation |
+| `transpose_test.adb` | `SData_Core.Commands.Execute_TRANSPOSE` Runtime-stateful command seam — default `/ARRAY` naming, `/ID`-derived output columns, and validation errors (unknown `/KEEP` variable, unknown `/ID` column) aborting before any mutation |
+| `stats_test.adb` | `SData_Core.Commands.Execute_STATS` Runtime-stateful command seam — explicit `/VAR`+stat-list schema/values, default `/VAR` (all numeric minus BY) under an active BY, and validation errors (unknown variable, numeric-only statistic on a character variable) aborting before any mutation |
 | `statistics_tests.adb` | `SData_Core.Statistics` — all 14 distributions (PDF/PMF, CDF, IDF, RNG): canonical reference values, CDF boundaries + monotonicity, IDF round-trips, symmetry, PDF non-negativity, seeded-RNG support membership |
 | `commands_tests.adb` | `SData_Core.Commands` Runtime-stateful surface — OPTIONS setters (incl. length-validation raises), `Execute_REPEAT`, `Execute_Record_Error`, `Execute_NEW` reset, and `Resolve_Use_Defaults` fallback/passthrough — each driven via `Execute_*` and read back through the `Config.Runtime` accessors |
 
@@ -44,7 +48,7 @@ belong in the consumer test suites (`sdata make check`,
 tests/run-tests.sh
 ```
 
-Builds and runs all five Ada drivers, then the documentation-generator
+Builds and runs all nine Ada drivers, then the documentation-generator
 tests (skipped if `python3` is absent); exits 0 if every assertion in every
 driver and test passes.
 

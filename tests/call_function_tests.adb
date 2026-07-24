@@ -9,25 +9,13 @@
 --  Plain inline assertions; no framework.
 
 with Ada.Text_IO;           use Ada.Text_IO;
-with Ada.Command_Line;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core;
 with SData_Core.Evaluator;  use SData_Core.Evaluator;
 with SData_Core.Values;     use SData_Core.Values;
+with Test_Support;          use Test_Support;
 
 procedure Call_Function_Tests is
-
-   Passed, Failed : Natural := 0;
-
-   procedure Assert (Condition : Boolean; Name : String) is
-   begin
-      if Condition then
-         Passed := Passed + 1;
-      else
-         Failed := Failed + 1;
-         Put_Line ("  FAIL: " & Name);
-      end if;
-   end Assert;
 
    function N (X : Real)    return Value is ((Kind => Val_Numeric, Num_Val => X));
    function I (X : Int)     return Value is ((Kind => Val_Integer, Int_Val => X));
@@ -89,18 +77,12 @@ begin
       R : Value;
    begin
       R := Call_Function ("NOSUCH_FN", (1 => N (0.0)));
-      Failed := Failed + 1;
-      Put_Line ("  FAIL: NOSUCH_FN should have raised Script_Error (got "
-                & To_String (R) & ")");
+      Assert (False, "NOSUCH_FN should have raised Script_Error (got "
+                      & To_String (R) & ")");
    exception
       when SData_Core.Script_Error =>
-         Passed := Passed + 1;
+         Assert (True, "NOSUCH_FN raises Script_Error");
    end;
 
-   --  Summary
-   New_Line;
-   Put_Line (Passed'Image & " passed," & Failed'Image & " failed.");
-   if Failed > 0 then
-      Ada.Command_Line.Set_Exit_Status (1);
-   end if;
+   Report_And_Exit;
 end Call_Function_Tests;
