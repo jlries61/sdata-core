@@ -684,7 +684,9 @@ package body SData_Core.Commands is
 
    --  Emit the active BY variables as the leading output columns (same name and
    --  column type as the source).  Shared schema prologue for the reshape
-   --  commands whose BY columns come first (TRANSPOSE, STATS); refactor R4.
+   --  commands whose BY columns come first (TRANSPOSE, STATS); refactor R4
+   --  (commit c94a1c0).  AGGREGATE does NOT use this -- see the design note
+   --  above Execute_AGGREGATE for why.
    procedure Add_By_Output_Columns is
    begin
       for I in 1 .. Tbl.By_Var_Count loop
@@ -733,6 +735,24 @@ package body SData_Core.Commands is
       SData_Core.Table.Clear_By_Vars;       --  grouping consumed
    end Commit_Reshaped_Table;
 
+   --  Design note: AGGREGATE deliberately does NOT use Add_By_Output_Columns /
+   --  Set_By_Output_Values (compare Execute_TRANSPOSE / Execute_STATS, which
+   --  do).  AGGREGATE's Build_Descriptors/Emit_Group interleave BY columns
+   --  and function-result columns into one flattened Out_Desc list, because
+   --  each spec's output position and source (Src_By vs Src_Fn) must line up
+   --  positionally when Emit_Group walks Descs.  Adopting the positional BY
+   --  helpers here would mean either abandoning that unified descriptor list
+   --  (rewriting the emit loop) or bolting the helpers on awkwardly beside it
+   --  for no behavioral gain -- "contort that design for no gain", per the R4
+   --  refactor's own reasoning (commit c94a1c0, 2026-07-07) when it extracted
+   --  those helpers for TRANSPOSE/STATS and explicitly left AGGREGATE alone.
+   --  Re-confirmed 2026-07-24 (milestone audit self-correction, M2-FOWLER-1):
+   --  a proposal to unify all three reshape commands under one generic
+   --  template was withdrawn after full inspection reached this same
+   --  conclusion independently, before finding this prior commit.  See
+   --  ADR-0008 and .ssd/milestones/2026-07-23-post-decomposition-baseline/
+   --  skeptic-before.md for the fuller analysis if this reasoning is ever
+   --  revisited.
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
 
       package Vars renames SData_Core.Variables;

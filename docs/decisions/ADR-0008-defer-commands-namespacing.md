@@ -30,10 +30,24 @@ The same audit round also considered, and explicitly closed as a non-goal, a *co
 the three largest procedures in this file (`Execute_AGGREGATE`/`Execute_TRANSPOSE`/`Execute_STATS`,
 M2-FOWLER-1) — full inspection showed their validation, schema-building, and emit logic are genuinely
 different per command, not copy-pasted, and everything actually shareable between them had already been
-extracted by a prior refactor series (PRs #75-77, ADR-untracked at the time). That closure is directly
-relevant here: `commands.adb`'s size is *not* evidence of duplication the way `table.adb`'s was — it's
-the sum of legitimately distinct command implementations living in one file. This ADR is about file
-organization, independent of that finding.
+extracted by a prior refactor series (`refactor/r1-commit-reshaped-table` / `r2-group-boundaries` /
+`r4-by-output-helpers`, PRs #75-77, 2026-07-06/07 — undiscovered by this crate's own SSD tracking until
+this audit). That closure is directly relevant here: `commands.adb`'s size is *not* evidence of
+duplication the way `table.adb`'s was — it's the sum of legitimately distinct command implementations
+living in one file. This ADR is about file organization, independent of that finding.
+
+**Reproduced here rather than only cross-referenced**, since the milestone audit that found it
+(`.ssd/milestones/2026-07-23-post-decomposition-baseline/`) is a local working directory excluded from
+version control (`.gitignore`) and won't travel with the repo: the R4 commit (`c94a1c0`, 2026-07-07)
+extracted `Add_By_Output_Columns`/`Set_By_Output_Values` and adopted them in `TRANSPOSE`/`STATS`, but
+explicitly left `AGGREGATE` alone, reasoning that `AGGREGATE`'s `Build_Descriptors`/`Emit_Group`
+interleave BY columns and function-result columns into one flattened `Out_Desc` list — positionally
+distinct from `TRANSPOSE`/`STATS`'s simpler "BY columns first, then everything else" schema — such that
+"adopting the positional helpers there would contort that design for no gain." The 2026-07-24 audit
+independently reached the same conclusion (before finding that commit) when evaluating a full
+`Reshape_Command` template across all three commands. This reasoning is now also recorded as an in-code
+comment directly above `Execute_AGGREGATE` in `commands.adb` (added alongside this ADR), so a future
+reader hits it without needing `git blame`.
 
 ## Decision
 
@@ -89,6 +103,10 @@ trigger fires, not against today's shape.
 
 - ADR-0007 — the `Table` decomposition this ADR deliberately does *not* replicate here, and why the
   two situations differ (entangled responsibilities vs. file-size accumulation).
-- `.ssd/milestones/2026-07-23-post-decomposition-baseline/skeptic-before.md` — M2-FOWLER-1 (closed,
-  no code change) and M2-FOWLER-2 (this ADR's origin) and M2-UB-1 (the companion Uncle Bob finding).
-- `.ssd/milestones/2026-07-23-post-decomposition-baseline/refactor-plan.md` — item R3.
+- `src/sdata_core-commands.adb`, the design-note comment directly above `Execute_AGGREGATE` — the
+  committed, permanent record of why `AGGREGATE` diverges from `TRANSPOSE`/`STATS`'s shared BY-output
+  helpers. Read this first; it doesn't require repo-local `.ssd/` state.
+- Commit `c94a1c0` (R4, 2026-07-07) — the original reasoning, in git history.
+- `.ssd/milestones/2026-07-23-post-decomposition-baseline/skeptic-before.md` and `refactor-plan.md`
+  (items M2-FOWLER-1, M2-FOWLER-2, M2-UB-1, R3) — the full milestone analysis, if present locally;
+  this is a gitignored working directory, not guaranteed to exist in every checkout.
