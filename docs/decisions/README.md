@@ -33,6 +33,7 @@ decision X *after* extraction?"
 | [ADR-0006](ADR-0006-resolve-use-defaults-in-core.md) | USE-default resolution centralized in core via Resolve_Use_Defaults | Accepted | 2026-06-11 |
 | [ADR-0007](ADR-0007-decompose-table-package.md) | Decompose SData_Core.Table behind an unchanged facade (Columns + Backing_Store + Sorting + Grouping) | Accepted | 2026-06-12 |
 | [ADR-0008](ADR-0008-defer-commands-namespacing.md) | Defer SData_Core.Commands sub-namespacing; record trigger conditions | Accepted | 2026-07-24 |
+| [ADR-0009](ADR-0009-cross-repo-session-tracking.md) | SSD tracking follows the crate, not the session's working directory | Accepted | 2026-07-24 |
 
 ## Numbering
 

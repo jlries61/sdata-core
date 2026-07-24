@@ -23,6 +23,37 @@ builds; the constraint takes effect when sdata-core eventually publishes to the
 Alire community index. **Until then, expect any developer working on sdata-core
 to also have `~/Develop/sdata/` and `~/Develop/data-vandal/` checked out.**
 
+### This file binds every session touching this crate, regardless of origin (ADR-0009)
+
+Both consumers' own `CLAUDE.md` files correctly instruct their sessions to modify
+`~/Develop/sdata-core/src/` directly for shared code — meaning a Claude Code session
+rooted in `sdata` or `data-vandal`, not this repo, is routinely the one making the
+change. **That session is bound by every rule in this file exactly as if it were
+rooted here.** Concretely, before touching anything under this crate:
+
+1. Read this file in full — do not carry over the originating repo's build,
+   versioning, or documentation conventions by assumption; they differ (see
+   §Versioning, §Documentation below, and `tests/README.md`).
+2. Run the full three-way gate before committing: `alr build` here, then
+   `make check` in **both** `../sdata` and `../data-vandal` (§Build & Test).
+3. **Check `.ssd/current.yml` in *this* crate.** It is a separate, gitignored
+   SSD workstream tracker from whichever repo the session started in — a
+   session's own `.ssd/` has zero visibility into this one. If the change is
+   non-trivial (not a one-line fix), add or update an entry here; don't let
+   sdata-core work go untracked just because the session's home base was
+   elsewhere. This exact gap — sdata-core changes landing without any SSD
+   workstream tracking them — produced a ~6-week untracked gap in 2026-06/07
+   (see `.ssd/milestones/2026-07-23-post-decomposition-baseline/`); it can
+   recur just as easily from the consumer-session direction, not only from a
+   forgotten sdata-core-rooted session.
+4. Follow this crate's own version-bump and git-tag conventions (§Versioning)
+   and documentation conventions (ADR numbering in `docs/decisions/`,
+   `tests/README.md`'s driver table, `docs/api/reference.html` regeneration on
+   `.ads` changes) — don't apply the originating repo's equivalents to
+   sdata-core files.
+
+See ADR-0009 for the rationale and the failure mode this codifies.
+
 ## Build & Test
 
 ```bash
