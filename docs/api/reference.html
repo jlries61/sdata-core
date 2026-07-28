@@ -1695,7 +1695,9 @@ It distinguishes between Temporary (memory only) and Permanent (table-linked) va
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Set_Permanent (Name : String; Val : Value);</pre>
-<div class='doc'>Ensures a variable is permanent. If it was temporary, it&#x27;s moved to the table.</div>
+<div class='doc'>Ensures a variable is permanent. Fails if the name is an existing
+genuine temporary variable (a held-permanent variable&#x27;s Temp_Symbols
+carry-over shadow is not &quot;temporary&quot; for this purpose -- see Is_Held).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
