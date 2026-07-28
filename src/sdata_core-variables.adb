@@ -78,9 +78,19 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
       Cur        : constant PDV_Index_Pkg.Cursor := PDV_Index.Find (Upper_Name);
    begin
-      --  Rule: LET implicitly unsets session variable (Promotion/Exclusivity)
+      --  Issue #56: LET may not redefine an existing genuine temporary
+      --  variable.  "Genuine" excludes a HELD permanent variable, whose
+      --  current value Reset_PDV_Non_Held mirrors into Temp_Symbols so it
+      --  survives across records -- that is an ordinary update to an
+      --  already-permanent variable, not a promotion, and must keep
+      --  working (see hold_test.cmd).  Recompute a real temp var with SET,
+      --  or UNSET it explicitly before LET-ing a fresh permanent variable
+      --  of the same name.
       if Temp_Symbols.Contains (Upper_Name) and then not Is_Held (Upper_Name) then
-         Temp_Symbols.Delete (Upper_Name);
+         raise Script_Error with
+           "LET cannot redefine temporary variable """ & Upper_Name
+           & """; use SET to recompute it in place, or UNSET it to "
+           & "convert it to a permanent variable";
       end if;
 
       if PDV_Index_Pkg.Has_Element (Cur) then
