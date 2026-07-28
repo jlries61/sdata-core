@@ -53,6 +53,7 @@ directly, is common, not exceptional.
 | [ADR-0007](ADR-0007-decompose-table-package.md) | Decompose SData_Core.Table behind an unchanged facade (Columns + Backing_Store + Sorting + Grouping) | Accepted | 2026-06-12 |
 | [ADR-0008](ADR-0008-defer-commands-namespacing.md) | Defer SData_Core.Commands sub-namespacing; record trigger conditions | Accepted | 2026-07-24 |
 | [ADR-0009](ADR-0009-cross-repo-session-tracking.md) | SSD tracking follows the crate, not the session's working directory | Accepted | 2026-07-24 |
+| [ADR-0010](ADR-0010-set-let-storage-class-hard-error.md) | SET/LET storage-class redefinition is a hard error, not an implicit conversion | Accepted | 2026-07-25 |
 
 ## Numbering
 

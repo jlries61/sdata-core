@@ -45,10 +45,19 @@ package body SData_Core.Variables is
    procedure Set_Temporary (Name : String; Val : Value) is
       Upper_Name : constant String := To_Upper (Name);
    begin
-      --  Rule: SET implicitly drops permanent variable from table (Exclusivity)
+      --  Issue #56: SET may not redefine an existing permanent (table)
+      --  column.  Storage class is no longer implicitly convertible by the
+      --  assignment verb -- silently demoting a loaded column corrupted the
+      --  PDV/table positional invariant (Drop_Column mid-record-loop) and
+      --  dropped data from SAVE output with only a warning.  Recompute it
+      --  with LET, or DROP it explicitly (effective after the next RUN)
+      --  before SET-ing a fresh temporary variable of the same name.
       if SData_Core.Table.Has_Column (Upper_Name) then
-         SData_Core.IO.Put_Line_Error ("Warning: Column '" & Upper_Name & "' dropped from table and converted to session variable.");
-         SData_Core.Table.Drop_Column (Upper_Name);
+         raise Script_Error with
+           "SET cannot redefine permanent variable """ & Upper_Name
+           & """; use LET to recompute it in place, or DROP it "
+           & "(effective after the next RUN) to convert it to a "
+           & "temporary variable";
       end if;
 
       if Temp_Symbols.Contains (Upper_Name) then
@@ -69,9 +78,19 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
       Cur        : constant PDV_Index_Pkg.Cursor := PDV_Index.Find (Upper_Name);
    begin
-      --  Rule: LET implicitly unsets session variable (Promotion/Exclusivity)
+      --  Issue #56: LET may not redefine an existing genuine temporary
+      --  variable.  "Genuine" excludes a HELD permanent variable, whose
+      --  current value Reset_PDV_Non_Held mirrors into Temp_Symbols so it
+      --  survives across records -- that is an ordinary update to an
+      --  already-permanent variable, not a promotion, and must keep
+      --  working (see hold_test.cmd).  Recompute a real temp var with SET,
+      --  or UNSET it explicitly before LET-ing a fresh permanent variable
+      --  of the same name.
       if Temp_Symbols.Contains (Upper_Name) and then not Is_Held (Upper_Name) then
-         Temp_Symbols.Delete (Upper_Name);
+         raise Script_Error with
+           "LET cannot redefine temporary variable """ & Upper_Name
+           & """; use SET to recompute it in place, or UNSET it to "
+           & "convert it to a permanent variable";
       end if;
 
       if PDV_Index_Pkg.Has_Element (Cur) then

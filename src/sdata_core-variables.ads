@@ -18,7 +18,9 @@ package SData_Core.Variables is
    --  Creates or updates a temporary variable. Fails if name matches a table column.
    procedure Set_Temporary (Name : String; Val : Value);
 
-   --  Ensures a variable is permanent. If it was temporary, it's moved to the table.
+   --  Ensures a variable is permanent. Fails if the name is an existing
+   --  genuine temporary variable (a held-permanent variable's Temp_Symbols
+   --  carry-over shadow is not "temporary" for this purpose -- see Is_Held).
    procedure Set_Permanent (Name : String; Val : Value);
 
    --  Retrieves a value. Lookup order: 1. Permanent PDV, 2. Temporary symbols.
