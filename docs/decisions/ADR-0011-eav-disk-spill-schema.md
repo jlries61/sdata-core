@@ -1,7 +1,7 @@
 ---
 id: ADR-0011
 title: "Disk spill moves from one-SQLite-column-per-data-column to an EAV schema"
-status: Proposed (amended 2026-07-29 — persistent secondary index dropped per benchmark)
+status: Proposed (amended 2026-07-29 twice — persistent secondary index dropped, Sort pivot needs no index either, both per benchmark)
 date: 2026-07-28
 related:
   - ../../sdata/doc/design.md
@@ -15,12 +15,15 @@ related:
 
 Proposed. This is the architecture spec for sdata issue
 [jlries61/sdata#64](https://github.com/jlries61/sdata/issues/64); no
-implementation has landed yet. **Amended 2026-07-29** (see § "Amendment"
-near the end): the original schema's persistent `[<name>_by_col]` secondary
-index is dropped from the design after a benchmark spike found it caused
-insert time to blow up 63x for a 2x column-count increase. Everything below
-the amendment reflects the original proposal for context; the amendment is
-the current recommendation.
+implementation has landed yet. **Amended 2026-07-29, twice** (see the two
+"Amendment" sections near the end): (1) the original schema's persistent
+`[<name>_by_col]` secondary index is dropped after a benchmark found it
+caused insert time to blow up 63x for a 2x column-count increase; (2) the
+sort-key pivot access pattern that index existed for turns out to need no
+index at all — a plain filtered table scan per sort-key column benchmarks
+faster than any indexed alternative at every scale tested. Everything
+below the amendments reflects the original proposal for context; the
+amendments are the current recommendation.
 
 ## Context
 
@@ -117,8 +120,12 @@ Key properties:
 - **`Sorting`'s disk-path rebuild**: cannot `ORDER BY <col>` directly (the
   column is spread across rows, not present as a SQL column). Replaced
   with: (1) pivot *only the active sort/BY key columns* — always a small,
-  bounded set, never approaching the old ceiling — into a temporary
-  `sort_map(old_id, new_id)` table via one `LEFT JOIN` per sort key plus
+  bounded set, never approaching the old ceiling — via one plain `SELECT
+  record_id, val_num|val_int|val_txt FROM [<name>] WHERE col_id = <N>`
+  scan per sort key (**benchmarked 2026-07-29b: no index needed, see the
+  second Amendment below** — this was originally specified as a `LEFT
+  JOIN` against a persistent secondary index, corrected here), assembled
+  into a temporary `sort_map(old_id, new_id)` table via
   `ROW_NUMBER() OVER (ORDER BY ...)`; (2) `CREATE TABLE data_new AS SELECT
   sort_map.new_id, v.col_id, v.val_num, v.val_int, v.val_txt FROM [data] v
   JOIN sort_map ON v.record_id = sort_map.old_id`; (3) `DROP TABLE data;
@@ -198,7 +205,10 @@ The alternatives considered:
   single `record_id` over many columns) even after `col_id` interning —
   also to be benchmarked, not asserted.
 - `Sort`'s disk-path rebuild is materially more complex (pivot + window
-  function + join-based copy) than today's `SELECT * ... ORDER BY`.
+  function + join-based copy) than today's `SELECT * ... ORDER BY` — though
+  the pivot step itself turns out simpler than expected: **benchmarked
+  2026-07-29b — see the second "Amendment" below** — no index of any kind
+  is needed for it, just a plain filtered scan per sort-key column.
 - Requires SQLite window-function support (`ROW_NUMBER() OVER`), available
   since SQLite 3.25 (2018) — not expected to be a real constraint given the
   `ada_sqlite3` binding already in use, but worth confirming against the
@@ -291,6 +301,57 @@ Full raw data: `tests/spill_schema_benchmark_results.csv` (original
 18-combo matrix) and `tests/spill_schema_benchmark_followup.csv` (the
 4-combo index/insert-order isolation pass).
 
+## Amendment (2026-07-29b): Sorting's sort-key pivot needs no index at all
+
+The previous amendment left one question open: how should `Sorting`'s
+sort-key pivot (fetch every value of a given column, across all records)
+be served without a persistent index? Two candidates were proposed: (a) a
+temporary index — either scoped to the full table or just the sort-key
+columns — built immediately before a disk-path sort and dropped right
+after, or (b) a plain filtered table scan per sort-key column, no index at
+all. `spill_schema_benchmark.adb` was extended to measure both, against an
+already-populated, index-free EAV table, at 1,900–20,000 columns and
+K = 1 or 5 sort-key columns (a realistic `BY`/`SORT` key count):
+
+| Cols | K | No index (K scans) | Full temp index | Partial temp index (scoped to K cols) |
+|---|---|---|---|---|
+| 1,900 | 1 | **160 ms** | 2,809 ms | 434 ms |
+| 1,900 | 5 | **1,312 ms** | 3,015 ms | 3,693 ms |
+| 5,000 | 1 | **383 ms** | 5,645 ms | 791 ms |
+| 5,000 | 5 | **1,949 ms** | 6,212 ms | 7,374 ms |
+| 10,000 | 1 | **746 ms** | 21,521 ms | 1,547 ms |
+| 10,000 | 5 | **4,083 ms** | 12,402 ms | 14,210 ms |
+| 20,000 | 1 | **2,375 ms** | 27,806 ms | 3,092 ms |
+| 20,000 | 5 | **7,822 ms** | 23,861 ms | 28,538 ms |
+
+**No index at all wins at every scale and every K tested**, usually by a
+wide margin. The reason generalizes cleanly: building *any* index — even
+one scoped to just the K sort-key columns via a partial-index `WHERE
+col_id IN (...)` clause — still requires SQLite to scan the *entire* base
+table once to decide which rows qualify. Since each sort-key column in
+this access pattern is only queried once (immediately after the index
+would be built, to populate the sort-key pivot), that one-time index-build
+scan is strictly worse than just doing the K plain scans directly — there
+is no repeated-query workload here to amortize an index's build cost
+against. This holds even at K = 5 and even at 20,000 columns: a full
+index build alone (27.8 sec) costs more than the *entire* five-column
+no-index pass (7.8 sec). No-index time also scales close to linearly with
+total cell count (160 ms → 2,375 ms for a ~10.5x increase in cells, cols
+1,900 → 20,000 at K = 1), with no cliff of the kind the original secondary
+index produced.
+
+**Decision:** `Sorting`'s disk-path sort-key pivot uses a plain, literal
+(not bound-parameter) `SELECT record_id, val_num|val_int|val_txt FROM
+[<name>] WHERE col_id = <N>` per sort/BY key column — no temporary index
+of any kind. This is both the fastest measured option and the simplest to
+implement (no index create/drop lifecycle to manage around the pivot).
+The `ROW_NUMBER() OVER (ORDER BY ...)` window-function step used to turn
+the pivoted values into a `sort_map(old_id, new_id)` (see § "Call-site
+changes" above) is unaffected by this — it operates on the pivoted result,
+not on how that result was fetched.
+
+Raw data: `tests/spill_schema_benchmark_sortpivot.csv`.
+
 ## Related
 
 - sdata issue [#64](https://github.com/jlries61/sdata/issues/64)
@@ -298,5 +359,5 @@ Full raw data: `tests/spill_schema_benchmark_results.csv` (original
 - sdata `.ssd/features/eav-spill-schema/01-architect.md` (architect spec,
   full data model / component diagram / risk assessment)
 - `tests/spill_schema_benchmark.adb` + `tests/spill_schema_benchmark_results.csv`
-  + `tests/spill_schema_benchmark_followup.csv` (benchmark spike backing the
-  2026-07-29 amendment)
+  + `tests/spill_schema_benchmark_followup.csv` + `tests/spill_schema_benchmark_sortpivot.csv`
+  (benchmark spike backing both 2026-07-29 amendments)
