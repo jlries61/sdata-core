@@ -1,11 +1,12 @@
 ---
 id: ADR-0011
 title: "Disk spill moves from one-SQLite-column-per-data-column to an EAV schema"
-status: Proposed (amended 2026-07-29 twice — persistent secondary index dropped, Sort pivot needs no index either, both per benchmark)
+status: Accepted (implemented 2026-07-29 as amended — persistent secondary index dropped, Sort pivot needs no index either, both per benchmark)
 date: 2026-07-28
 related:
   - ../../sdata/doc/design.md
   - ../../sdata/.ssd/features/eav-spill-schema/01-architect.md
+  - ../../sdata/.ssd/features/eav-spill-schema/02-systems-designer.md
   - ../../tests/spill_schema_benchmark.adb
 ---
 
@@ -13,17 +14,22 @@ related:
 
 ## Status
 
-Proposed. This is the architecture spec for sdata issue
-[jlries61/sdata#64](https://github.com/jlries61/sdata/issues/64); no
-implementation has landed yet. **Amended 2026-07-29, twice** (see the two
-"Amendment" sections near the end): (1) the original schema's persistent
-`[<name>_by_col]` secondary index is dropped after a benchmark found it
+**Accepted and implemented (2026-07-29).** `sdata_core-backing_store.ads`/
+`.adb`, `sdata_core-sorting.adb`, and `sdata_core-table.adb`'s
+`Commit_Output_Table` now carry the amended (index-free) design described
+below. Closes sdata issue
+[jlries61/sdata#64](https://github.com/jlries61/sdata/issues/64) at the
+sdata-core layer. **Amended 2026-07-29, twice before implementation** (see
+the two "Amendment" sections): (1) the original schema's persistent
+`[<name>_by_col]` secondary index was dropped after a benchmark found it
 caused insert time to blow up 63x for a 2x column-count increase; (2) the
 sort-key pivot access pattern that index existed for turns out to need no
 index at all — a plain filtered table scan per sort-key column benchmarks
-faster than any indexed alternative at every scale tested. Everything
-below the amendments reflects the original proposal for context; the
-amendments are the current recommendation.
+faster than any indexed alternative at every scale tested. Everything in
+"Decision" below reflects the original proposal for historical context; the
+amendments are what shipped. See § "Implementation Notes" near the end for
+what came up during coding that neither the design nor the benchmarks
+anticipated.
 
 ## Context
 
@@ -351,6 +357,74 @@ changes" above) is unaffected by this — it operates on the pivoted result,
 not on how that result was fetched.
 
 Raw data: `tests/spill_schema_benchmark_sortpivot.csv`.
+
+## Implementation Notes (2026-07-29)
+
+Things the design and the two benchmark rounds didn't surface, found during
+actual coding — recorded here rather than left as tribal knowledge:
+
+- **`col_id` resolution is genuinely stable across multiple `Spill` calls,
+  not just within one.** `Add_Row`/`Add_Output_Row` spill a table's growing
+  segment incrementally as it fills, not once — a naive col_id resolution
+  that re-queried or re-inserted on every `Spill` call would either violate
+  `col_name UNIQUE` on the second segment or, worse, silently assign a
+  *different* `col_id` to the same column across segments. Flagged by the
+  `eav-spill-schema` systems-designer review before any code was written
+  (`02-systems-designer.md` §1) — fixed by making the column-name→`col_id`
+  map (`Backing_Store.Data_Col_Ids`/`Output_Col_Ids`) the single source of
+  truth for a session, written through to the SQL registry table only when
+  a name is genuinely new to it, never re-derived from a query.
+- **`Spill_EAV`'s row insert needed `INSERT OR REPLACE`, not plain
+  `INSERT`** — missed on the first pass, caught by `spill_sort_test.cmd`
+  (a pre-existing test, not a new one) failing with a primary-key
+  constraint violation. `Sorting.Sort` flushes whatever segment is still
+  resident in memory before its rebuild, which can overlap a `record_id`
+  range already on disk; `Spill_Wide` already handled this via `OR REPLACE`
+  and the EAV rewrite needed the same. Fixed; see the `REVIEW` comment at
+  the call site noting a narrower residual gap (a sparse re-spill of a cell
+  that changed *to* Missing since its first spill would leave a stale
+  non-missing row behind — not exercised by any current caller, since
+  every observed re-spill re-writes unchanged data).
+- **`Commit_Output_Table`'s "truncate" branch** (every record deleted from
+  a spilled dataset) needed the same `_cols`-table drop and registry reset
+  as the normal rename branch — added and covered by a new test,
+  `spill_delete_all_test.cmd` (deletes every record from a spilled table,
+  then spills a second, differently-named dataset in the same session to
+  prove the registries actually reset rather than merely not crashing).
+- **The `Sort` disk-path rebuild's exact SQL** (a recursive CTE generating
+  the full `1..N` `record_id` sequence, joined against one filtered
+  subquery per sort key, ranked by `ROW_NUMBER() OVER`) was not itself
+  benchmarked — only the *pivot* access pattern (no index vs. two indexed
+  alternatives) was. The recursive CTE avoids a `SELECT DISTINCT record_id
+  FROM data` approach, which would silently drop any record whose every
+  column is Missing (such a record has zero physical EAV rows). Correctness
+  is covered by `spill_sort_test.cmd` (byte-identical against the known-
+  correct small/in-memory sort of the same data); *performance* of this
+  exact multi-way-join shape at very large row counts is not independently
+  measured and is a reasonable target for a future perf-regression guard if
+  `Sort` on very large spilled datasets is ever reported slow.
+- **Internal `Wide`/`EAV` toggle verified equivalent**, not just built:
+  `spill_sort_test.cmd` run once with `SDATA_SPILL_SCHEMA=WIDE` and once
+  with `SDATA_SPILL_SCHEMA=EAV` produces byte-identical output. Not (yet)
+  wired into the automated suite as a permanent check — a reasonable small
+  follow-up, but manual verification was judged sufficient to ship this
+  round given time spent already on the two benchmark rounds.
+- **`docs/api/reference.html` regeneration confirmed unnecessary**:
+  `scripts/gen-reference.py`'s `PUBLIC_PACKAGES` list documents only the
+  crate's promised public contract (`Commands`, `Evaluator`, `Values`,
+  `Config.Runtime`, `Variables`, `Table`, `Statistics`) — `Backing_Store`
+  and the base `Config` package (as opposed to `Config.Runtime`) are
+  outside that contract, so extending them (the new `Spill_Schema_Kind`
+  toggle, `Is_EAV`/`Col_Id`/`Commit_Output_Rename`/`Reset_Col_Ids`) produces
+  no diff when regenerated, consistent with the architect spec's "no
+  public sdata-core signature changes" claim.
+
+New tests (sdata `tests/`, all passing alongside the existing 349):
+`spill_delete_all_test.cmd` (new); `wide_table_spill.cmd` (rewritten —
+previously asserted the ceiling error, now asserts a 2100-column dataset
+spills, reads back, and round-trips correctly, including a column well
+past the old ~2000-column limit). `spill_sort_test.cmd` (pre-existing,
+unmodified) is what caught the `INSERT OR REPLACE` bug above.
 
 ## Related
 

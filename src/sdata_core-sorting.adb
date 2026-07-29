@@ -131,6 +131,91 @@ package body SData_Core.Sorting is
 
       if Store.Is_Active then
          Store.Spill (T, "data", Segment_Start);
+
+         if Store.Is_EAV then
+            --  EAV disk-path rebuild (ADR-0011). Cannot ORDER BY a sort key
+            --  directly -- it's spread across rows, not present as a SQL
+            --  column -- so: pivot only the active sort-key columns (always
+            --  a small, bounded set) via one plain LEFT JOIN per key
+            --  (benchmarked 2026-07-29b: no SQL index of any kind beats
+            --  every indexed alternative for this exact access pattern, see
+            --  ADR-0011's second Amendment); assemble a full 1..N record_id
+            --  sequence via a recursive CTE rather than a
+            --  SELECT DISTINCT record_id FROM data (which would silently
+            --  drop any record whose every column is Missing -- such a
+            --  record has zero physical EAV rows); rank by
+            --  ROW_NUMBER() OVER the sort keys; copy every EAV cell into
+            --  data_new reassigned to its new record_id; swap in exactly
+            --  the same drop/rename pattern as the Wide path below.
+            declare
+               Joins   : Unbounded_String;
+               OrderBy : Unbounded_String;
+            begin
+               for I in Criteria'Range loop
+                  declare
+                     Key_Name : constant String := Ada.Characters.Handling.To_Upper
+                        (Criteria (I).Name (1 .. Criteria (I).Len));
+                     Cid   : constant Natural := Store.Col_Id ("data", Key_Name);
+                     Alias : constant String := "k" & Columns.Img (I);
+                  begin
+                     --  Cid = 0: the sort key isn't a real column in T --
+                     --  matches the in-memory path's tolerant treatment of
+                     --  an unknown key as all-Missing (see Cell, above) by
+                     --  simply contributing no join/order term for it.
+                     if Cid > 0 then
+                        Append
+                          (Joins,
+                           " LEFT JOIN (SELECT record_id, val_num, val_int, val_txt " &
+                           "FROM data WHERE col_id = " & Columns.Img (Cid) & ") " &
+                           Alias & " ON " & Alias & ".record_id = seq.record_id");
+                        declare
+                           Key_Col : constant Columns.Column_Name := To_Column_Name (Key_Name);
+                           Typ : constant Columns.Column_Type :=
+                              (if T.Contains (Key_Col)
+                               then T.Constant_Reference (T.Find (Key_Col)).Element.all.Typ
+                               else Col_Numeric);
+                           Expr : constant String :=
+                              (if Typ = Col_Numeric then Alias & ".val_num"
+                               elsif Typ = Col_Integer then Alias & ".val_int"
+                               else Alias & ".val_txt");
+                        begin
+                           if Length (OrderBy) > 0 then Append (OrderBy, ", "); end if;
+                           Append (OrderBy, Expr);
+                           if Criteria (I).Dir = Descending then Append (OrderBy, " DESC"); end if;
+                        end;
+                     end if;
+                  end;
+               end loop;
+               if Length (OrderBy) > 0 then Append (OrderBy, ", "); end if;
+               Append (OrderBy, "seq.record_id ASC");
+
+               Store.Execute
+                 ("CREATE TABLE data_new (record_id INTEGER, col_id INTEGER, " &
+                  "val_num REAL, val_int INTEGER, val_txt TEXT, " &
+                  "PRIMARY KEY (record_id, col_id)) WITHOUT ROWID");
+               Store.Execute
+                 ("INSERT INTO data_new (record_id, col_id, val_num, val_int, val_txt) " &
+                  "SELECT rn.new_id, v.col_id, v.val_num, v.val_int, v.val_txt " &
+                  "FROM data v JOIN (" &
+                  "WITH RECURSIVE seq(record_id) AS (SELECT 1 UNION ALL " &
+                  "SELECT record_id + 1 FROM seq WHERE record_id < " & Columns.Img (N) & ") " &
+                  "SELECT seq.record_id AS record_id, " &
+                  "ROW_NUMBER() OVER (ORDER BY " & To_String (OrderBy) & ") AS new_id " &
+                  "FROM seq" & To_String (Joins) &
+                  ") rn ON rn.record_id = v.record_id");
+               Store.Execute ("DROP TABLE data");
+               Store.Execute ("ALTER TABLE data_new RENAME TO data");
+            exception
+               when E : SQLite_Error =>
+                  raise Script_Error with
+                     "could not sort spilled dataset (disk full?)"
+                     & " [rows=" & Columns.Img (N)
+                     & ", sort_keys=" & Columns.Img (Criteria'Length) & "]: "
+                     & Ada.Exceptions.Exception_Message (E);
+            end;
+            return;
+         end if;
+
          declare
             Col_N    : constant Natural := Natural (T.Length);
             Cols_CSV : Unbounded_String;

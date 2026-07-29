@@ -48,6 +48,17 @@ package SData_Core.Config is
    Debug_Level        : Natural := 0;     -- 0=off 1=I/O 2=+record/flow 3=+assignments
    Shell_Timeout_Default : Natural := 0;
 
+   --  Disk-spill schema selection (ADR-0011, jlries61/sdata#64). Internal
+   --  rollout toggle, not a documented OPTIONS key or CLI flag -- a fast
+   --  rollback valve for one release cycle while the EAV schema (which
+   --  removes the ~2000-column SQLite spill ceiling) stabilizes, per the
+   --  architect spec's Feature Flag Plan
+   --  (sdata/.ssd/features/eav-spill-schema/01-architect.md). Read once,
+   --  at Backing_Store.Open time, and latched for that store's lifetime --
+   --  see SData_Core.Backing_Store.
+   type Spill_Schema_Kind is (Spill_Wide, Spill_EAV);
+   Spill_Schema : Spill_Schema_Kind := Spill_EAV;
+
    --  Application-specific version and copyright constants live in each
    --  consuming application (e.g., SData.Version in the sdata crate) so
    --  that sdata-core can evolve its own version independently.
