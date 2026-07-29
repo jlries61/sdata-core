@@ -26,7 +26,8 @@ project SData_Core_Tests is
                  "transpose_test.adb",
                  "stats_test.adb",
                  "statistics_tests.adb",
-                 "commands_tests.adb");
+                 "commands_tests.adb",
+                 "spill_schema_benchmark.adb");
    for Languages use ("Ada");
 
    package Compiler is

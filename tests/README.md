@@ -52,6 +52,22 @@ Builds and runs all nine Ada drivers, then the documentation-generator
 tests (skipped if `python3` is absent); exits 0 if every assertion in every
 driver and test passes.
 
+## Benchmark spike (not a correctness test)
+
+`spill_schema_benchmark.adb` builds via the same project file (`gprbuild -P
+tests/sdata_core_tests.gpr`) but is **not** invoked by `run-tests.sh` and
+has no pass/fail assertions — it measures insert/fetch throughput and
+on-disk size for the current wide-table spill schema vs. the proposed EAV
+schema (ADR-0011, jlries61/sdata#64), across column widths past today's
+~2000-column SQLite ceiling. Run manually from the repo root:
+
+```sh
+alr exec -- gprbuild -P tests/sdata_core_tests.gpr
+tests/bin/spill_schema_benchmark
+```
+
+Writes `tests/spill_schema_benchmark_results.csv`.
+
 ## Rationale
 
 Per audit Finding Beck B1 from

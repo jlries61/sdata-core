@@ -1,11 +1,12 @@
 ---
 id: ADR-0011
 title: "Disk spill moves from one-SQLite-column-per-data-column to an EAV schema"
-status: Proposed
+status: Proposed (amended 2026-07-29 — persistent secondary index dropped per benchmark)
 date: 2026-07-28
 related:
   - ../../sdata/doc/design.md
   - ../../sdata/.ssd/features/eav-spill-schema/01-architect.md
+  - ../../tests/spill_schema_benchmark.adb
 ---
 
 # ADR-0011: Disk spill moves from one-SQLite-column-per-data-column to an EAV schema
@@ -14,7 +15,12 @@ related:
 
 Proposed. This is the architecture spec for sdata issue
 [jlries61/sdata#64](https://github.com/jlries61/sdata/issues/64); no
-implementation has landed yet.
+implementation has landed yet. **Amended 2026-07-29** (see § "Amendment"
+near the end): the original schema's persistent `[<name>_by_col]` secondary
+index is dropped from the design after a benchmark spike found it caused
+insert time to blow up 63x for a 2x column-count increase. Everything below
+the amendment reflects the original proposal for context; the amendment is
+the current recommendation.
 
 ## Context
 
@@ -58,6 +64,14 @@ CREATE TABLE IF NOT EXISTS [<name>] (
 
 CREATE INDEX IF NOT EXISTS [<name>_by_col] ON [<name>] (col_id, record_id);
 ```
+
+**Superseded by the 2026-07-29 amendment below: drop the `[<name>_by_col]`
+index.** A benchmark found it causes a 63x insert-time blowup for a 2x
+column-count increase (up to 14.4 hours at 20,000 columns) with zero
+benefit to `Spill`/`Fetch`, which never used it. Kept here only so the
+"Call-site changes" and "Rationale" sections below still read in the order
+they were originally reasoned through; see § "Amendment" for the current
+schema and decision.
 
 Key properties:
 
@@ -174,9 +188,11 @@ The alternatives considered:
 
 - `Spill` issues one `INSERT`/non-missing-cell instead of one `INSERT`/row
   — more `Stmt.Reset`/bind/`Step` cycles for the same data volume on dense
-  (few-missing) datasets. Must be benchmarked, not assumed free; see Risk
-  Assessment in the architect spec for the perf-regression gate this
-  requires before shipping.
+  (few-missing) datasets. **Benchmarked 2026-07-29 — see § "Amendment"
+  below.** The naive schema (with the persistent secondary index) was
+  catastrophically not free at width; the amended (index-free) schema
+  scales near-linearly and is comparably fast to the wide schema at
+  widths the wide schema can also reach (e.g. 1,900 cols).
 - Fully dense wide datasets may see larger on-disk spill size than today
   (per-cell `(record_id, col_id)` PK overhead vs. one wide row amortizing a
   single `record_id` over many columns) even after `col_id` interning —
@@ -188,9 +204,99 @@ The alternatives considered:
   `ada_sqlite3` binding already in use, but worth confirming against the
   bundled SQLite version during implementation.
 
+## Amendment (2026-07-29): drop the persistent `[<name>_by_col]` secondary index
+
+Per the user's request to de-risk this proposal with real numbers before
+implementation, `tests/spill_schema_benchmark.adb` (a standalone spike
+driver, not part of `run-tests.sh` — see `tests/README.md`) was built
+against the real `Ada_Sqlite3`/`Ada_Sqlite3.Wide` bindings and the same
+connection `PRAGMA`s as `Backing_Store.Open`, comparing the current wide
+schema against this ADR's original EAV proposal (schema exactly as
+specified above, including the secondary index) across column widths from
+50 to 20,000, at 2000 rows, dense and 75%-missing.
+
+**Headline result:** EAV insert time did not degrade smoothly. It blew up
+63x for a 2x column-count increase, while file size grew only ~2x:
+
+| Cols (dense, 2000 rows) | Insert time | File size |
+|---|---|---|
+| 1,900 | 10.6 sec | 135 MB |
+| 5,000 | 104 sec | 357 MB |
+| 10,000 | 818 sec (13.6 min) | 714 MB |
+| 20,000 | **51,785 sec (14.4 hours)** | 1,429 MB |
+
+A follow-up pass isolated the cause: the `[data_by_col] (col_id,
+record_id)` secondary index, maintained continuously during a record_id-
+major insert (the natural order data arrives in — one full record at a
+time), forces every row's insert to touch `Cols` scattered, far-apart
+regions of that index (one per distinct `col_id`) instead of one
+contiguous region. Once the total working set outgrows the connection's
+64 MB `cache_size`, this becomes a cache miss (and a B-tree page split) on
+almost every single-cell insert. Fetch time was essentially unaffected in
+every variant below, confirming the index was pure insert-time cost with
+**no** benefit to the segment-range read path this benchmark exercises
+(`Fetch` was already served by the primary key, never the secondary
+index):
+
+| Variant (20,000 cols, dense) | Insert time | vs. original |
+|---|---|---|
+| Original (index present, record_id-major insert) | 51,785 sec | — |
+| Index dropped entirely | 30 sec | **1,724x faster** |
+| Index present, column-major insert order | 212 sec | 244x faster |
+
+Dropping the index outright restores near-linear scaling (17.4 sec ->
+30 sec, 10,000 -> 20,000 cols, tracking the ~2x file-size growth) and is
+strictly better than reordering the insert loop to match the index's
+clustering key — reordering helps a lot but the index maintenance cost is
+still there and still shows some superlinearity.
+
+Critically, the degradation is not only an extreme-scale concern: the
+5,000 -> 10,000 column step (both already comfortably past today's actual
+~2000-column ceiling, i.e. within the width range this feature exists to
+serve) already shows 7.8x insert time for a 2x column increase — already
+superlinear, just not yet catastrophic. **The persistent secondary index
+as originally specified is not viable at the widths this feature targets,
+not merely at extreme stress-test widths.**
+
+### Revised decision
+
+Drop `CREATE INDEX IF NOT EXISTS [<name>_by_col] ON [<name>] (col_id,
+record_id);` from the schema entirely. `Spill`/`Fetch` are unaffected — they
+were never served by this index. The one caller that motivated it,
+`Sorting`'s sort-key pivot (see § "Call-site changes" above), must instead
+either (a) build a **temporary** index scoped to just the active sort/BY
+key columns immediately before a disk-path sort and drop it right after —
+paying the maintenance cost only for the rare Sort operation and only for
+the small number of sort-key columns, not the whole table on every insert
+— or (b) pivot via a full `[<name>]` table scan filtered by `col_id = ?`
+per sort key (no index at all; cost is O(spilled cells) per sort-key
+column, paid once per `Sort`/`BY` execution rather than continuously).
+**Which of (a) or (b) is faster has not been benchmarked** — that is
+follow-up work before `Sorting`'s implementation, not before `Spill`/
+`Fetch`'s, since those two are now unblocked by this amendment. `Spill`/
+`Fetch` may proceed against the amended (index-free) schema immediately.
+
+This also resolves one of the two open items in the original Consequences
+section below: the "must be benchmarked, not assumed free" insert-
+throughput risk is now benchmarked, and the answer is "assumed free was
+wrong for the original schema, corrected by dropping the index." The
+on-disk-size risk remains only partially answered — dense-dataset file
+size at 20,000 columns dense is 1,429 MB (with index) vs. 961 MB (without)
+for 40M cells (~24-36 bytes/cell either way), not compared against an
+equivalent wide-table baseline at that width since the wide schema cannot
+reach 20,000 columns at all (the whole point of this change) — there is no
+"before" number to compare against past 1,900 columns.
+
+Full raw data: `tests/spill_schema_benchmark_results.csv` (original
+18-combo matrix) and `tests/spill_schema_benchmark_followup.csv` (the
+4-combo index/insert-order isolation pass).
+
 ## Related
 
 - sdata issue [#64](https://github.com/jlries61/sdata/issues/64)
 - sdata `design.md` §1.1 (commits 3c85fb0, 4b222b1, ff157c0) and §2.1
 - sdata `.ssd/features/eav-spill-schema/01-architect.md` (architect spec,
   full data model / component diagram / risk assessment)
+- `tests/spill_schema_benchmark.adb` + `tests/spill_schema_benchmark_results.csv`
+  + `tests/spill_schema_benchmark_followup.csv` (benchmark spike backing the
+  2026-07-29 amendment)
