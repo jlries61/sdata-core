@@ -158,10 +158,22 @@ package body SData_Core.Sorting is
                      Cid   : constant Natural := Store.Col_Id ("data", Key_Name);
                      Alias : constant String := "k" & Columns.Img (I);
                   begin
-                     --  Cid = 0: the sort key isn't a real column in T --
-                     --  matches the in-memory path's tolerant treatment of
-                     --  an unknown key as all-Missing (see Cell, above) by
-                     --  simply contributing no join/order term for it.
+                     --  Cid = 0: the sort key was never spilled under this
+                     --  name -- either it's genuinely not a column of T (see
+                     --  below for how that's reachable at all: the
+                     --  interpreter's undefined-variable guard for SORT is
+                     --  gated on Column_Count > 0, so a REPEAT step whose
+                     --  Column_Count is still 0 -- e.g. no LET ever fired for
+                     --  any record -- lets SORT reference a name that plain
+                     --  never exists; confirmed reviewer question on PR #101),
+                     --  or it once was a column, spilled, and was DROPped
+                     --  back out (Drop_Column never touches the spill store,
+                     --  so a dropped column's col_id simply stops being
+                     --  reachable via T without ever being reachable via
+                     --  Store either). Either way, matches the in-memory
+                     --  path's tolerant treatment of an unknown key as
+                     --  all-Missing (see Cell, above) by simply contributing
+                     --  no join/order term for it.
                      if Cid > 0 then
                         Append
                           (Joins,
