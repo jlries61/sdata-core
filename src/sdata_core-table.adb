@@ -625,8 +625,13 @@ package body SData_Core.Table is
          end loop;
          Table_Row_Count := 0;
          if Store.Is_Active then
+            if Store.Is_EAV then
+               Store.Execute ("DROP TABLE IF EXISTS data_cols");
+               Store.Execute ("DROP TABLE IF EXISTS output_data_cols");
+            end if;
             Store.Execute ("DROP TABLE IF EXISTS data");
             Store.Execute ("DROP TABLE IF EXISTS output_data");
+            Store.Reset_Col_Ids;
          end if;
       else
          Data_Table := Output_Data_Table;
@@ -637,11 +642,25 @@ package body SData_Core.Table is
          Rebuild_Column_Cache;
 
          if Store.Is_Active then
+            if Store.Is_EAV then
+               Store.Execute ("DROP TABLE IF EXISTS data_cols");
+            end if;
             Store.Execute ("DROP TABLE IF EXISTS data");
             if Output_Spilled then
                Spill_Output_To_Disk;
+               if Store.Is_EAV then
+                  Store.Execute ("ALTER TABLE output_data_cols RENAME TO data_cols");
+               end if;
                Store.Execute ("ALTER TABLE output_data RENAME TO data");
             end if;
+            --  Mirror the SQL-level rename (or lack of one, if nothing was
+            --  ever spilled to output_data) on the Ada-side col_id registry:
+            --  "data"'s registry becomes whatever "output_data"'s was --
+            --  correct either way, since an unspilled output's registry is
+            --  already empty, exactly the fresh start "data" needs going
+            --  forward under its (possibly entirely different) new column
+            --  set. A no-op when not in EAV mode.
+            Store.Commit_Output_Rename;
          end if;
       end if;
       Initialize_Output_Table;
