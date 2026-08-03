@@ -283,7 +283,18 @@ package SData_Core.Commands is
    --  reorders the table.  This is the intention-revealing name for that
    --  work; Execute_RUN below is a thin alias for front ends whose RUN
    --  statement maps directly onto it.
-   procedure Execute_Commit_Step;
+   --
+   --  Flush_Save (default True, additive parameter): pass False to skip
+   --  the pending-SAVE flush for this one commit while still rebuilding
+   --  the filter map and flushing any pending table-output. A front end
+   --  performing an implicit RUN ahead of a command that will itself
+   --  reach a save-flush point (e.g. sdata issue #70/ADR-055: SORT calls
+   --  Execute_Commit_Step directly, AGGREGATE/TRANSPOSE/STATS flush via
+   --  their own Commit_Reshaped_Table) should pass False here so the
+   --  one-shot pending SAVE (consumed on write, see Flush_Pending_Save)
+   --  is associated with the triggering command's own result, not the
+   --  implicit RUN's intermediate table state.
+   procedure Execute_Commit_Step (Flush_Save : Boolean := True);
 
    ----------------------------------------------------------------
    --  RUN — the user-issued RUN statement.  Currently identical to the
