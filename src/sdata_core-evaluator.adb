@@ -938,6 +938,7 @@ package body SData_Core.Evaluator is
                else
                   Current.Kind := TK_Star; Pos := Pos + 1;
                end if;
+            when '^' => Current.Kind := TK_Power; Pos := Pos + 1;
             when '/' => Current.Kind := TK_Slash; Pos := Pos + 1;
             when '=' => Current.Kind := TK_Eq;    Pos := Pos + 1;
             when '<' =>
