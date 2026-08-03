@@ -56,11 +56,11 @@ jobs:
           # release: replace the tag below; the cache key in the next step
           # rotates automatically off alire.toml.
           #
-          # v0.16.2 is the first sdata release with the SET/LET storage-class
-          # hard-error fix (#56): SET on a loaded column and LET on a
-          # temporary variable now raise instead of silently promoting /
-          # demoting the variable's storage class.
-          ref: v0.16.2
+          # v0.16.7 is the sdata release with the ^/** operator-parity fix
+          # (issue #65) that this branch's Parse_Expression change requires
+          # to validate correctly (sdata's own exponent_operator_spellings.cmd
+          # integration test exercises both spellings through both parsers).
+          ref: v0.16.7
           path: sdata
 
       - name: Set up Alire

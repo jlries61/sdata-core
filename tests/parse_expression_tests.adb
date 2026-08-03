@@ -64,7 +64,8 @@ begin
    Parses_To ("A = B",      Expr_Binary_Op,       "Equality =");
    Parses_To ("A >= B",     Expr_Binary_Op,       "Comparison >=");
    Parses_To ("NOT A",      Expr_Unary_Op,        "Unary NOT");
-   Parses_To ("A ** 2",     Expr_Binary_Op,       "Exponentiation");
+   Parses_To ("A ** 2",     Expr_Binary_Op,       "Exponentiation (**)");
+   Parses_To ("A ^ 2",      Expr_Binary_Op,       "Exponentiation (^)");
    Parses_To ("SQRT(A*A + B*B)", Expr_Function_Call, "Nested function call");
 
    --  Malformed input must raise Script_Error
