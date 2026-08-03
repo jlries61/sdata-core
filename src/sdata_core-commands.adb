@@ -1652,10 +1652,12 @@ package body SData_Core.Commands is
       Commit_Reshaped_Table ("STATS");
    end Execute_STATS;
 
-   procedure Execute_Commit_Step is
+   procedure Execute_Commit_Step (Flush_Save : Boolean := True) is
    begin
       Rebuild_Filter_Map;
-      Flush_Pending_Save;
+      if Flush_Save then
+         Flush_Pending_Save;
+      end if;
       Flush_Pending_Output_Table;
    end Execute_Commit_Step;
 
