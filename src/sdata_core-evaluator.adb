@@ -229,6 +229,26 @@ package body SData_Core.Evaluator is
       return (Kind => Val_Numeric, Num_Val => V);
    end Numeric_Result_Checked;
 
+   --  "**" on Real resolves to Ada.Numerics.Generic_Elementary_Functions."**"
+   --  (instantiated in Real_Functions), which computes Exp (Exponent * Log
+   --  (Base)) unconditionally -- undefined, and an exception, for a negative
+   --  Base regardless of whether Exponent happens to be a whole number.
+   --  Ada's predefined "**" (Real, Integer) operator has no such restriction
+   --  (it is pure repeated multiplication/division), so route whole-number
+   --  exponents through it and reserve the elementary-functions path for
+   --  genuinely fractional exponents, where a negative Base is legitimately
+   --  undefined for a real result.
+   function Real_Pow (Base, Exponent : Real) return Real is
+   begin
+      if Real'Truncation (Exponent) = Exponent
+        and then abs Exponent <= Real (Integer'Last)
+      then
+         return Base ** Integer (Exponent);
+      else
+         return Base ** Exponent;
+      end if;
+   end Real_Pow;
+
    ---------------------------------------------------------------------------
 
    function Is_Identifier_Ref_Function (N : String) return Boolean is
@@ -581,7 +601,7 @@ package body SData_Core.Evaluator is
                                       Num_Val => Real (L.Int_Val) / Real (R.Int_Val));
                            when Op_Pow =>
                               return Numeric_Result_Checked
-                                (Real (L.Int_Val) ** Real (R.Int_Val));
+                                (Real_Pow (Real (L.Int_Val), Real (R.Int_Val)));
                            when Op_Eq  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val = R.Int_Val  then 1 else 0));
                            when Op_Ne  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val /= R.Int_Val then 1 else 0));
                            when Op_Lt  => return (Kind => Val_Integer, Int_Val => (if L.Int_Val < R.Int_Val  then 1 else 0));
@@ -621,7 +641,7 @@ package body SData_Core.Evaluator is
                                  raise SData_Core.Script_Error with "Division by zero.";
                               end if;
                               return Numeric_Result_Checked (FL / FR);
-                           when Op_Pow => return Numeric_Result_Checked (FL ** FR);
+                           when Op_Pow => return Numeric_Result_Checked (Real_Pow (FL, FR));
                            when Op_Eq  => return (Kind => Val_Integer, Int_Val => (if FL = FR  then 1 else 0));
                            when Op_Ne  => return (Kind => Val_Integer, Int_Val => (if FL /= FR then 1 else 0));
                            when Op_Lt  => return (Kind => Val_Integer, Int_Val => (if FL < FR  then 1 else 0));
