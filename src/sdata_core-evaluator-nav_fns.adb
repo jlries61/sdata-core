@@ -3,6 +3,7 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with SData_Core.Table;
+with SData_Core.Config.Runtime;
 with Ada.Characters.Handling; use Ada.Characters.Handling;
 with SData_Core.Values; use SData_Core.Values;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
@@ -59,11 +60,26 @@ package body SData_Core.Evaluator.Nav_Fns is
 
    function Handle_EOF (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name, Vals);
+      --  During a REPEAT n data step, Table.Row_Count only counts rows
+      --  already flushed to the table -- Process_One_Record sets the
+      --  current record index, runs the record's own body (where EOF()
+      --  may be called), and only flushes/adds the row *afterward*.  So
+      --  while record i's body is executing, Row_Count is still i - 1,
+      --  and Current_Record_Index (i) >= Row_Count (i - 1) is true on
+      --  every record, not just the last.  REPEAT n's own n is known up
+      --  front (Config.Runtime.Repeat_Count), unlike the still-growing
+      --  Row_Count, so use it as the total when a REPEAT is active.
+      --  Unaffected: USE loads the whole file before the data step runs,
+      --  so Row_Count is already the final total there.
+      Unfiltered_Total : constant Natural :=
+         (if SData_Core.Config.Runtime.Repeat_Active
+          then SData_Core.Config.Runtime.Repeat_Count
+          else SData_Core.Table.Row_Count);
    begin
       return (Kind    => Val_Integer,
               Int_Val => (if SData_Core.Table.Is_Filtered
                           then (if SData_Core.Table.Get_Logical_Record_Index >= SData_Core.Table.Logical_Row_Count then 1 else 0)
-                          else (if SData_Core.Table.Get_Current_Record_Index >= SData_Core.Table.Row_Count then 1 else 0)));
+                          else (if SData_Core.Table.Get_Current_Record_Index >= Unfiltered_Total then 1 else 0)));
    end Handle_EOF;
 
    function Handle_BOG (Name : String; Vals : Value_Vectors.Vector) return Value is
