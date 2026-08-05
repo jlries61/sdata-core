@@ -109,31 +109,19 @@ package body SData_Core.Commands is
       end;
    end Full_Path;
 
-   --  Containing_Dir — the directory portion of a resolved output path, for
-   --  the design.md §4.3/§4.5 "target directory exists" pre-check.  Purely
-   --  lexical (mirrors Full_Path's own backward scan for '/'/'\\'), so it
-   --  never raises even for a nonexistent path.  A bare filename with no
-   --  separator resolves to the current directory.
-   function Containing_Dir (Path : String) return String is
-   begin
-      for I in reverse Path'Range loop
-         if Path (I) = '/' or else Path (I) = '\' then
-            if I = Path'First then
-               return Path (Path'First .. Path'First);  --  root
-            end if;
-            return Path (Path'First .. I - 1);
-         end if;
-      end loop;
-      return ".";
-   end Containing_Dir;
-
    --  Validate_Output_Dir — design.md §4.3/§4.5's "Data Integrity" contract
    --  for SAVE/OUTPUT: the target directory must exist and be writable,
    --  checked immediately when the statement executes rather than left to
    --  surface as a raw Ada exception when the deferred write eventually
    --  happens.  Category names the caller in the error message (e.g. "SAVE").
+   --  Uses Ada.Directories.Containing_Directory rather than a hand-rolled
+   --  '/'/'\\' scan: it's standard Ada, so path-separator syntax is
+   --  whatever the target Ada implementation defines it to be (POSIX,
+   --  Windows, or otherwise), not hardcoded here. It's purely syntactic --
+   --  no existence check on Full itself -- so it works fine on a
+   --  not-yet-existing SAVE target.
    procedure Validate_Output_Dir (Full : String; Category : String) is
-      Dir : constant String := Containing_Dir (Full);
+      Dir : constant String := Ada.Directories.Containing_Directory (Full);
    begin
       if not Ada.Directories.Exists (Dir) then
          raise SData_Core.Script_Error with
@@ -147,6 +135,13 @@ package body SData_Core.Commands is
          raise SData_Core.Script_Error with
             Category & ": no write permission for directory: " & Dir;
       end if;
+   exception
+      when Ada.Directories.Name_Error =>
+         raise SData_Core.Script_Error with
+            Category & ": invalid target path: " & Full;
+      when Ada.Directories.Use_Error =>
+         raise SData_Core.Script_Error with
+            Category & ": target path has no containing directory: " & Full;
    end Validate_Output_Dir;
 
    --  Collect_Filter_Vars — walks the filter AST and inserts the upper-cased
