@@ -583,8 +583,12 @@ package body SData_Core.Variables is
                      then
                         SData_Core.Table.Drop_Column (Var_Name);
                      end if;
-                     --  For temporary elements, clear from Temp_Symbols
-                     if Existing_Def.Is_Temporary and then Temp_Symbols.Contains (Var_Name) then
+                     --  For temporary elements, clear from Temp_Symbols only
+                     --  when the element falls outside the new range;
+                     --  in-range elements must retain their values.
+                     if Existing_Def.Is_Temporary and then Temp_Symbols.Contains (Var_Name)
+                        and then (I < Start_Idx or else I > End_Idx)
+                     then
                         Symbol_Table_Pkg.Delete (Temp_Symbols, Var_Name);
                      end if;
                   end;
