@@ -5,11 +5,14 @@
 with Ada.Characters.Handling;        use Ada.Characters.Handling;
 with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Indefinite_Hashed_Sets;
+with Ada.Directories;
 with Ada.Exceptions;
+with Ada.IO_Exceptions;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Hash;
 with Ada.Strings.Unbounded;          use Ada.Strings.Unbounded;
+with GNAT.OS_Lib;
 with SData_Core.Config.Runtime;
 with SData_Core.Config.Runtime.Internal;
 with SData_Core.File_IO;
@@ -105,6 +108,41 @@ package body SData_Core.Commands is
          return S;
       end;
    end Full_Path;
+
+   --  Validate_Output_Dir — design.md §4.3/§4.5's "Data Integrity" contract
+   --  for SAVE/OUTPUT: the target directory must exist and be writable,
+   --  checked immediately when the statement executes rather than left to
+   --  surface as a raw Ada exception when the deferred write eventually
+   --  happens.  Category names the caller in the error message (e.g. "SAVE").
+   --  Uses Ada.Directories.Containing_Directory rather than a hand-rolled
+   --  '/'/'\\' scan: it's standard Ada, so path-separator syntax is
+   --  whatever the target Ada implementation defines it to be (POSIX,
+   --  Windows, or otherwise), not hardcoded here. It's purely syntactic --
+   --  no existence check on Full itself -- so it works fine on a
+   --  not-yet-existing SAVE target.
+   procedure Validate_Output_Dir (Full : String; Category : String) is
+      Dir : constant String := Ada.Directories.Containing_Directory (Full);
+   begin
+      if not Ada.Directories.Exists (Dir) then
+         raise SData_Core.Script_Error with
+            Category & ": target directory does not exist: " & Dir;
+      end if;
+      if not Ada.Directories."=" (Ada.Directories.Kind (Dir), Ada.Directories.Directory) then
+         raise SData_Core.Script_Error with
+            Category & ": target path is not a directory: " & Dir;
+      end if;
+      if not GNAT.OS_Lib.Is_Write_Accessible_File (Dir) then
+         raise SData_Core.Script_Error with
+            Category & ": no write permission for directory: " & Dir;
+      end if;
+   exception
+      when Ada.Directories.Name_Error =>
+         raise SData_Core.Script_Error with
+            Category & ": invalid target path: " & Full;
+      when Ada.Directories.Use_Error =>
+         raise SData_Core.Script_Error with
+            Category & ": target path has no containing directory: " & Full;
+   end Validate_Output_Dir;
 
    --  Collect_Filter_Vars — walks the filter AST and inserts the upper-cased
    --  name of every variable the expression reads at evaluation time.  The
@@ -274,6 +312,12 @@ package body SData_Core.Commands is
          end if;
       exception
          when SData_Core.File_IO.Save_Refused => null;
+         when E : Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
+            raise SData_Core.Script_Error with
+               "OUTPUT: cannot write """ &
+               SData_Core.Config.Runtime.Output_Table_Path
+                  (1 .. SData_Core.Config.Runtime.Output_Table_Len) &
+               """: " & Ada.Exceptions.Exception_Message (E);
       end;
    end Flush_Pending_Output_Table;
 
@@ -309,6 +353,12 @@ package body SData_Core.Commands is
          end if;
       exception
          when SData_Core.File_IO.Save_Refused => null;
+         when E : Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
+            raise SData_Core.Script_Error with
+               "SAVE: cannot write """ &
+               SData_Core.Config.Runtime.Save_File_Path
+                  (1 .. SData_Core.Config.Runtime.Save_File_Len) &
+               """: " & Ada.Exceptions.Exception_Message (E);
       end;
       SData_Core.Config.Runtime.Clear_Pending_Save;
    end Flush_Pending_Save;
@@ -421,6 +471,7 @@ package body SData_Core.Commands is
       declare
          Full : constant String := Full_Path (File_Name, "SAVE");
       begin
+         Validate_Output_Dir (Full, "SAVE");
          SData_Core.Config.Runtime.Internal.Set_Save_File_Path (Full);
          SData_Core.Config.Runtime.Internal.Set_Save_File_Fmt (Fmt);
          SData_Core.Config.Runtime.Internal.Set_Save_Sheet_Name (Sheet_Name);
