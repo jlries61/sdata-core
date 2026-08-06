@@ -56,12 +56,15 @@ jobs:
           # release: replace the tag below; the cache key in the next step
           # rotates automatically off alire.toml.
           #
-          # v0.17.1 is the sdata release with the implicit-RUN feature
-          # (issue #70) that requires this crate's Execute_Commit_Step
-          # Flush_Save parameter -- sdata's own repeat_save_implicit_run.cmd
-          # and repl_implicit_run_save.cmd integration tests exercise the
-          # SAVE-association fix this pin validates.
-          ref: v0.17.1
+          # v0.17.2 rolls up the design-vs-implementation audit fixes
+          # (sdata #107/#108: DIM temp-array resize data loss,
+          # SAVE-to-missing-directory clean error) plus sdata-only fixes on
+          # top of v0.17.1's implicit-RUN feature (issue #70), which still
+          # requires this crate's Execute_Commit_Step Flush_Save parameter --
+          # sdata's own repeat_save_implicit_run.cmd and
+          # repl_implicit_run_save.cmd integration tests exercise the
+          # SAVE-association fix that original pin validated.
+          ref: v0.17.2
           path: sdata
 
       - name: Set up Alire
