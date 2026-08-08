@@ -17,6 +17,15 @@ package body SData_Core.Values is
       return F > Real'Last or else F < Real'First;
    end Is_Inf;
 
+   --------------
+   -- Is_NaN --
+   --------------
+   function Is_NaN (F : Real) return Boolean is
+   begin
+      --  IEEE 754: NaN is the only value that compares unequal to itself.
+      return F /= F;
+   end Is_NaN;
+
    -------------------
    -- Convert_Value --
    -------------------
@@ -54,6 +63,9 @@ package body SData_Core.Values is
    begin
       case V.Kind is
          when Val_Numeric =>
+            if Is_NaN (V.Num_Val) then
+               return "NaN";
+            end if;
             if Is_Inf (V.Num_Val) then
                return (if V.Num_Val > 0.0 then "Inf" else "-Inf");
             end if;
@@ -82,6 +94,9 @@ package body SData_Core.Values is
    begin
       case V.Kind is
          when Val_Numeric =>
+            if Is_NaN (V.Num_Val) then
+               return "NaN";
+            end if;
             if Is_Inf (V.Num_Val) then
                return (if V.Num_Val > 0.0 then "Inf" else "-Inf");
             end if;
@@ -146,6 +161,9 @@ package body SData_Core.Values is
       package Float_IO is new Ada.Text_IO.Float_IO (Real);
       Buf : String (1 .. 128);
    begin
+      if Is_NaN (X) then
+         return "NaN";
+      end if;
       if Is_Inf (X) then
          return (if X > 0.0 then "Inf" else "-Inf");
       end if;
@@ -179,14 +197,13 @@ package body SData_Core.Values is
       Float_IO.Put (Buf, X, Aft => 16, Exp => 2);
       return Trim (Buf, Ada.Strings.Both);
    exception
-      --  Safety net for NaN (and any other value that slips past every
-      --  guard above, including the Aft => 1 .. 17 per-iteration handler):
-      --  the unguarded exponential fallback's Float_IO.Put is not proven
-      --  exception-free for every special value on every platform/compiler.
-      --  Mirrors the To_String_Formatted pattern so a SAVE never crashes on
-      --  a NaN cell (reachable via OPTIONS IEEE_DIVIDE YES; +Inf/-Inf are
-      --  already handled by Is_Inf above, and Real'Image renders NaN as
-      --  "NAN").
+      --  Safety net for any value that slips past every guard above
+      --  (including the explicit Is_NaN/Is_Inf checks and the Aft => 1 .. 17
+      --  per-iteration handler): the unguarded exponential fallback's
+      --  Float_IO.Put is not proven exception-free for every special value
+      --  on every platform/compiler. NaN and +Inf/-Inf are already handled
+      --  explicitly above and should never reach here; this remains
+      --  defense-in-depth so a SAVE never crashes outright on whatever does.
       when others =>
          return Trim (Real'Image (X), Ada.Strings.Both);
    end Image_Round_Trip;
@@ -198,6 +215,9 @@ package body SData_Core.Values is
       package Float_IO is new Ada.Text_IO.Float_IO (Real);
       Buf : String (1 .. 128);
    begin
+      if Is_NaN (X) then
+         return "NaN";
+      end if;
       if Is_Inf (X) then
          return (if X > 0.0 then "Inf" else "-Inf");
       end if;
@@ -319,5 +339,10 @@ begin
    begin
       Pos_Inf :=  Big * 2.0;
       Neg_Inf := -(Big * 2.0);
+      --  Infinity minus Infinity is the canonical IEEE 754 NaN-producing
+      --  operation; computed at runtime for the same static-expression
+      --  reason as Pos_Inf/Neg_Inf above, from values already known safe
+      --  under this package's disabled validity checks (-gnatVn).
+      NaN_Val := Pos_Inf - Pos_Inf;
    end;
 end SData_Core.Values;

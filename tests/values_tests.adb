@@ -21,6 +21,13 @@ begin
    Assert (not Is_Inf (1.0e30), "not Is_Inf(1.0e30)");
    Assert (not Is_Inf (-1.0e30), "not Is_Inf(-1.0e30)");
 
+   --  Is_NaN / NaN_Val (issue #71)
+   Assert (Is_NaN (NaN_Val),     "Is_NaN(NaN_Val)");
+   Assert (not Is_NaN (0.0),     "not Is_NaN(0.0)");
+   Assert (not Is_NaN (Pos_Inf), "not Is_NaN(Pos_Inf) -- Infinity is not NaN");
+   Assert (not Is_NaN (Neg_Inf), "not Is_NaN(Neg_Inf) -- Infinity is not NaN");
+   Assert (not Is_Inf (NaN_Val), "not Is_Inf(NaN_Val) -- NaN is not Infinity");
+
    --  To_String
    Assert (To_String (Num (1.5))'Length > 0, "To_String(Numeric finite) non-empty");
    Assert (To_String (I (42))  = "42",     "To_String(Integer 42)");
@@ -30,6 +37,9 @@ begin
    Assert (To_String (M)            = ".",   "To_String(Missing)");
    Assert (To_String (Num (Pos_Inf))  = "Inf", "To_String(Pos_Inf)");
    Assert (To_String (Num (Neg_Inf))  = "-Inf", "To_String(Neg_Inf)");
+   Assert (To_String (Num (NaN_Val))  = "NaN", "To_String(NaN_Val)");
+   Assert (To_String_Formatted (Num (NaN_Val)) = "NaN",
+           "To_String_Formatted(NaN_Val)");
 
    --  Is_True per Kind
    Assert (Is_True (Num (1.0)),     "Is_True(Numeric 1.0)");
@@ -84,20 +94,14 @@ begin
    Assert (Image_Round_Trip (Pos_Inf) = "Inf",  "RT Pos_Inf");
    Assert (Image_Round_Trip (Neg_Inf) = "-Inf", "RT Neg_Inf");
 
-   --  RT NaN: must not raise (crash-safety net). Constructed with validity
-   --  checks off (-gnatVn, per sdata_core.gpr) so the invalid bit pattern
-   --  survives the divide; reachable in practice via
-   --  OPTIONS IEEE_DIVIDE YES followed by 0.0/0.0 into a cell, then SAVE.
-   declare
-      function Make_NaN return Real is
-         Z : Real := 0.0;
-      begin
-         return Z / Z;
-      end Make_NaN;
-      NaN_Img : constant String := Image_Round_Trip (Make_NaN);
-   begin
-      Assert (NaN_Img'Length > 0, "RT NaN does not raise, returns non-empty string");
-   end;
+   --  RT NaN: renders exactly "NaN" (issue #71 -- previously fell through
+   --  to raw Real'Image via the exception-handler safety net, which is
+   --  GNAT-implementation-defined text; now explicit and consistent with
+   --  the Inf/-Inf convention). Reachable in practice both via the .n
+   --  literal and, as before this feature, via OPTIONS IEEE_DIVIDE YES
+   --  followed by 0.0/0.0 into a cell, then SAVE.
+   Assert (Image_Round_Trip (NaN_Val) = "NaN", "RT NaN_Val");
+   Assert (Image_Fixed_Decimals (NaN_Val, 2) = "NaN", "Fixed-decimals NaN_Val");
 
    --  Image_Fixed_Decimals: round + trim trailing zeros; N=0 -> integer.
    Assert (Image_Fixed_Decimals (3.14159, 2) = "3.14", "FD 3.14159 @2");

@@ -777,6 +777,7 @@ package body SData_Core.Evaluator is
          TK_LParen, TK_RParen, TK_Comma,
          TK_And, TK_Or, TK_Not, TK_Xor,
          TK_True, TK_False, TK_Dot,
+         TK_Infinity, TK_NaN,
          TK_EOF);
 
       Max_Tok : constant := 512;
@@ -950,6 +951,28 @@ package body SData_Core.Evaluator is
             return;
          end if;
 
+         --  Typed literals for IEEE 754 Infinity/NaN: .i / .n (either case),
+         --  disambiguated from the leading-dot decimal literal above (which
+         --  already claimed '.' followed by a digit) and from the bare '.'
+         --  (Val_Missing, TK_Dot below) by requiring a word boundary right
+         --  after the single 'i'/'n' letter -- so .info still lexes as
+         --  [TK_Dot]["info" identifier], unchanged (issue #71).
+         if C = '.' and then Pos + 1 <= Text'Last
+           and then (Text (Pos + 1) = 'i' or else Text (Pos + 1) = 'I'
+                     or else Text (Pos + 1) = 'n' or else Text (Pos + 1) = 'N')
+           and then (Pos + 2 > Text'Last
+                     or else not (Is_Alphanumeric (Text (Pos + 2))
+                                  or else Text (Pos + 2) = '_'
+                                  or else Text (Pos + 2) = '$'
+                                  or else Text (Pos + 2) = '%'))
+         then
+            Current.Kind :=
+              (if Text (Pos + 1) = 'i' or else Text (Pos + 1) = 'I'
+               then TK_Infinity else TK_NaN);
+            Pos := Pos + 2;
+            return;
+         end if;
+
          --  Single/double-character operators.
          case C is
             when '+' => Current.Kind := TK_Plus;  Pos := Pos + 1;
@@ -1098,6 +1121,20 @@ package body SData_Core.Evaluator is
             when TK_Dot =>
                Advance;
                return new Expression (Expr_Missing);
+
+            when TK_Infinity =>
+               Advance;
+               Node := new Expression (Expr_Numeric_Literal);
+               Node.Value      := Pos_Inf;
+               Node.Is_Integer := False;
+               return Node;
+
+            when TK_NaN =>
+               Advance;
+               Node := new Expression (Expr_Numeric_Literal);
+               Node.Value      := NaN_Val;
+               Node.Is_Integer := False;
+               return Node;
 
             when TK_True | TK_False =>
                --  TRUE/FALSE are zero-arg functions.  Represent as Expr_Variable

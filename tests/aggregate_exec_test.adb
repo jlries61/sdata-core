@@ -128,5 +128,55 @@ begin
    Assert (Raised, "#6: character type mismatch raises Script_Error");
    Assert (Tbl.Column_Count = 1, "#6: table untouched after type-mismatch error");
 
+   ---------------------------------------------------------------------
+   --  Issue #71 / systems-designer Finding 1: MIN/MAX must not silently
+   --  freeze at NaN when it's the FIRST value in a BY group -- they must
+   --  raise Script_Error via Numeric_Result_Checked, the same guard
+   --  SUM/MEAN already have, not return a silently-wrong NaN result.
+   ---------------------------------------------------------------------
+   Tbl.Clear;
+   SData_Core.Commands.Execute_NEW;
+   Tbl.Add_Column ("G", Tbl.Col_Numeric);
+   Tbl.Add_Column ("X", Tbl.Col_Numeric);
+   Tbl.Add_Row; Tbl.Add_Row;
+   --  NaN is the FIRST value Compute_Stats_Pass sees for this group --
+   --  the exact ordering that used to freeze Min_V/Max_V at NaN forever.
+   Tbl.Set_Value (1, "G", Num (1.0)); Tbl.Set_Value (1, "X", Num (NaN_Val));
+   Tbl.Set_Value (2, "G", Num (1.0)); Tbl.Set_Value (2, "X", Num (5.0));
+   Tbl.Clear_By_Vars;
+   Tbl.Add_By_Var ("G");
+   Specs.Clear;
+   Specs.Append (Spec ("m", "MIN", Invar_Scalar, "X"));
+   Raised := False;
+   begin
+      Execute_AGGREGATE (Specs);
+   exception
+      when SData_Core.Script_Error =>
+         Raised := True;
+   end;
+   Assert (Raised, "#71: MIN with NaN as first group value raises "
+           & "Script_Error, not a silent NaN result");
+
+   Tbl.Clear;
+   SData_Core.Commands.Execute_NEW;
+   Tbl.Add_Column ("G", Tbl.Col_Numeric);
+   Tbl.Add_Column ("X", Tbl.Col_Numeric);
+   Tbl.Add_Row; Tbl.Add_Row;
+   Tbl.Set_Value (1, "G", Num (1.0)); Tbl.Set_Value (1, "X", Num (NaN_Val));
+   Tbl.Set_Value (2, "G", Num (1.0)); Tbl.Set_Value (2, "X", Num (5.0));
+   Tbl.Clear_By_Vars;
+   Tbl.Add_By_Var ("G");
+   Specs.Clear;
+   Specs.Append (Spec ("m", "MAX", Invar_Scalar, "X"));
+   Raised := False;
+   begin
+      Execute_AGGREGATE (Specs);
+   exception
+      when SData_Core.Script_Error =>
+         Raised := True;
+   end;
+   Assert (Raised, "#71: MAX with NaN as first group value raises "
+           & "Script_Error, not a silent NaN result");
+
    Report_And_Exit;
 end Aggregate_Exec_Test;

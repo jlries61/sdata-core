@@ -86,7 +86,16 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       R : constant Stats_Pass_Result := Compute_Stats_Pass (Vals);
    begin
       if R.N_Count = 0 then return (Kind => Val_Missing); end if;
-      return (Kind => Val_Numeric, Num_Val => Real (R.Min_V));
+      --  Numeric_Result_Checked (not a raw Value literal) because
+      --  Compute_Stats_Pass's running Min_V is seeded from the first
+      --  non-missing value and updated only via a plain "<" comparison:
+      --  under IEEE 754, every comparison against NaN is False, so a NaN
+      --  as the *first* value in the group freezes Min_V at NaN for the
+      --  rest of the group with no later value ever able to replace it.
+      --  Without this guard that silently returns a wrong MIN() instead of
+      --  the domain error every other numeric aggregate (SUM/MEAN/VAR/STD)
+      --  already raises for the same underlying condition (issue #71).
+      return Numeric_Result_Checked (Real (R.Min_V));
    end Handle_Min_Fn;
 
    function Handle_Max_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -94,7 +103,8 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       R : constant Stats_Pass_Result := Compute_Stats_Pass (Vals);
    begin
       if R.N_Count = 0 then return (Kind => Val_Missing); end if;
-      return (Kind => Val_Numeric, Num_Val => Real (R.Max_V));
+      --  See Handle_Min_Fn: same NaN-freeze failure mode, symmetric fix.
+      return Numeric_Result_Checked (Real (R.Max_V));
    end Handle_Max_Fn;
 
    function Handle_N_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
