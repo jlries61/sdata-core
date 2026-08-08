@@ -1634,6 +1634,12 @@ Integers are formatted without decimals or scientific notation.</div>
 Returns False for finite values, Missing, and NaN.</div>
 </div>
 <div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Is_NaN (F : Real) return Boolean;</pre>
+<div class='doc'>Returns True for IEEE 754 NaN (Not a Number).
+Returns False for finite values, Missing, and Infinity.</div>
+</div>
+<div class='decl'>
 <div class='kind'>value</div>
 <pre>   Pos_Inf : Real;</pre>
 <div class='doc'>IEEE 754 infinity sentinels produced at package elaboration.
@@ -1642,6 +1648,14 @@ Use these wherever +Inf or -Inf must be produced at runtime.</div>
 <div class='decl'>
 <div class='kind'>value</div>
 <pre>   Neg_Inf : Real;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>value</div>
+<pre>   NaN_Val : Real;</pre>
+<div class='doc'>IEEE 754 NaN sentinel produced at package elaboration (derived from
+Pos_Inf/Neg_Inf, same &quot;compute at runtime, never as a static
+expression&quot; reasoning documented on those two). Use this wherever a
+NaN value must be produced at runtime (e.g. the .n literal).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>

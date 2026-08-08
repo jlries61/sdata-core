@@ -45,10 +45,20 @@ package SData_Core.Values is
    --  Returns False for finite values, Missing, and NaN.
    function Is_Inf (F : Real) return Boolean;
 
+   --  Returns True for IEEE 754 NaN (Not a Number).
+   --  Returns False for finite values, Missing, and Infinity.
+   function Is_NaN (F : Real) return Boolean;
+
    --  IEEE 754 infinity sentinels produced at package elaboration.
    --  Use these wherever +Inf or -Inf must be produced at runtime.
    Pos_Inf : Real;
    Neg_Inf : Real;
+
+   --  IEEE 754 NaN sentinel produced at package elaboration (derived from
+   --  Pos_Inf/Neg_Inf, same "compute at runtime, never as a static
+   --  expression" reasoning documented on those two). Use this wherever a
+   --  NaN value must be produced at runtime (e.g. the .n literal).
+   NaN_Val : Real;
 
    --  Like To_String, but respects global precision settings for Floats.
    function To_String_Formatted (V : Value) return String;
