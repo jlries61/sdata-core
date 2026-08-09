@@ -14,11 +14,9 @@ package SData_Core.Sorting is
 
    --  Reorder T in place per Criteria.  Stable (record_id / original-index
    --  tie-break).  When Store.Is_Active the sort runs in SQLite; otherwise
-   --  in memory.  Column_Order gives user-visible column sequence for the
-   --  spilled CREATE/INSERT; Segment_Start is the live segment's first row.
+   --  in memory.  Segment_Start is the live segment's first row.
    procedure Sort
      (T             : in out Columns.Column_Maps.Map;
-      Column_Order  : Columns.Column_Name_Vectors.Vector;
       Criteria      : Columns.Sort_Criteria_Array;
       Row_Count     : Natural;
       Segment_Start : Positive;

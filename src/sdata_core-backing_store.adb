@@ -5,13 +5,10 @@
 with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Containers.Vectors;
-with Ada.Environment_Variables;
 with Ada.Exceptions;
-with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada_Sqlite3.Wide;
 with SData_Core.Config;
-use type SData_Core.Config.Spill_Schema_Kind;
 with SData_Core.Signals;
 with SData_Core.Values; use SData_Core.Values;
 with SData_Core.Columns; use SData_Core.Columns;
@@ -21,16 +18,18 @@ with Ada_Sqlite3; use Ada_Sqlite3;
 
 package body SData_Core.Backing_Store is
 
-   --  Organisation: the trivial state accessors (Is_Active / Is_EAV / Col_Id
-   --  / Path) and the segment-cache reset (Clear_Cache) come first; then the
-   --  lifecycle (Open creates the temp DB on demand and latches the active
-   --  schema, Close / Finalize tear it down); then the col_id-registry
-   --  helpers shared by the EAV Spill/Fetch/Commit_Output_Rename bodies;
-   --  then the two heavy operations, Spill (memory -> disk) and Fetch (disk
-   --  -> memory, one segment at a time), each of which dispatches to a
-   --  Wide- or EAV-shaped private body; then the Commit_Output_Table
-   --  helpers.  Spill's atomicity / clean-abort contract is documented in
-   --  the spec; the comments here cover only the mechanics.
+   --  Organisation: the trivial state accessors (Is_Active / Col_Id / Path)
+   --  and the segment-cache reset (Clear_Cache) come first; then the
+   --  lifecycle (Open creates the temp DB on demand, Close / Finalize tear
+   --  it down); then the col_id-registry helpers shared by the
+   --  Spill/Fetch/Commit_Output_Rename bodies (entity-attribute-value
+   --  schema, ADR-0011 -- the legacy one-column-per-data-column "Wide"
+   --  schema this superseded was removed once EAV proved stable across one
+   --  full release cycle with no reported regression, issue #64); then the
+   --  two heavy operations, Spill (memory -> disk) and Fetch (disk ->
+   --  memory, one segment at a time); then the Commit_Output_Table helpers.
+   --  Spill's atomicity / clean-abort contract is documented in the spec;
+   --  the comments here cover only the mechanics.
 
    --  Quote Name as a SQLite identifier: wrap it in [ ] and escape any embedded
    --  ']' by doubling it (the sole metacharacter inside a bracket-quoted
@@ -62,11 +61,6 @@ package body SData_Core.Backing_Store is
    begin
       return Self.Is_Active;
    end Is_Active;
-
-   function Is_EAV (Self : Backing_Store) return Boolean is
-   begin
-      return Self.Schema = SData_Core.Config.Spill_EAV;
-   end Is_EAV;
 
    --  Name is always exactly "data" or "output_data" (Table.adb never
    --  calls Spill/Fetch/Commit_Output_Rename with anything else), so a
@@ -132,26 +126,6 @@ package body SData_Core.Backing_Store is
       Temp_Name : GNAT.Strings.String_Access;
    begin
       if Self.Is_Active then return; end if;
-
-      --  Latch the active schema for this store's whole lifetime.  The
-      --  SDATA_SPILL_SCHEMA environment variable is an undocumented
-      --  override of SData_Core.Config.Spill_Schema, for fast rollback
-      --  during the EAV rollout window (ADR-0011's Feature Flag Plan) --
-      --  not a public OPTIONS key.  Any other value (including unset)
-      --  falls back to the compiled-in Config default.
-      Self.Schema := SData_Core.Config.Spill_Schema;
-      if Ada.Environment_Variables.Exists ("SDATA_SPILL_SCHEMA") then
-         declare
-            Override : constant String := Ada.Characters.Handling.To_Upper
-               (Ada.Environment_Variables.Value ("SDATA_SPILL_SCHEMA"));
-         begin
-            if Override = "WIDE" then
-               Self.Schema := SData_Core.Config.Spill_Wide;
-            elsif Override = "EAV" then
-               Self.Schema := SData_Core.Config.Spill_EAV;
-            end if;
-         end;
-      end if;
 
       GNAT.OS_Lib.Create_Temp_File (FD, Temp_Name);
       GNAT.OS_Lib.Close (FD);
@@ -256,142 +230,12 @@ package body SData_Core.Backing_Store is
    end Ensure_EAV_Schema;
 
    ----------------------------------------------------------------
-   --  Spill: dispatches to the Wide (legacy, one SQL column per data
-   --  column) or EAV (ADR-0011) body per the store's latched schema.
+   --  Spill: writes memory -> disk in the entity-attribute-value schema
+   --  (ADR-0011). The legacy one-column-per-data-column "Wide" schema this
+   --  superseded, and the SQLite ~2000-column ceiling that came with it,
+   --  were removed once EAV proved stable across one full release cycle
+   --  with no reported regression (issue #64).
    ----------------------------------------------------------------
-
-   procedure Spill_Wide (Self  : in out Backing_Store;
-                         T     : in out Columns.Column_Maps.Map;
-                         Name  : String;
-                         Start : Positive) is
-      SQL : Unbounded_String;
-      Memory_Rows : Natural := 0;
-      package Name_Vecs is new Ada.Containers.Vectors (Positive, Unbounded_String);
-      package Cursor_Vecs is new Ada.Containers.Vectors
-        (Positive, Columns.Column_Maps.Cursor, Columns.Column_Maps."=");
-      Col_Names   : Name_Vecs.Vector;
-      Col_Cursors : Cursor_Vecs.Vector;
-   begin
-      --  Snapshot the column names (upper-cased, for the SQL identifiers) and
-      --  their cursors once, in a single stable order reused by both the CREATE
-      --  and the INSERT below.  Memory_Rows is the segment height: every column
-      --  vector has the same length, so the first non-empty one suffices.
-      for Pos in T.Iterate loop
-         Col_Names.Append
-           (To_Unbounded_String (Columns.Image (Columns.Column_Maps.Key (Pos))));
-         Col_Cursors.Append (Pos);
-         if Memory_Rows = 0 then
-            Memory_Rows := Natural
-              (Columns.Column_Maps.Constant_Reference (T, Pos).Element.all.Data.Length);
-         end if;
-      end loop;
-      if Memory_Rows = 0 then return; end if;
-
-      --  Build "CREATE TABLE IF NOT EXISTS [Name] (record_id INTEGER PRIMARY
-      --  KEY, <col> <affinity>, ...)".  record_id is the global logical row
-      --  number (set in the INSERT below), so Fetch can reload any segment by
-      --  record_id range.  Each column's Ada type maps to the SQLite affinity
-      --  Numeric -> REAL, Integer -> INTEGER, String -> TEXT.
-      SQL := To_Unbounded_String
-        ("CREATE TABLE IF NOT EXISTS [" & Name & "] (record_id INTEGER PRIMARY KEY");
-      for C in 1 .. Natural (Col_Names.Length) loop
-         declare
-            Ref   : constant Columns.Column_Maps.Constant_Reference_Type :=
-               Columns.Column_Maps.Constant_Reference (T, Col_Cursors.Element (C));
-            SQL_T : constant String := (if Ref.Element.all.Typ = Col_Numeric then "REAL"
-                                        elsif Ref.Element.all.Typ = Col_Integer then "INTEGER"
-                                        else "TEXT");
-         begin
-            Append (SQL, ", " & Sql_Id (To_String (Col_Names.Element (C))) & " " & SQL_T);
-         end;
-      end loop;
-      Append (SQL, ")");
-      Self.DB.Execute (To_String (SQL));
-
-      --  Build the parameterised "INSERT OR REPLACE INTO [Name] (record_id,
-      --  <cols>) VALUES (?, ?, ...)" prepared once and reused for every row.
-      --  OR REPLACE so re-spilling an overlapping record_id range overwrites
-      --  cleanly rather than colliding on the primary key.
-      SQL := To_Unbounded_String
-        ("INSERT OR REPLACE INTO [" & Name & "] (record_id");
-      for N of Col_Names loop Append (SQL, ", " & Sql_Id (To_String (N))); end loop;
-      Append (SQL, ") VALUES (?");
-      for I in 1 .. Natural (Col_Names.Length) loop Append (SQL, ", ?"); end loop;
-      Append (SQL, ")");
-
-      declare
-         Stmt : Ada_Sqlite3.Statement := Self.DB.Prepare (To_String (SQL));
-      begin
-         --  Batch all inserts in one transaction; without this, SQLite
-         --  auto-commits each row individually, causing O(N) lock cycles.
-         Self.DB.Execute ("BEGIN");
-         for R in 1 .. Memory_Rows loop
-            Stmt.Reset;
-            Stmt.Clear_Bindings;
-            --  record_id = global logical row: this segment's first row (Start)
-            --  plus the in-segment offset (R - 1).
-            Stmt.Bind_Int (1, Start + R - 1);
-            for C in 1 .. Natural (Col_Names.Length) loop
-               declare
-                  Ref : constant Columns.Column_Maps.Constant_Reference_Type :=
-                     Columns.Column_Maps.Constant_Reference (T, Col_Cursors.Element (C));
-                  Val : constant Value := Ref.Element.all.Data.Element (R);
-               begin
-                  case Val.Kind is
-                     --  Bind via the 64-bit path (Ada_Sqlite3.Wide) rather
-                     --  than the high-level Bind_Double, which narrows to 32-bit
-                     --  Float in ada_sqlite3 0.1.1 -- spilled numerics must keep
-                     --  the same double precision as the in-memory table (#54).
-                     when Val_Numeric =>
-                        Ada_Sqlite3.Wide.Bind_Double64
-                          (Stmt, C + 1, Long_Float (Val.Num_Val));
-                     when Val_Integer =>
-                        Ada_Sqlite3.Wide.Bind_Int64
-                          (Stmt, C + 1, Long_Long_Integer (Val.Int_Val));
-                     when Val_String  => Stmt.Bind_Text (C + 1, To_String (Val.Str_Val));
-                     when Val_Missing => Stmt.Bind_Null (C + 1);
-                  end case;
-               end;
-            end loop;
-            Stmt.Step;
-         end loop;
-         Self.DB.Execute ("COMMIT");
-      end;
-
-      --  SUCCESS path only: the rows are now durably in the DB, so release the
-      --  in-memory vectors (the caller then advances its segment start past
-      --  them).  On SQLite_Error this line is never reached -- per the spec's
-      --  clean-abort contract, memory must stay the sole copy of the data.
-      for Pos in T.Iterate loop T.Reference (Pos).Element.all.Data.Clear; end loop;
-   exception
-      when E : SQLite_Error =>
-         declare
-            Msg : constant String := Ada.Exceptions.Exception_Message (E);
-            Upper_Msg : constant String :=
-               Ada.Characters.Handling.To_Upper (Msg);
-         begin
-            if Ada.Strings.Fixed.Index (Upper_Msg, "TOO MANY COLUMNS") > 0
-            then
-               --  SQLite hard cap (~2000 columns per table).  Report the
-               --  column count and advise -m 0 to keep the table in memory.
-               --  Keep the message under GNAT's 200-char exception-message
-               --  limit: "dataset ""data"" has ... [SQLite: ...]" ~ 150 chars.
-               raise Script_Error with
-                  "dataset """ & Name & """ has too many columns for"
-                  & " SQLite spill ("
-                  & Columns.Img (Natural (Col_Names.Length))
-                  & " cols, limit ~2000); use -m 0 or fewer columns"
-                  & " [SQLite: " & Msg & "]";
-            else
-               raise Script_Error with
-                  "could not write dataset to disk (disk full?)"
-                  & " [table=" & Name
-                  & ", rows=" & Columns.Img (Memory_Rows)
-                  & ", segment_start=" & Columns.Img (Start) & "]: "
-                  & Msg;
-            end if;
-         end;
-   end Spill_Wide;
 
    procedure Spill_EAV (Self  : in out Backing_Store;
                         T     : in out Columns.Column_Maps.Map;
@@ -421,18 +265,16 @@ package body SData_Core.Backing_Store is
       Ensure_EAV_Schema (Self.DB, Name);
 
       declare
-         --  OR REPLACE, matching Spill_Wide: re-spilling an overlapping
-         --  record_id range (Sorting.Sort flushes whatever's still resident
-         --  in memory before its rebuild, which can overlap a range already
-         --  on disk) must overwrite cleanly rather than collide on the
-         --  (record_id, col_id) primary key.
+         --  OR REPLACE: re-spilling an overlapping record_id range
+         --  (Sorting.Sort flushes whatever's still resident in memory
+         --  before its rebuild, which can overlap a range already on disk)
+         --  must overwrite cleanly rather than collide on the (record_id,
+         --  col_id) primary key.
          --  REVIEW: this only replaces cells that are still non-missing on
-         --  re-spill. Spill_Wide's OR REPLACE rewrites an entire row
-         --  (including NULLing out a cell that became missing since the
-         --  first spill); a sparse re-spill here would leave a stale
-         --  non-missing row behind for a cell that flipped to missing
-         --  in between. Not exercised by any current caller (every re-spill
-         --  observed re-writes unchanged data), but worth a guard or a
+         --  re-spill -- a sparse re-spill would leave a stale non-missing
+         --  row behind for a cell that flipped to missing in between. Not
+         --  exercised by any current caller (every re-spill observed
+         --  re-writes unchanged data), but worth a guard or a
          --  DELETE-then-INSERT if a future caller ever re-spills mutated
          --  data.
          Stmt : Ada_Sqlite3.Statement := Self.DB.Prepare
@@ -495,7 +337,10 @@ package body SData_Core.Backing_Store is
          Self.DB.Execute ("COMMIT");
       end;
 
-      --  SUCCESS path only -- see Spill_Wide's identical comment.
+      --  SUCCESS path only: the rows are now durably in the DB, so release
+      --  the in-memory vectors (the caller then advances its segment start
+      --  past them). On SQLite_Error this line is never reached -- per the
+      --  spec's clean-abort contract, memory must stay the sole copy.
       for Pos in T.Iterate loop T.Reference (Pos).Element.all.Data.Clear; end loop;
    exception
       when E : SQLite_Error =>
@@ -518,133 +363,19 @@ package body SData_Core.Backing_Store is
       --  so any prefetch cache built from it would go stale -- drop it now.
       Clear_Cache (Self);
 
-      --  Create the temp DB lazily on the first spill (idempotent thereafter),
-      --  latching the active schema.
+      --  Create the temp DB lazily on the first spill (idempotent thereafter).
       Open (Self);
 
-      if Self.Is_EAV then
-         Spill_EAV (Self, T, Name, Start);
-      else
-         Spill_Wide (Self, T, Name, Start);
-      end if;
+      Spill_EAV (Self, T, Name, Start);
    end Spill;
 
    ----------------------------------------------------------------
-   --  Fetch: dispatches to the Wide or EAV body per the latched schema.
-   --  Both always read from the [data] table -- Fetch is never called for
-   --  "output_data" (write-only until Commit_Output_Table's rename makes it
-   --  "data"), matching the original implementation.
+   --  Fetch: reads disk -> memory, one segment at a time, from the
+   --  entity-attribute-value schema (ADR-0011; see the Spill section
+   --  above for the legacy-Wide-removal context). Always reads from the
+   --  [data] table -- Fetch is never called for "output_data" (write-only
+   --  until Commit_Output_Table's rename makes it "data").
    ----------------------------------------------------------------
-
-   function Fetch_Wide (Self      : in out Backing_Store;
-                        Row       : Positive;
-                        Col       : String;
-                        T         : Columns.Column_Maps.Map;
-                        Row_Count : Natural) return SData_Core.Values.Value is
-      U_Col : constant String := Ada.Characters.Handling.To_Upper (Col);
-   begin
-      --  Cache miss -> load the segment containing Row.  Seg_Start = 0 means
-      --  the cache is empty; otherwise [Seg_Start, Seg_End] is what we hold.
-      --  The cache holds exactly ONE segment (no LRU), so a scan that jumps
-      --  between segments re-queries each time -- see the Add_Row cost note.
-      if Self.Seg_Start = 0 or else Row < Self.Seg_Start or else Row > Self.Seg_End then
-         declare
-            --  Limit = rows per segment = the same cells/columns budget Add_Row
-            --  spills at, so disk segments line up with the in-memory ones.
-            --  Segments tile the row space into Limit-sized blocks: block S_Idx
-            --  (0-based) covers rows [S_Start, S_End], with S_End clamped to the
-            --  table height (Row_Count).  Row is guaranteed to fall in it.
-            Col_Count : constant Positive := Positive'Max (1, Natural (T.Length));
-            Limit   : constant Positive :=
-               (if SData_Core.Config.Max_Table_Cells > 0
-                then Positive'Max (1, SData_Core.Config.Max_Table_Cells / Col_Count)
-                else 1);
-            S_Idx   : constant Natural  := (Row - 1) / Limit;
-            S_Start : constant Positive := S_Idx * Limit + 1;
-            S_End   : constant Positive :=
-               Positive'Min (S_Start + Limit - 1, Row_Count);
-            Num_Rows : constant Natural := S_End - S_Start + 1;
-            Stmt : Ada_Sqlite3.Statement := Self.DB.Prepare
-               ("SELECT * FROM [data] WHERE record_id >= ? AND record_id <= ?" &
-                " ORDER BY record_id");
-            Num_Cols : Integer;
-         begin
-            Stmt.Bind_Int (1, S_Start);
-            Stmt.Bind_Int (2, S_End);
-            Self.Seg_Cache.Clear;
-
-            --  Column count is known from the prepared statement before stepping.
-            Num_Cols := Stmt.Column_Count - 1;  --  exclude record_id at index 0
-
-            --  Pre-insert an empty vector for each data column and reserve
-            --  capacity so that subsequent Appends do not reallocate.
-            for I in 1 .. Num_Cols loop
-               declare
-                  CName : constant String := Stmt.Column_Name (I);
-                  Empty : constant Columns.Value_Vectors.Vector :=
-                     Columns.Value_Vectors.Empty_Vector;
-               begin
-                  Self.Seg_Cache.Include (CName, Empty);
-                  Self.Seg_Cache.Reference (CName).Reserve_Capacity
-                     (Ada.Containers.Count_Type (Num_Rows));
-               end;
-            end loop;
-
-            --  Fetch all rows in one sequential scan.
-            while Stmt.Step = Ada_Sqlite3.ROW loop
-               for I in 1 .. Num_Cols loop
-                  declare
-                     CName : constant String := Stmt.Column_Name (I);
-                     Typ   : constant Ada_Sqlite3.Column_Type := Stmt.Get_Column_Type (I);
-                     Val   : Value;
-                  begin
-                     if Stmt.Column_Is_Null (I) then
-                        Val := (Kind => Val_Missing);
-                     elsif Typ = Ada_Sqlite3.Float_Type then
-                        Val := (Kind => Val_Numeric,
-                                Num_Val => Real
-                                  (Ada_Sqlite3.Wide.Column_Double64 (Stmt, I)));
-                     elsif Typ = Ada_Sqlite3.Integer_Type then
-                        Val := (Kind => Val_Integer, Int_Val => Int
-                                  (Ada_Sqlite3.Wide.Column_Int64 (Stmt, I)));
-                     else
-                        Val := (Kind    => Val_String,
-                                Str_Val => To_Unbounded_String (Stmt.Column_Text (I)));
-                     end if;
-                     Self.Seg_Cache.Reference (CName).Append (Val);
-                  end;
-               end loop;
-            end loop;
-
-            Self.Seg_Start := S_Start;
-            Self.Seg_End   := S_End;
-         end;
-      end if;
-
-      --  Return the cached value.  Idx is Row's 1-based position within the
-      --  cached segment.  A column absent from the cache, or a short column,
-      --  yields Missing rather than raising.
-      if Self.Seg_Cache.Contains (U_Col) then
-         declare
-            Idx : constant Positive := Row - Self.Seg_Start + 1;
-            Ref : constant Seg_Data_Maps.Constant_Reference_Type :=
-               Self.Seg_Cache.Constant_Reference (U_Col);
-         begin
-            if Idx <= Natural (Ref.Length) then
-               return Ref.Element (Idx);
-            end if;
-         end;
-      end if;
-      return (Kind => Val_Missing);
-   exception
-      when E : SQLite_Error =>
-         raise Script_Error with
-            "could not read dataset from disk "
-            & "(backing store corrupted or missing?)"
-            & " [row=" & Columns.Img (Row)
-            & ", column=" & U_Col & "]: "
-            & Ada.Exceptions.Exception_Message (E);
-   end Fetch_Wide;
 
    function Fetch_EAV (Self      : in out Backing_Store;
                        Row       : Positive;
@@ -773,11 +504,7 @@ package body SData_Core.Backing_Store is
                    T         : Columns.Column_Maps.Map;
                    Row_Count : Natural) return SData_Core.Values.Value is
    begin
-      if Self.Is_EAV then
-         return Fetch_EAV (Self, Row, Col, T, Row_Count);
-      else
-         return Fetch_Wide (Self, Row, Col, T, Row_Count);
-      end if;
+      return Fetch_EAV (Self, Row, Col, T, Row_Count);
    end Fetch;
 
 end SData_Core.Backing_Store;

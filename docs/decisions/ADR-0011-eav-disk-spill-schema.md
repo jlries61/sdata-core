@@ -1,7 +1,7 @@
 ---
 id: ADR-0011
 title: "Disk spill moves from one-SQLite-column-per-data-column to an EAV schema"
-status: Accepted (implemented 2026-07-29 as amended — persistent secondary index dropped, Sort pivot needs no index either, both per benchmark)
+status: Accepted (implemented 2026-07-29 as amended — persistent secondary index dropped, Sort pivot needs no index either, both per benchmark; legacy Wide path + toggle removed 2026-08-09, see the final Amendment)
 date: 2026-07-28
 related:
   - ../../sdata/doc/design.md
@@ -425,6 +425,59 @@ previously asserted the ceiling error, now asserts a 2100-column dataset
 spills, reads back, and round-trips correctly, including a column well
 past the old ~2000-column limit). `spill_sort_test.cmd` (pre-existing,
 unmodified) is what caught the `INSERT OR REPLACE` bug above.
+
+## Amendment (2026-08-09): legacy Wide path and the internal toggle removed
+
+Per this ADR's own Feature Flag Plan (§ "Consequences" and the "Internal
+`Wide`/`EAV` toggle verified equivalent" implementation note above): the
+`Spill_Wide`/`Fetch_Wide` code path, `Backing_Store.Is_EAV`,
+`SData_Core.Config.Spill_Schema_Kind`/`Spill_Schema`, and the undocumented
+`SDATA_SPILL_SCHEMA` environment-variable override are all deleted. EAV has
+been the default schema (and the only schema either consumer's test suite has
+exercised in `make check`, aside from the one-time manual `WIDE`-vs-`EAV`
+equivalence check noted above) since 2026-07-29 with zero reported
+regressions across sdata `make check` and data-vandal `make check` — the
+"one full release cycle" condition this ADR staged the cleanup behind. Closes
+the remaining half of sdata issue #64 (the ceiling removal itself already
+shipped in the original implementation above).
+
+**What changed:**
+- `Backing_Store.Spill`/`Fetch` now call the (unrenamed) `Spill_EAV`/
+  `Fetch_EAV` bodies unconditionally — no more schema dispatch.
+- `Backing_Store.Is_EAV` removed (was already always `True` in practice).
+- `SData_Core.Config.Spill_Schema_Kind`/`Spill_Schema` removed —
+  `Backing_Store.Open` no longer latches a schema at all.
+- `Table.Commit_Output_Table`'s three `if Store.Is_EAV then ... end if;`
+  guards around the `data_cols`/`output_data_cols` registry-table DROP/
+  RENAME statements are now unconditional (they were already unconditionally
+  reachable in practice).
+- `Sorting.Sort` dropped its unused `Column_Order` parameter (only the
+  removed Wide-path rebuild read it; the EAV rebuild only ever touched the
+  active sort-key columns via `Col_Id` pivots) — call site updated in
+  `Table.Sort`.
+- `sdata/tests/wide_table_spill.cmd` (unmodified) still passes: it already
+  asserts the 2100-column round-trip, which exercises the same EAV path this
+  cleanup leaves as the only path.
+
+**Not part of the public contract.** Confirmed via `scripts/gen-reference.py`'s
+`PUBLIC_PACKAGES` list (unchanged since this ADR's original implementation
+note above): `Backing_Store`, `Sorting`, and the base `Config` package are
+all outside sdata-core's documented public contract (`Commands`, `Evaluator`,
+`Values`, `Config.Runtime`, `Variables`, `Table`, `Statistics`). Regenerating
+`docs/api/reference.html` produces a zero-diff, confirmed empirically before
+committing. Neither consumer's source required any change — both `sdata make
+check` (383/383) and `data-vandal make check` (148/148) pass unmodified
+against the new sdata-core build. Version bump is therefore patch-level
+(0.4.3 -> 0.4.4), matching this project's convention for changes that touch
+no promised public signature and require no consumer code change (same
+classification as the `^`/`**` operator-parity fix), not the minor/breaking
+bump the *original* EAV introduction used (0.3.x -> 0.4.0, which did change
+consumer-visible behavior: the ~2000-column ceiling itself).
+
+**design.md's own closing criterion, now satisfied:** §1.1's Note
+acknowledging the ~2000-column ceiling is removed; the requirement reverts to
+its original unqualified "no hard memory or dimensional constraints" wording,
+per this ADR's original "Positive" consequence above.
 
 ## Related
 
