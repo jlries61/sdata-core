@@ -56,15 +56,16 @@ jobs:
           # release: replace the tag below; the cache key in the next step
           # rotates automatically off alire.toml.
           #
-          # v0.17.2 rolls up the design-vs-implementation audit fixes
-          # (sdata #107/#108: DIM temp-array resize data loss,
-          # SAVE-to-missing-directory clean error) plus sdata-only fixes on
-          # top of v0.17.1's implicit-RUN feature (issue #70), which still
-          # requires this crate's Execute_Commit_Step Flush_Save parameter --
-          # sdata's own repeat_save_implicit_run.cmd and
-          # repl_implicit_run_save.cmd integration tests exercise the
-          # SAVE-association fix that original pin validated.
-          ref: v0.17.2
+          # v0.17.3 adds .i/-.i/.n typed literal syntax for IEEE 754
+          # Infinity/NaN (issue #71), which requires this crate's new
+          # Is_NaN/NaN_Val (SData_Core.Values) and TK_Infinity/TK_NaN
+          # (Parse_Expression) added in v0.4.3 -- sdata's own
+          # infinity_nan_literals.cmd, infinity_nan_arithmetic_error.cmd,
+          # and aggregate_min_max_nan_first.cmd integration tests exercise
+          # the literal construction, the Numeric_Result_Checked NaN-
+          # rejection guard, and the Handle_Min_Fn/Handle_Max_Fn NaN-freeze
+          # fix that pin validates end-to-end.
+          ref: v0.17.3
           path: sdata
 
       - name: Set up Alire
