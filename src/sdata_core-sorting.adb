@@ -15,29 +15,6 @@ with Ada_Sqlite3; use Ada_Sqlite3;
 
 package body SData_Core.Sorting is
 
-   --  Quote Name as a SQLite identifier for the spilled ORDER BY: wrap it in
-   --  [ ] and escape any embedded ']' by doubling it (the sole metacharacter
-   --  inside a bracket-quoted identifier), so column names with spaces,
-   --  punctuation, or SQL keywords are safe.  Buf is sized Name'Length * 2 for
-   --  the worst case of all-']'.  Backing_Store keeps its own private copy for
-   --  the spill/fetch path; this 9-line quoter is duplicated rather than
-   --  widening the Backing_Store API for one caller.  (If a third caller
-   --  appears, promote it to Columns.)
-   function Sql_Id (Name : String) return String is
-      Buf : String (1 .. Name'Length * 2);
-      Len : Natural := 0;
-   begin
-      for C of Name loop
-         Len := Len + 1;
-         Buf (Len) := C;
-         if C = ']' then
-            Len := Len + 1;
-            Buf (Len) := ']';
-         end if;
-      end loop;
-      return "[" & Buf (1 .. Len) & "]";
-   end Sql_Id;
-
    ----------------------------------------------------------------
    --  Sort working storage with deterministic finalization.
    --
@@ -90,7 +67,6 @@ package body SData_Core.Sorting is
    ----------
    procedure Sort
      (T             : in out Columns.Column_Maps.Map;
-      Column_Order  : Columns.Column_Name_Vectors.Vector;
       Criteria      : Columns.Sort_Criteria_Array;
       Row_Count     : Natural;
       Segment_Start : Positive;
@@ -132,143 +108,90 @@ package body SData_Core.Sorting is
       if Store.Is_Active then
          Store.Spill (T, "data", Segment_Start);
 
-         if Store.Is_EAV then
-            --  EAV disk-path rebuild (ADR-0011). Cannot ORDER BY a sort key
-            --  directly -- it's spread across rows, not present as a SQL
-            --  column -- so: pivot only the active sort-key columns (always
-            --  a small, bounded set) via one plain LEFT JOIN per key
-            --  (benchmarked 2026-07-29b: no SQL index of any kind beats
-            --  every indexed alternative for this exact access pattern, see
-            --  ADR-0011's second Amendment); assemble a full 1..N record_id
-            --  sequence via a recursive CTE rather than a
-            --  SELECT DISTINCT record_id FROM data (which would silently
-            --  drop any record whose every column is Missing -- such a
-            --  record has zero physical EAV rows); rank by
-            --  ROW_NUMBER() OVER the sort keys; copy every EAV cell into
-            --  data_new reassigned to its new record_id; swap in exactly
-            --  the same drop/rename pattern as the Wide path below.
-            declare
-               Joins   : Unbounded_String;
-               OrderBy : Unbounded_String;
-            begin
-               for I in Criteria'Range loop
-                  declare
-                     Key_Name : constant String := Ada.Characters.Handling.To_Upper
-                        (Criteria (I).Name (1 .. Criteria (I).Len));
-                     Cid   : constant Natural := Store.Col_Id ("data", Key_Name);
-                     Alias : constant String := "k" & Columns.Img (I);
-                  begin
-                     --  Cid = 0: the sort key was never spilled under this
-                     --  name -- either it's genuinely not a column of T (see
-                     --  below for how that's reachable at all: the
-                     --  interpreter's undefined-variable guard for SORT is
-                     --  gated on Column_Count > 0, so a REPEAT step whose
-                     --  Column_Count is still 0 -- e.g. no LET ever fired for
-                     --  any record -- lets SORT reference a name that plain
-                     --  never exists; confirmed reviewer question on PR #101),
-                     --  or it once was a column, spilled, and was DROPped
-                     --  back out (Drop_Column never touches the spill store,
-                     --  so a dropped column's col_id simply stops being
-                     --  reachable via T without ever being reachable via
-                     --  Store either). Either way, matches the in-memory
-                     --  path's tolerant treatment of an unknown key as
-                     --  all-Missing (see Cell, above) by simply contributing
-                     --  no join/order term for it.
-                     if Cid > 0 then
-                        Append
-                          (Joins,
-                           " LEFT JOIN (SELECT record_id, val_num, val_int, val_txt " &
-                           "FROM data WHERE col_id = " & Columns.Img (Cid) & ") " &
-                           Alias & " ON " & Alias & ".record_id = seq.record_id");
-                        declare
-                           Key_Col : constant Columns.Column_Name := To_Column_Name (Key_Name);
-                           Typ : constant Columns.Column_Type :=
-                              (if T.Contains (Key_Col)
-                               then T.Constant_Reference (T.Find (Key_Col)).Element.all.Typ
-                               else Col_Numeric);
-                           Expr : constant String :=
-                              (if Typ = Col_Numeric then Alias & ".val_num"
-                               elsif Typ = Col_Integer then Alias & ".val_int"
-                               else Alias & ".val_txt");
-                        begin
-                           if Length (OrderBy) > 0 then Append (OrderBy, ", "); end if;
-                           Append (OrderBy, Expr);
-                           if Criteria (I).Dir = Descending then Append (OrderBy, " DESC"); end if;
-                        end;
-                     end if;
-                  end;
-               end loop;
-               if Length (OrderBy) > 0 then Append (OrderBy, ", "); end if;
-               Append (OrderBy, "seq.record_id ASC");
-
-               Store.Execute
-                 ("CREATE TABLE data_new (record_id INTEGER, col_id INTEGER, " &
-                  "val_num REAL, val_int INTEGER, val_txt TEXT, " &
-                  "PRIMARY KEY (record_id, col_id)) WITHOUT ROWID");
-               Store.Execute
-                 ("INSERT INTO data_new (record_id, col_id, val_num, val_int, val_txt) " &
-                  "SELECT rn.new_id, v.col_id, v.val_num, v.val_int, v.val_txt " &
-                  "FROM data v JOIN (" &
-                  "WITH RECURSIVE seq(record_id) AS (SELECT 1 UNION ALL " &
-                  "SELECT record_id + 1 FROM seq WHERE record_id < " & Columns.Img (N) & ") " &
-                  "SELECT seq.record_id AS record_id, " &
-                  "ROW_NUMBER() OVER (ORDER BY " & To_String (OrderBy) & ") AS new_id " &
-                  "FROM seq" & To_String (Joins) &
-                  ") rn ON rn.record_id = v.record_id");
-               Store.Execute ("DROP TABLE data");
-               Store.Execute ("ALTER TABLE data_new RENAME TO data");
-            exception
-               when E : SQLite_Error =>
-                  raise Script_Error with
-                     "could not sort spilled dataset (disk full?)"
-                     & " [rows=" & Columns.Img (N)
-                     & ", sort_keys=" & Columns.Img (Criteria'Length) & "]: "
-                     & Ada.Exceptions.Exception_Message (E);
-            end;
-            return;
-         end if;
-
+         --  EAV disk-path rebuild (ADR-0011). Cannot ORDER BY a sort key
+         --  directly -- it's spread across rows, not present as a SQL
+         --  column -- so: pivot only the active sort-key columns (always
+         --  a small, bounded set) via one plain LEFT JOIN per key
+         --  (benchmarked 2026-07-29b: no SQL index of any kind beats
+         --  every indexed alternative for this exact access pattern, see
+         --  ADR-0011's second Amendment); assemble a full 1..N record_id
+         --  sequence via a recursive CTE rather than a
+         --  SELECT DISTINCT record_id FROM data (which would silently
+         --  drop any record whose every column is Missing -- such a
+         --  record has zero physical EAV rows); rank by
+         --  ROW_NUMBER() OVER the sort keys; copy every EAV cell into
+         --  data_new reassigned to its new record_id; swap in with the
+         --  usual drop/rename pattern. (The legacy Wide-schema rebuild
+         --  this mirrored was removed once EAV proved stable across one
+         --  full release cycle with no reported regression -- issue #64.)
          declare
-            Col_N    : constant Natural := Natural (T.Length);
-            Cols_CSV : Unbounded_String;
-            Col_Def  : Unbounded_String;
-            OrderBy  : Unbounded_String := To_Unbounded_String (" ORDER BY ");
+            Joins   : Unbounded_String;
+            OrderBy : Unbounded_String;
          begin
-            if Col_N = 0 then return; end if;
-
-            for I in 1 .. Col_N loop
+            for I in Criteria'Range loop
                declare
-                  Key   : constant Columns.Column_Name := Column_Order.Element (I);
-                  Name  : constant String := Columns.Image (Key);
-                  Typ   : constant Columns.Column_Type :=
-                     T.Constant_Reference (T.Find (Key)).Element.all.Typ;
-                  SQL_T : constant String := (if Typ = Col_Numeric then "REAL"
-                                              elsif Typ = Col_Integer then "INTEGER"
-                                              else "TEXT");
+                  Key_Name : constant String := Ada.Characters.Handling.To_Upper
+                     (Criteria (I).Name (1 .. Criteria (I).Len));
+                  Cid   : constant Natural := Store.Col_Id ("data", Key_Name);
+                  Alias : constant String := "k" & Columns.Img (I);
                begin
-                  Append (Cols_CSV, Sql_Id (Name));
-                  Append (Col_Def,  Sql_Id (Name) & " " & SQL_T);
-                  if I < Col_N then
-                     Append (Cols_CSV, ", ");
-                     Append (Col_Def,  ", ");
+                  --  Cid = 0: the sort key was never spilled under this
+                  --  name -- either it's genuinely not a column of T (see
+                  --  below for how that's reachable at all: the
+                  --  interpreter's undefined-variable guard for SORT is
+                  --  gated on Column_Count > 0, so a REPEAT step whose
+                  --  Column_Count is still 0 -- e.g. no LET ever fired for
+                  --  any record -- lets SORT reference a name that plain
+                  --  never exists; confirmed reviewer question on PR #101),
+                  --  or it once was a column, spilled, and was DROPped
+                  --  back out (Drop_Column never touches the spill store,
+                  --  so a dropped column's col_id simply stops being
+                  --  reachable via T without ever being reachable via
+                  --  Store either). Either way, matches the in-memory
+                  --  path's tolerant treatment of an unknown key as
+                  --  all-Missing (see Cell, above) by simply contributing
+                  --  no join/order term for it.
+                  if Cid > 0 then
+                     Append
+                       (Joins,
+                        " LEFT JOIN (SELECT record_id, val_num, val_int, val_txt " &
+                        "FROM data WHERE col_id = " & Columns.Img (Cid) & ") " &
+                        Alias & " ON " & Alias & ".record_id = seq.record_id");
+                     declare
+                        Key_Col : constant Columns.Column_Name := To_Column_Name (Key_Name);
+                        Typ : constant Columns.Column_Type :=
+                           (if T.Contains (Key_Col)
+                            then T.Constant_Reference (T.Find (Key_Col)).Element.all.Typ
+                            else Col_Numeric);
+                        Expr : constant String :=
+                           (if Typ = Col_Numeric then Alias & ".val_num"
+                            elsif Typ = Col_Integer then Alias & ".val_int"
+                            else Alias & ".val_txt");
+                     begin
+                        if Length (OrderBy) > 0 then Append (OrderBy, ", "); end if;
+                        Append (OrderBy, Expr);
+                        if Criteria (I).Dir = Descending then Append (OrderBy, " DESC"); end if;
+                     end;
                   end if;
                end;
             end loop;
+            if Length (OrderBy) > 0 then Append (OrderBy, ", "); end if;
+            Append (OrderBy, "seq.record_id ASC");
 
-            for I in Criteria'Range loop
-               Append (OrderBy, Sql_Id (Ada.Characters.Handling.To_Upper
-                       (Criteria (I).Name (1 .. Criteria (I).Len))));
-               if Criteria (I).Dir = Descending then Append (OrderBy, " DESC"); end if;
-               if I < Criteria'Last then Append (OrderBy, ", "); end if;
-            end loop;
-            --  Ensure stability: use record_id as tie-breaker
-            Append (OrderBy, ", record_id ASC");
-
-            Store.Execute ("CREATE TABLE data_new (record_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                           & To_String (Col_Def) & ")");
-            Store.Execute ("INSERT INTO data_new (" & To_String (Cols_CSV) & ") "
-                           & "SELECT " & To_String (Cols_CSV) & " FROM data "
-                           & To_String (OrderBy));
+            Store.Execute
+              ("CREATE TABLE data_new (record_id INTEGER, col_id INTEGER, " &
+               "val_num REAL, val_int INTEGER, val_txt TEXT, " &
+               "PRIMARY KEY (record_id, col_id)) WITHOUT ROWID");
+            Store.Execute
+              ("INSERT INTO data_new (record_id, col_id, val_num, val_int, val_txt) " &
+               "SELECT rn.new_id, v.col_id, v.val_num, v.val_int, v.val_txt " &
+               "FROM data v JOIN (" &
+               "WITH RECURSIVE seq(record_id) AS (SELECT 1 UNION ALL " &
+               "SELECT record_id + 1 FROM seq WHERE record_id < " & Columns.Img (N) & ") " &
+               "SELECT seq.record_id AS record_id, " &
+               "ROW_NUMBER() OVER (ORDER BY " & To_String (OrderBy) & ") AS new_id " &
+               "FROM seq" & To_String (Joins) &
+               ") rn ON rn.record_id = v.record_id");
             Store.Execute ("DROP TABLE data");
             Store.Execute ("ALTER TABLE data_new RENAME TO data");
          exception

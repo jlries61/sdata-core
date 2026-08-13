@@ -398,7 +398,7 @@ package body SData_Core.Table is
    --  Columns.Sort_Criteria_Array subtype, so it passes through directly.
    procedure Sort (Criteria : Sort_Criteria_Array) is
    begin
-      Sorting.Sort (Data_Table, Column_Order, Criteria,
+      Sorting.Sort (Data_Table, Criteria,
                     Table_Row_Count, Current_Segment_Start, Store);
    end Sort;
 
@@ -625,10 +625,8 @@ package body SData_Core.Table is
          end loop;
          Table_Row_Count := 0;
          if Store.Is_Active then
-            if Store.Is_EAV then
-               Store.Execute ("DROP TABLE IF EXISTS data_cols");
-               Store.Execute ("DROP TABLE IF EXISTS output_data_cols");
-            end if;
+            Store.Execute ("DROP TABLE IF EXISTS data_cols");
+            Store.Execute ("DROP TABLE IF EXISTS output_data_cols");
             Store.Execute ("DROP TABLE IF EXISTS data");
             Store.Execute ("DROP TABLE IF EXISTS output_data");
             Store.Reset_Col_Ids;
@@ -642,15 +640,11 @@ package body SData_Core.Table is
          Rebuild_Column_Cache;
 
          if Store.Is_Active then
-            if Store.Is_EAV then
-               Store.Execute ("DROP TABLE IF EXISTS data_cols");
-            end if;
+            Store.Execute ("DROP TABLE IF EXISTS data_cols");
             Store.Execute ("DROP TABLE IF EXISTS data");
             if Output_Spilled then
                Spill_Output_To_Disk;
-               if Store.Is_EAV then
-                  Store.Execute ("ALTER TABLE output_data_cols RENAME TO data_cols");
-               end if;
+               Store.Execute ("ALTER TABLE output_data_cols RENAME TO data_cols");
                Store.Execute ("ALTER TABLE output_data RENAME TO data");
             end if;
             --  Mirror the SQL-level rename (or lack of one, if nothing was
@@ -659,7 +653,7 @@ package body SData_Core.Table is
             --  correct either way, since an unspilled output's registry is
             --  already empty, exactly the fresh start "data" needs going
             --  forward under its (possibly entirely different) new column
-            --  set. A no-op when not in EAV mode.
+            --  set.
             Store.Commit_Output_Rename;
          end if;
       end if;

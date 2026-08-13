@@ -17,7 +17,6 @@ with Ada.Strings.Hash_Case_Insensitive;
 with Ada.Strings.Unbounded;
 with Ada_Sqlite3;
 with SData_Core.Columns;
-with SData_Core.Config;
 with SData_Core.Values;
 
 package SData_Core.Backing_Store is
@@ -30,20 +29,9 @@ package SData_Core.Backing_Store is
    --  Limited_Controlled.Initialize and auto-run at object creation -- which
    --  would eagerly create the singleton's temp DB at elaboration, changing
    --  the on-demand behavior of the original Initialize_Backing_Store.
-   --
-   --  Latches the active spill schema (SData_Core.Config.Spill_Schema, or
-   --  the SDATA_SPILL_SCHEMA environment variable override if set to "WIDE"
-   --  or "EAV") for this store's whole lifetime -- a table already spilling
-   --  under one schema must not switch mid-session if the config changes
-   --  later (per the eav-spill-schema systems-designer review).
    procedure Open (Self : in out Backing_Store);
 
    function Is_Active (Self : Backing_Store) return Boolean;
-
-   --  True when this store is spilling in the entity-attribute-value
-   --  schema (ADR-0011) rather than the legacy one-column-per-data-column
-   --  schema. Latched at Open; see Open's header comment.
-   function Is_EAV (Self : Backing_Store) return Boolean;
 
    --  Resolve (never create) Column_Name's col_id in Name's EAV column
    --  registry ("data" | "output_data"). Returns 0 if Column_Name has never
@@ -109,20 +97,18 @@ package SData_Core.Backing_Store is
    --  not a no-op.  Every caller guards with `if Store.Is_Active`.
    procedure Execute (Self : in out Backing_Store; SQL : String);
 
-   --  EAV only: Commit_Output_Table has SQL-level renamed output_data(_cols)
-   --  onto data(_cols) (or dropped both if there was nothing to keep) --
-   --  mirror that on the Ada-side col_id registries: "data"'s registry
-   --  becomes what "output_data"'s was (correct whether or not anything was
+   --  Commit_Output_Table has SQL-level renamed output_data(_cols) onto
+   --  data(_cols) (or dropped both if there was nothing to keep) -- mirror
+   --  that on the Ada-side col_id registries: "data"'s registry becomes
+   --  what "output_data"'s was (correct whether or not anything was
    --  actually spilled to output_data: an unspilled output has an empty
    --  registry, which is exactly the fresh-start "data" needs going
-   --  forward), and "output_data"'s registry resets empty. A no-op when not
-   --  in EAV mode (the registries are unused and stay empty either way).
+   --  forward), and "output_data"'s registry resets empty.
    procedure Commit_Output_Rename (Self : in out Backing_Store);
 
-   --  EAV only: both dataset names' col_id registries are dropped (Table's
+   --  Both dataset names' col_id registries are dropped (Table's
    --  "everything truncated to zero rows" branch of Commit_Output_Table,
-   --  which drops both physical tables outright). A no-op when not in EAV
-   --  mode.
+   --  which drops both physical tables outright).
    procedure Reset_Col_Ids (Self : in out Backing_Store);
 
    --  Tear down: delete the temp file, deactivate, clear cache, unregister
@@ -160,10 +146,6 @@ private
       Seg_Start  : Natural := 0;  --  0 = empty; first logical row of cached segment
       Seg_End    : Natural := 0;  --  last logical row of cached segment
 
-      --  Latched at Open; see Open's header comment.
-      Schema : SData_Core.Config.Spill_Schema_Kind := SData_Core.Config.Spill_EAV;
-
-      --  EAV bookkeeping (unused, stays empty, when Schema = Spill_Wide).
       Data_Col_Ids     : Col_Id_Maps.Map;
       Data_Next_Id     : Positive := 1;
       Output_Col_Ids   : Col_Id_Maps.Map;
