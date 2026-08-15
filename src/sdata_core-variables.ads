@@ -33,6 +33,13 @@ package SData_Core.Variables is
    --  Removes a session variable.
    procedure Unset (Name : String);
 
+   --  Removes every genuine temporary (SET) variable, skipping any name
+   --  currently marked Held. A held permanent variable's Temp_Symbols entry
+   --  is a carry-over mirror maintained by Reset_PDV_Non_Held / Set_Permanent
+   --  (see Is_Held), not a genuine temporary -- Unset_All must not disturb an
+   --  unrelated HOLD in effect. Called by UNSET /ALL.
+   procedure Unset_All;
+
    --  Removes all temporary variables (called by NEW).
    procedure Clear_Temporary;
 
