@@ -117,10 +117,52 @@ package body SData_Core.Variables is
    procedure Unset (Name : String) is
       Upper_Name : constant String := To_Upper (Name);
    begin
+      --  2026-08-15: a held permanent variable's Temp_Symbols entry is a
+      --  carry-over mirror (see Reset_PDV_Non_Held / Set_Permanent), not a
+      --  genuine temporary -- UNSET's own documented scope is "temporary
+      --  (SET) variables". Deleting the mirror while still held was a
+      --  confused, largely-silent no-op in practice (Get() reads PDV_Vec
+      --  first, which a held name's Reset_PDV_Non_Held branch never wipes,
+      --  and the next record's Reset_PDV_Non_Held immediately re-mirrors the
+      --  value anyway) rather than a clean removal -- reject loudly instead,
+      --  matching the existing Set_Temporary/Set_Permanent storage-class
+      --  mismatch precedent below. Unset_All intentionally bypasses this by
+      --  operating on Temp_Symbols directly: a bulk operation should skip
+      --  ineligible names, not abort on the first one.
+      if Is_Held (Upper_Name) then
+         raise Script_Error with
+           "UNSET cannot remove """ & Upper_Name
+           & """: it is currently held by HOLD; use UNHOLD """
+           & Upper_Name & """ first";
+      end if;
       if Temp_Symbols.Contains (Upper_Name) then
          Temp_Symbols.Delete (Upper_Name);
       end if;
    end Unset;
+
+   ---------------
+   -- Unset_All --
+   ---------------
+   procedure Unset_All is
+      To_Remove : SData_Core.Table.Name_Vectors.Vector;
+      Cursor    : Symbol_Table_Pkg.Cursor := Temp_Symbols.First;
+   begin
+      --  Collect first, then delete -- mutating Temp_Symbols while iterating
+      --  it is unsafe.
+      while Symbol_Table_Pkg.Has_Element (Cursor) loop
+         declare
+            Name : constant String := Symbol_Table_Pkg.Key (Cursor);
+         begin
+            if not Is_Held (Name) then
+               To_Remove.Append (To_Unbounded_String (Name));
+            end if;
+         end;
+         Symbol_Table_Pkg.Next (Cursor);
+      end loop;
+      for Name of To_Remove loop
+         Temp_Symbols.Delete (To_String (Name));
+      end loop;
+   end Unset_All;
 
    ---------
    -- Get --

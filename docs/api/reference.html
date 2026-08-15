@@ -1742,6 +1742,15 @@ regardless of whether its current value is missing.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   procedure Unset_All;</pre>
+<div class='doc'>Removes every genuine temporary (SET) variable, skipping any name
+currently marked Held. A held permanent variable&#x27;s Temp_Symbols entry
+is a carry-over mirror maintained by Reset_PDV_Non_Held / Set_Permanent
+(see Is_Held), not a genuine temporary -- Unset_All must not disturb an
+unrelated HOLD in effect. Called by UNSET /ALL.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   procedure Clear_Temporary;</pre>
 <div class='doc'>Removes all temporary variables (called by NEW).</div>
 </div>
