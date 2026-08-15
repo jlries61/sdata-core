@@ -129,11 +129,15 @@ package body SData_Core.Variables is
       --  mismatch precedent below. Unset_All intentionally bypasses this by
       --  operating on Temp_Symbols directly: a bulk operation should skip
       --  ineligible names, not abort on the first one.
+      --  PR #113 review: the message deliberately says nothing about HOLD --
+      --  how a variable came to be held is an internal detail the user
+      --  shouldn't have to know or care about; from their side, it's simply
+      --  a permanent variable, removable with DROP like any other.
       if Is_Held (Upper_Name) then
          raise Script_Error with
            "UNSET cannot remove """ & Upper_Name
-           & """: it is currently held by HOLD; use UNHOLD """
-           & Upper_Name & """ first";
+           & """: it is a permanent variable; use DROP """
+           & Upper_Name & """ (effective after the next RUN) to remove it";
       end if;
       if Temp_Symbols.Contains (Upper_Name) then
          Temp_Symbols.Delete (Upper_Name);
