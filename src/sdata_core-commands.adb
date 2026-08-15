@@ -598,6 +598,25 @@ package body SData_Core.Commands is
          Keep.Include (To_Upper (To_String (N)));
       end loop;
 
+      --  2026-08-15: validate every requested name against the table's
+      --  actual columns before dropping anything -- design.md's own
+      --  promise ("A KEEP statement that lists variables that... do not
+      --  exist... shall fail with an error message") was never actually
+      --  implemented. Previously, a name that matched no column (a typo,
+      --  or a session/temporary variable instead of a column) simply never
+      --  satisfied "not in Keep" for any real column below, which is a
+      --  per-COLUMN condition -- an entirely-unmatched Keep set silently
+      --  dropped every column in the table instead of erring, since
+      --  nothing ever checked whether the requested names existed at all.
+      --  Checked before the drop loop so the statement is atomic: either
+      --  every name is valid and KEEP proceeds, or nothing is dropped.
+      for Name of Keep loop
+         if not SData_Core.Table.Has_Column (Name) then
+            raise Script_Error with
+              "KEEP: variable """ & Name & """ does not exist";
+         end if;
+      end loop;
+
       --  Snapshot existing columns before dropping; Drop_Column mutates
       --  Column_Order and would invalidate index-based iteration.
       declare
@@ -627,6 +646,26 @@ package body SData_Core.Commands is
      (Names : SData_Core.Table.Name_Vectors.Vector)
    is
    begin
+      --  2026-08-15: same treatment as Execute_KEEP above -- validate every
+      --  requested name first (atomic: nothing is dropped if any name is
+      --  invalid) rather than silently no-op'ing per-name. Previously safe
+      --  (unlike KEEP's whole-table data loss) but silent: DROPping a typo
+      --  or a session/temporary variable name did nothing, with no feedback
+      --  that it hadn't.
+      for N of Names loop
+         declare
+            Col : constant String := To_Upper (To_String (N));
+         begin
+            if not SData_Core.Table.Has_Column (Col) then
+               raise Script_Error with
+                 "DROP: variable """ & Col & """ does not exist";
+            end if;
+         end;
+      end loop;
+      --  Second pass still guards with Has_Column (not just "drop
+      --  unconditionally") so a name repeated in the same DROP statement
+      --  (e.g. "DROP X, X") harmlessly no-ops on its second occurrence
+      --  rather than failing on an already-dropped column.
       for N of Names loop
          declare
             Col : constant String := To_Upper (To_String (N));

@@ -151,7 +151,12 @@ package SData_Core.Commands is
    --
    --  KEEP drops every column not in the list; DROP removes the listed
    --  columns.  Names are matched case-insensitively after upper-casing.
-   --  Missing column names are silently ignored.
+   --  Every requested name is validated against the table's actual columns
+   --  before anything is dropped: if any name doesn't exist (a typo, or a
+   --  temporary/session variable rather than a column), Script_Error is
+   --  raised and nothing is dropped (2026-08-15 -- previously silently
+   --  ignored, which for KEEP meant an entirely-unmatched list silently
+   --  dropped every column in the table).
    procedure Execute_KEEP
      (Names : SData_Core.Table.Name_Vectors.Vector);
 
