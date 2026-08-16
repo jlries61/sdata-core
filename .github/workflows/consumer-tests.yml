@@ -65,7 +65,7 @@ jobs:
           # the literal construction, the Numeric_Result_Checked NaN-
           # rejection guard, and the Handle_Min_Fn/Handle_Max_Fn NaN-freeze
           # fix that pin validates end-to-end.
-          ref: v0.17.3
+          ref: v0.18.0
           path: sdata
 
       - name: Set up Alire
