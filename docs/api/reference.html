@@ -1841,6 +1841,21 @@ Defines a virtual array (maps existing variables)</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   procedure Undefine_Array (Name : String);</pre>
+<div class='doc'>Removes an array&#x27;s registration (virtual or real) regardless of Kind,
+without touching its constituent/element columns -- the caller is
+responsible for deleting those first (e.g. Execute_DROP, per
+design.md&#x27;s Deletion rules: &quot;If virtual array mentioned in DROP, all
+constituent variables are deleted along with virtual array
+definition&quot;; the same total-deletion behavior applies to real arrays,
+since &quot;Individual array elements cannot be deleted&quot; -- DROP only
+operates on whole arrays). No effect if Name is not a registered
+array. Distinct from Undefine_Virtual_Array, which is the lighter-
+weight ARRAY-statement primitive that intentionally leaves
+constituent data alone and only accepts virtual arrays.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   procedure List_Virtual_Arrays;</pre>
 <div class='doc'>Prints all currently defined virtual arrays to console output</div>
 </div>
@@ -1884,6 +1899,19 @@ For Virtual_Array (ARRAY): the constituent variable name at that position.</div>
 a positive integer.  For each unique base name found, register the group
 as a DIM array spanning the minimum and maximum subscript observed.
 Gaps in the numeric sequence are permitted.  Call after Execute_USE.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Expand_Array_Names (Name : String) return Name_Vectors.Vector;</pre>
+<div class='doc'>Expands an array base Name into the actual column/variable names
+backing it: for a Virtual_Array, its Constituents as registered by
+Define_Array; for a Real_Array, the generated &quot;Name(I)&quot; names for
+I in its Start_Index .. End_Index (via Get_Array_Element_Column).
+Returns an empty vector if Name is not a registered array -- callers
+distinguish &quot;not an array&quot; from &quot;array with no elements&quot; via
+Has_Array, which they must already check before relying on that
+distinction (a real array&#x27;s Start_Index &gt; End_Index cannot occur;
+Dim_Array rejects it).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>

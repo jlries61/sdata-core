@@ -594,8 +594,27 @@ package body SData_Core.Commands is
    is
       Keep : Name_Sets.Set;
    begin
+      --  2026-08-13 re-audit PC-4: expand any array base name into its
+      --  actual member column names before building Keep, so an array
+      --  mentioned by name (e.g. "KEEP Q" for array Q) retains all of
+      --  Q's elements per design.md §3.4 ("If virtual array mentioned in
+      --  KEEP, all constituent variables are retained" -- the same
+      --  member-level treatment applies to real arrays, which have no
+      --  separate rule because they have no "definition" distinct from
+      --  their elements the way a virtual array does). A name that is not
+      --  a registered array is kept literally, unchanged from before.
       for N of Names loop
-         Keep.Include (To_Upper (To_String (N)));
+         declare
+            Upper : constant String := To_Upper (To_String (N));
+         begin
+            if SData_Core.Variables.Has_Array (Upper) then
+               for Member of SData_Core.Variables.Expand_Array_Names (Upper) loop
+                  Keep.Include (To_Upper (To_String (Member)));
+               end loop;
+            else
+               Keep.Include (Upper);
+            end if;
+         end;
       end loop;
 
       --  2026-08-15: validate every requested name against the table's
@@ -610,6 +629,10 @@ package body SData_Core.Commands is
       --  nothing ever checked whether the requested names existed at all.
       --  Checked before the drop loop so the statement is atomic: either
       --  every name is valid and KEEP proceeds, or nothing is dropped.
+      --  2026-08-13 re-audit PC-4: validated against the *expanded* Keep
+      --  set now, since an array base name (e.g. "Q") is never itself a
+      --  table column -- Has_Column("Q") would spuriously fail even though
+      --  "KEEP Q" is entirely valid for a registered array Q.
       for Name of Keep loop
          if not SData_Core.Table.Has_Column (Name) then
             raise Script_Error with
@@ -645,14 +668,43 @@ package body SData_Core.Commands is
    procedure Execute_DROP
      (Names : SData_Core.Table.Name_Vectors.Vector)
    is
+      --  2026-08-13 re-audit PC-4: expand any array base name into its
+      --  actual member column names, matching Execute_KEEP above. Unlike
+      --  KEEP, a *temporary* array's elements live in Temp_Symbols, not
+      --  Table columns (Dim_Array never creates a Table column for a
+      --  Is_Temporary real array; see the Existing_Def.Is_Temporary branch
+      --  in Dim_Array's own resize logic) -- Expand_Array_Names still
+      --  returns their "NAME(i)" names, but those correctly fail the
+      --  Has_Column check below and raise, same as attempting to DROP any
+      --  other temporary variable does today. That is *design.md's own
+      --  documented rule* for DROP ("A DROP statement that lists a
+      --  variable that does not exist as a permanent (table column)
+      --  variable -- including a temporary (SET) variable, which DROP
+      --  cannot remove; use UNSET instead -- shall fail with an error
+      --  message"), not a gap this fix needs to close.
+      Expanded : SData_Core.Table.Name_Vectors.Vector;
    begin
+      for N of Names loop
+         declare
+            Upper : constant String := To_Upper (To_String (N));
+         begin
+            if SData_Core.Variables.Has_Array (Upper) then
+               for Member of SData_Core.Variables.Expand_Array_Names (Upper) loop
+                  Expanded.Append (Member);
+               end loop;
+            else
+               Expanded.Append (To_Unbounded_String (Upper));
+            end if;
+         end;
+      end loop;
+
       --  2026-08-15: same treatment as Execute_KEEP above -- validate every
       --  requested name first (atomic: nothing is dropped if any name is
       --  invalid) rather than silently no-op'ing per-name. Previously safe
       --  (unlike KEEP's whole-table data loss) but silent: DROPping a typo
       --  or a session/temporary variable name did nothing, with no feedback
       --  that it hadn't.
-      for N of Names loop
+      for N of Expanded loop
          declare
             Col : constant String := To_Upper (To_String (N));
          begin
@@ -666,12 +718,30 @@ package body SData_Core.Commands is
       --  unconditionally") so a name repeated in the same DROP statement
       --  (e.g. "DROP X, X") harmlessly no-ops on its second occurrence
       --  rather than failing on an already-dropped column.
-      for N of Names loop
+      for N of Expanded loop
          declare
             Col : constant String := To_Upper (To_String (N));
          begin
             if SData_Core.Table.Has_Column (Col) then
                SData_Core.Table.Drop_Column (Col);
+            end if;
+         end;
+      end loop;
+
+      --  design.md §3.4: "If virtual array mentioned in DROP, all
+      --  constituent variables are deleted along with virtual array
+      --  definition" -- the same total-deletion behavior applies to real
+      --  arrays ("Individual array elements cannot be deleted", so DROP
+      --  only ever operates on whole arrays). Undefine *after* the column
+      --  drops above succeed, so an array whose DROP fails validation
+      --  (e.g. one element already removed independently) keeps its
+      --  registration rather than being left half-deleted.
+      for N of Names loop
+         declare
+            Upper : constant String := To_Upper (To_String (N));
+         begin
+            if SData_Core.Variables.Has_Array (Upper) then
+               SData_Core.Variables.Undefine_Array (Upper);
             end if;
          end;
       end loop;

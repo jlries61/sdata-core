@@ -60,6 +60,21 @@ package body SData_Core.Variables is
            & "temporary variable";
       end if;
 
+      --  2026-08-13 re-audit PC-2 / ADR-0012: extends the storage-class hard
+      --  error above to the scalar/array boundary. Array_Symbols is a wholly
+      --  separate namespace from Temp_Symbols/PDV, so without this check
+      --  SET on an existing array name silently created a same-named
+      --  temporary variable coexisting with the untouched array -- the
+      --  array remained reachable by array syntax while the new scalar
+      --  became unreachable by ordinary PRINT/reference syntax.
+      if Array_Symbols.Contains (Upper_Name) then
+         raise Script_Error with
+           "SET cannot redefine array """ & Upper_Name
+           & """; use DROP """ & Upper_Name
+           & """ to delete the array first, then SET it to create a "
+           & "temporary variable of the same name";
+      end if;
+
       if Temp_Symbols.Contains (Upper_Name) then
          Temp_Symbols.Replace (Upper_Name, Val);
       else
@@ -91,6 +106,16 @@ package body SData_Core.Variables is
            "LET cannot redefine temporary variable """ & Upper_Name
            & """; use SET to recompute it in place, or UNSET it to "
            & "convert it to a permanent variable";
+      end if;
+
+      --  2026-08-13 re-audit PC-2 / ADR-0012: see the matching check in
+      --  Set_Temporary above for the full rationale.
+      if Array_Symbols.Contains (Upper_Name) then
+         raise Script_Error with
+           "LET cannot redefine array """ & Upper_Name
+           & """; use DROP """ & Upper_Name
+           & """ to delete the array first, then LET it to create a "
+           & "permanent variable of the same name";
       end if;
 
       if PDV_Index_Pkg.Has_Element (Cur) then
@@ -506,6 +531,17 @@ package body SData_Core.Variables is
       end if;
    end Undefine_Virtual_Array;
 
+   --------------------
+   -- Undefine_Array --
+   --------------------
+   procedure Undefine_Array (Name : String) is
+      Upper_Name : constant String := To_Upper (Name);
+   begin
+      if Array_Symbols.Contains (Upper_Name) then
+         Array_Symbols.Delete (Upper_Name);
+      end if;
+   end Undefine_Array;
+
    -------------------------
    -- List_Virtual_Arrays --
    -------------------------
@@ -597,6 +633,38 @@ package body SData_Core.Variables is
       --  Validate indices
       if Start_Idx > End_Idx then
          raise Program_Error with "DIM array lower bound " & Integer'Image (Start_Idx) & " cannot be greater than upper bound " & Integer'Image (End_Idx);
+      end if;
+
+      --  2026-08-13 re-audit PC-2 / ADR-0012: symmetric check to the ones in
+      --  Set_Temporary/Set_Permanent above -- DIM on a name that already
+      --  exists as a scalar (permanent column or genuine temporary) must
+      --  reject rather than silently create a shadow array coexisting with
+      --  the scalar. Deliberately Script_Error, not the Program_Error used
+      --  three lines above for the unrelated virtual/real array conflict
+      --  check below -- see ADR-0012's Decision item 3.
+      --
+      --  Deliberately checks only Table.Has_Column / Temp_Symbols.Contains
+      --  -- the same two storage classes Set_Temporary/Set_Permanent's own
+      --  checks guard against -- and NOT PDV_Index directly. A first
+      --  attempt also checked PDV_Index.Contains (to catch a computed LET
+      --  temporary not yet flushed to a real column) but that broke
+      --  Register_Subscripted_Columns' post-AGGREGATE resize path
+      --  (aggregate_array_resize_warn.cmd): AGGREGATE's table swap can
+      --  leave a stale PDV_Index entry for the *old* scalar shape of an
+      --  outvar sitting around at the exact moment
+      --  Register_Subscripted_Columns calls Dim_Array to re-register the
+      --  *new* array shape, which the PDV_Index check then rejected as if
+      --  it were an ordinary user DIM statement colliding with a live
+      --  scalar. Table.Has_Column/Temp_Symbols are the two storage classes
+      --  that actually stay meaningful across a table swap.
+      if not Array_Symbols.Contains (Upper_Name)
+         and then (SData_Core.Table.Has_Column (Upper_Name)
+                    or else Temp_Symbols.Contains (Upper_Name))
+      then
+         raise Script_Error with
+           "DIM cannot redefine scalar variable """ & Upper_Name
+           & """ as an array; DROP or UNSET it first (as appropriate), "
+           & "then DIM it to create an array of the same name";
       end if;
 
       Arr_Def.Kind := Real_Array;
@@ -796,6 +864,28 @@ package body SData_Core.Variables is
          return Get_Real_Var_Name (Upper_Name, Index);
       end if;
    end Get_Array_Element_Column;
+
+   -------------------------
+   -- Expand_Array_Names --
+   -------------------------
+   function Expand_Array_Names (Name : String) return Name_Vectors.Vector is
+      Upper_Name : constant String := To_Upper (Name);
+      Result     : Name_Vectors.Vector;
+   begin
+      if Array_Symbols.Contains (Upper_Name) then
+         declare
+            Arr_Def : constant Array_Definition_Type :=
+               Array_Symbols.Element (Upper_Name);
+         begin
+            for I in Arr_Def.Start_Index .. Arr_Def.End_Index loop
+               Result.Append
+                 (To_Unbounded_String
+                    (Get_Array_Element_Column (Upper_Name, I)));
+            end loop;
+         end;
+      end if;
+      return Result;
+   end Expand_Array_Names;
 
    --------------
    -- Set_Hold --
