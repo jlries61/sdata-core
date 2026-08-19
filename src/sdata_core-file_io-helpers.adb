@@ -164,6 +164,32 @@ package body SData_Core.File_IO.Helpers is
          return False;
    end Has_Formulas_XML;
 
+   --  2026-08-13 re-audit PD-4: locates a `timeout`(1) utility to bound
+   --  Convert_Via_LibreOffice's soffice call, mirroring the PATH-preference
+   --  logic in sdata's SYSTEM/SHELL timeout (ADR-037): prefer GNU
+   --  coreutils' `gtimeout` (the name it installs under on macOS/BSD, where
+   --  the bare `timeout` may be a different, noisier utility), falling
+   --  back to `timeout`. Returns null if neither is on PATH, so the caller
+   --  can fall back to an unbounded call rather than fail outright --
+   --  unlike SHELL's OPTIONS SHELLTIMEOUT (an explicit user request that
+   --  must fail loudly if it can't be honored), this is opportunistic
+   --  defense-in-depth with no user-visible toggle, so degrading gracefully
+   --  is the right default. Not shared with sdata_core-system.adb's own
+   --  private Resolve_Timeout_Cmd (not part of that package's public
+   --  contract) -- the two call sites have different failure semantics
+   --  (loud-fail-if-requested vs. quiet-degrade), so duplicating this
+   --  ~10-line lookup is clearer than forcing a shared abstraction across
+   --  them.
+   function Locate_Timeout_Exec return GNAT.OS_Lib.String_Access is
+      G : constant GNAT.OS_Lib.String_Access :=
+         GNAT.OS_Lib.Locate_Exec_On_Path ("gtimeout");
+   begin
+      if G /= null then
+         return G;
+      end if;
+      return GNAT.OS_Lib.Locate_Exec_On_Path ("timeout");
+   end Locate_Timeout_Exec;
+
    function Convert_Via_LibreOffice
      (File_Name : String; Fmt : Format_Type) return String
    is
@@ -174,22 +200,92 @@ package body SData_Core.File_IO.Helpers is
       Base_Stem  : constant String := File_Stem (File_Base (File_Name));
       Converted  : constant String := Dir & Base_Stem & "." & Target_Ext;
 
-      A1 : GNAT.OS_Lib.String_Access := new String'("--headless");
-      A2 : GNAT.OS_Lib.String_Access := new String'("--convert-to");
-      A3 : GNAT.OS_Lib.String_Access := new String'(Target_Ext);
-      A4 : GNAT.OS_Lib.String_Access := new String'("--outdir");
-      A5 : GNAT.OS_Lib.String_Access := new String'(Dir);
-      Args : constant GNAT.OS_Lib.Argument_List :=
-         (1 => A1, 2 => A2, 3 => A3, 4 => A4, 5 => A5);
+      --  Fixed, non-configurable wall-clock bound (not an OPTIONS key --
+      --  see the architect note in
+      --  .ssd/features/audit-2026-08-13-tier1-remediation/01-architect.md
+      --  for why this stays internal rather than user-surfaced). Generous
+      --  enough that ordinary conversions never approach it; only exists to
+      --  turn a hang into a bounded failure.
+      Timeout_Secs : constant String := "90";
+
       Status : Integer;
    begin
       if Soffice_Acc = null then
          return "";
       end if;
-      Status := GNAT.OS_Lib.Spawn (Soffice_Acc.all, Args);
+
+      --  Resolved only once soffice is confirmed present -- code review
+      --  round 1 (MAJOR-1) caught that resolving this unconditionally in
+      --  the declarative part, alongside Soffice_Acc, leaked the resolved
+      --  String_Access on the early return above whenever a timeout
+      --  utility was on PATH but soffice was not.
+      declare
+         Timeout_Acc : GNAT.OS_Lib.String_Access := Locate_Timeout_Exec;
+      begin
+         --  The bug this fixes: File_Name was never appended to Args, so
+         --  soffice was invoked with no input file and (depending on
+         --  version/platform) waited indefinitely -- an unbounded hang on
+         --  ordinary, spec-compliant input, not a fast failure.
+         if Timeout_Acc /= null then
+            --  Argv-based invocation throughout: `timeout`/`gtimeout` execs
+            --  soffice directly (no shell), so File_Name -- which may
+            --  contain spaces or shell metacharacters -- never needs
+            --  quoting and cannot reach a shell interpreter.
+            declare
+               A1 : GNAT.OS_Lib.String_Access := new String'(Timeout_Secs);
+               A2 : GNAT.OS_Lib.String_Access := new String'("soffice");
+               A3 : GNAT.OS_Lib.String_Access := new String'("--headless");
+               A4 : GNAT.OS_Lib.String_Access := new String'("--convert-to");
+               A5 : GNAT.OS_Lib.String_Access := new String'(Target_Ext);
+               A6 : GNAT.OS_Lib.String_Access := new String'("--outdir");
+               A7 : GNAT.OS_Lib.String_Access := new String'(Dir);
+               A8 : GNAT.OS_Lib.String_Access := new String'(File_Name);
+               Args : constant GNAT.OS_Lib.Argument_List :=
+                  (1 => A1, 2 => A2, 3 => A3, 4 => A4,
+                   5 => A5, 6 => A6, 7 => A7, 8 => A8);
+            begin
+               Status := GNAT.OS_Lib.Spawn (Timeout_Acc.all, Args);
+               GNAT.OS_Lib.Free (A1); GNAT.OS_Lib.Free (A2);
+               GNAT.OS_Lib.Free (A3); GNAT.OS_Lib.Free (A4);
+               GNAT.OS_Lib.Free (A5); GNAT.OS_Lib.Free (A6);
+               GNAT.OS_Lib.Free (A7); GNAT.OS_Lib.Free (A8);
+            end;
+         else
+            --  No timeout utility on PATH: fall back to the unbounded call
+            --  (still correctly includes File_Name -- the required part of
+            --  this fix does not depend on timeout being available).
+            declare
+               A1 : GNAT.OS_Lib.String_Access := new String'("--headless");
+               A2 : GNAT.OS_Lib.String_Access := new String'("--convert-to");
+               A3 : GNAT.OS_Lib.String_Access := new String'(Target_Ext);
+               A4 : GNAT.OS_Lib.String_Access := new String'("--outdir");
+               A5 : GNAT.OS_Lib.String_Access := new String'(Dir);
+               A6 : GNAT.OS_Lib.String_Access := new String'(File_Name);
+               Args : constant GNAT.OS_Lib.Argument_List :=
+                  (1 => A1, 2 => A2, 3 => A3, 4 => A4, 5 => A5, 6 => A6);
+            begin
+               Status := GNAT.OS_Lib.Spawn (Soffice_Acc.all, Args);
+               GNAT.OS_Lib.Free (A1); GNAT.OS_Lib.Free (A2);
+               GNAT.OS_Lib.Free (A3); GNAT.OS_Lib.Free (A4);
+               GNAT.OS_Lib.Free (A5); GNAT.OS_Lib.Free (A6);
+            end;
+         end if;
+
+         --  Code review round 1 (SUGGESTION-1): no null guard needed --
+         --  GNAT.OS_Lib.Free (an Ada.Unchecked_Deallocation instance) is a
+         --  documented no-op on a null access value, same as the
+         --  unconditional Free (Soffice_Acc) below.
+         GNAT.OS_Lib.Free (Timeout_Acc);
+      end;
+
       GNAT.OS_Lib.Free (Soffice_Acc);
-      GNAT.OS_Lib.Free (A1); GNAT.OS_Lib.Free (A2); GNAT.OS_Lib.Free (A3);
-      GNAT.OS_Lib.Free (A4); GNAT.OS_Lib.Free (A5);
+
+      --  A fired timeout is treated the same as any other conversion
+      --  failure: Is_Regular_File (Converted) will be False, so this falls
+      --  through to the existing "" return, which both call sites already
+      --  handle as "conversion unavailable" and fall back to the file's
+      --  cached (pre-formula) values -- graceful degradation, not a new
+      --  exception path.
       if Status = 0 and then GNAT.OS_Lib.Is_Regular_File (Converted) then
          return Converted;
       end if;

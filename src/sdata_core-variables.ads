@@ -83,6 +83,19 @@ package SData_Core.Variables is
    --  Removes a virtual array definition by name (no effect on constituent variables or real arrays)
    procedure Undefine_Virtual_Array (Name : String);
 
+   --  Removes an array's registration (virtual or real) regardless of Kind,
+   --  without touching its constituent/element columns -- the caller is
+   --  responsible for deleting those first (e.g. Execute_DROP, per
+   --  design.md's Deletion rules: "If virtual array mentioned in DROP, all
+   --  constituent variables are deleted along with virtual array
+   --  definition"; the same total-deletion behavior applies to real arrays,
+   --  since "Individual array elements cannot be deleted" -- DROP only
+   --  operates on whole arrays). No effect if Name is not a registered
+   --  array. Distinct from Undefine_Virtual_Array, which is the lighter-
+   --  weight ARRAY-statement primitive that intentionally leaves
+   --  constituent data alone and only accepts virtual arrays.
+   procedure Undefine_Array (Name : String);
+
    --  Prints all currently defined virtual arrays to console output
    procedure List_Virtual_Arrays;
 
@@ -107,6 +120,17 @@ package SData_Core.Variables is
    --  as a DIM array spanning the minimum and maximum subscript observed.
    --  Gaps in the numeric sequence are permitted.  Call after Execute_USE.
    procedure Register_Subscripted_Columns;
+
+   --  Expands an array base Name into the actual column/variable names
+   --  backing it: for a Virtual_Array, its Constituents as registered by
+   --  Define_Array; for a Real_Array, the generated "Name(I)" names for
+   --  I in its Start_Index .. End_Index (via Get_Array_Element_Column).
+   --  Returns an empty vector if Name is not a registered array -- callers
+   --  distinguish "not an array" from "array with no elements" via
+   --  Has_Array, which they must already check before relying on that
+   --  distinction (a real array's Start_Index > End_Index cannot occur;
+   --  Dim_Array rejects it).
+   function Expand_Array_Names (Name : String) return Name_Vectors.Vector;
 
    --  Hold/Unhold Management
    procedure Set_Hold (Name : String; State : Boolean);
