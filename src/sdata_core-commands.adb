@@ -799,33 +799,22 @@ package body SData_Core.Commands is
    --  into consecutive BY-key runs (the whole filtered table is one group when
    --  no BY is active).  Used by AGGREGATE, STATS, TRANSPOSE, and sdata TABLES.
    function Group_Boundaries return Row_Group_Vectors.Vector is
-      Groups : Row_Group_Vectors.Vector;
-      Group  : Row_Index_Vectors.Vector;
-      Prev_P : Positive := 1;
+      Physical_Rows : Row_Index_Vectors.Vector;
    begin
+      --  ADR-0013: BY no longer sorts the table, so grouping can no longer
+      --  be discovered by scanning for adjacent-row runs (that scan is
+      --  still exactly right for ordinary RUN group navigation, see
+      --  sdata's Group_Flags -- it is Group_Boundaries's own four
+      --  commands, AGGREGATE/STATS/TRANSPOSE/TABLES, that need every
+      --  same-key row together regardless of adjacency). Collect the
+      --  SELECT-filtered physical row list and hand it to
+      --  Table.Partition_By_Key, which groups by key value and sorts only
+      --  the resulting group list, never the table.
       Rebuild_Filter_Map;
       for L in 1 .. Tbl.Logical_Row_Count loop
-         declare
-            P : constant Positive := Tbl.Logical_To_Physical (L);
-         begin
-            if L = 1 then
-               Group.Append (P);
-            elsif Tbl.By_Var_Count = 0
-              or else Tbl.In_Same_Group (P, Prev_P)
-            then
-               Group.Append (P);
-            else
-               Groups.Append (Group);
-               Group.Clear;
-               Group.Append (P);
-            end if;
-            Prev_P := P;
-         end;
+         Physical_Rows.Append (Tbl.Logical_To_Physical (L));
       end loop;
-      if not Group.Is_Empty then
-         Groups.Append (Group);
-      end if;
-      return Groups;
+      return Tbl.Partition_By_Key (Physical_Rows);
    end Group_Boundaries;
 
    --  Gather one column's values across a group's physical rows.

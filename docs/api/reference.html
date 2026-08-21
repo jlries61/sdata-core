@@ -1578,6 +1578,17 @@ depending on the interpreter package.</div>
 <pre>   function In_Same_Group (Idx1, Idx2 : Positive) return Boolean;</pre>
 </div>
 <div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Partition_By_Key
+     (Physical_Rows : Row_Index_Vectors.Vector) return Row_Group_Vectors.Vector;</pre>
+<div class='doc'>Partitions Physical_Rows into BY-key groups by the current BY
+variables&#x27; values, not by physical/logical adjacency -- see
+SData_Core.Grouping.Partition_By_Key for the full contract. This is
+the shared grouping primitive behind AGGREGATE / TRANSPOSE / STATS /
+TABLES (via SData_Core.Commands.Group_Boundaries) and data-vandal&#x27;s
+VANDALIZE .../BY= (Compute_Groups, called directly).</div>
+</div>
+<div class='decl'>
 <div class='kind'>type</div>
 <pre>   package Name_Vectors is new Ada.Containers.Vectors (Index_Type =&gt; Positive, Element_Type =&gt; Unbounded_String);</pre>
 <div class='doc'>Package to store lists of column names.</div>

@@ -12,6 +12,7 @@ with Ada.Containers.Vectors;
 with SData_Core.Values; use SData_Core.Values;
 with SData_Core.Columns; use SData_Core.Columns;
 with SData_Core.Backing_Store;
+with SData_Core.Grouping;
 
 package SData_Core.Table is
 
@@ -162,6 +163,24 @@ package SData_Core.Table is
    function By_Var_Count return Natural;
    function By_Var_Name (I : Positive) return String;
    function In_Same_Group (Idx1, Idx2 : Positive) return Boolean;
+
+   --  ADR-0013: the actual grouping vector types and Partition_By_Key's
+   --  algorithm live in SData_Core.Grouping (which already owns the BY-var
+   --  registry and per-cell reads); re-exported here by rename so this
+   --  package's own public surface -- and every existing external
+   --  reference to SData_Core.Commands.Row_Index_Vectors /
+   --  Row_Group_Vectors, which themselves rename these -- is unaffected.
+   package Row_Index_Vectors renames SData_Core.Grouping.Row_Index_Vectors;
+   package Row_Group_Vectors renames SData_Core.Grouping.Row_Group_Vectors;
+
+   --  Partitions Physical_Rows into BY-key groups by the current BY
+   --  variables' values, not by physical/logical adjacency -- see
+   --  SData_Core.Grouping.Partition_By_Key for the full contract. This is
+   --  the shared grouping primitive behind AGGREGATE / TRANSPOSE / STATS /
+   --  TABLES (via SData_Core.Commands.Group_Boundaries) and data-vandal's
+   --  VANDALIZE .../BY= (Compute_Groups, called directly).
+   function Partition_By_Key
+     (Physical_Rows : Row_Index_Vectors.Vector) return Row_Group_Vectors.Vector;
 
    --  Package to store lists of column names.
    package Name_Vectors is new Ada.Containers.Vectors (Index_Type => Positive, Element_Type => Unbounded_String);

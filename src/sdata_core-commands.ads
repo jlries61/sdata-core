@@ -329,11 +329,17 @@ package SData_Core.Commands is
    --  STATS and any consumer that tabulates per BY group (e.g. sdata's TABLES).
    --  It exists so the walk — and the mandatory Rebuild_Filter_Map that guards
    --  the SELECT-honoring invariant — live in exactly one place.
-   package Row_Index_Vectors is
-     new Ada.Containers.Vectors (Positive, Positive);
-   package Row_Group_Vectors is
-     new Ada.Containers.Vectors
-       (Positive, Row_Index_Vectors.Vector, Row_Index_Vectors."=");
+   --
+   --  ADR-0013: the actual partitioning algorithm now lives in
+   --  SData_Core.Table.Partition_By_Key (which itself delegates to
+   --  SData_Core.Grouping, the real owner of the BY-var registry) —
+   --  Group_Boundaries is a thin wrapper that supplies the SELECT-filtered
+   --  physical row list. Row_Index_Vectors/Row_Group_Vectors are renamed
+   --  from Table's own (itself renamed from Grouping's), not re-instantiated,
+   --  so every existing external reference to
+   --  SData_Core.Commands.Row_Index_Vectors/Row_Group_Vectors is unaffected.
+   package Row_Index_Vectors renames SData_Core.Table.Row_Index_Vectors;
+   package Row_Group_Vectors renames SData_Core.Table.Row_Group_Vectors;
    function Group_Boundaries return Row_Group_Vectors.Vector;
 
    ----------------------------------------------------------------
