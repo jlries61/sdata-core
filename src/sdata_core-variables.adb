@@ -728,14 +728,15 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
    begin
       if not Array_Symbols.Contains (Upper_Name) then
-         return (Kind => Val_Missing);
+         raise SData_Core.Script_Error with "Array '" & Upper_Name & "' not defined.";
       end if;
 
       declare
          Arr_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
       begin
          if Index < Arr_Def.Start_Index or else Index > Arr_Def.End_Index then
-            return (Kind => Val_Missing); -- Index out of bounds
+            raise SData_Core.Script_Error with
+              "Array index " & Index'Image & " out of bounds for '" & Upper_Name & "'.";
          end if;
 
          if Arr_Def.Kind = Virtual_Array then
@@ -744,7 +745,8 @@ package body SData_Core.Variables is
                Offset : constant Positive := Index - Arr_Def.Start_Index + 1; -- Virtual arrays are 1-based internally
             begin
                if Offset > Integer (Arr_Def.Constituents.Length) then
-                  return (Kind => Val_Missing); -- Should not happen if array correctly defined
+                  raise SData_Core.Script_Error with
+                    "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
                end if;
                return Get (To_String (Arr_Def.Constituents.Element (Offset)));
             end;
@@ -764,14 +766,15 @@ package body SData_Core.Variables is
       if not Array_Symbols.Contains (Upper_Name) then
          --  Implicit creation if array does not exist and it's a permanent Real_Array
          --  For now, error if not defined. DIM must define it explicitly.
-         raise Program_Error with "Array '" & Upper_Name & "' not defined.";
+         raise SData_Core.Script_Error with "Array '" & Upper_Name & "' not defined.";
       end if;
 
       declare
          Arr_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
       begin
          if Index < Arr_Def.Start_Index or else Index > Arr_Def.End_Index then
-            raise Program_Error with "Array index " & Index'Image & " out of bounds for '" & Upper_Name & "'.";
+            raise SData_Core.Script_Error with
+              "Array index " & Index'Image & " out of bounds for '" & Upper_Name & "'.";
          end if;
 
          declare
@@ -783,7 +786,8 @@ package body SData_Core.Variables is
                   Offset : constant Positive := Index - Arr_Def.Start_Index + 1;
                begin
                   if Offset > Integer (Arr_Def.Constituents.Length) then
-                     raise Program_Error with "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
+                     raise SData_Core.Script_Error with
+                       "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
                   end if;
                   Var_Name_Str := To_Unbounded_String (To_String (Arr_Def.Constituents.Element (Offset)));
                end;

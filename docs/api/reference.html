@@ -1878,10 +1878,16 @@ constituent data alone and only accepts virtual arrays.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Get_Array_Element (Name : String; Index : Integer) return Value;</pre>
+<div class='doc'>Reads element Index of array Name. Raises SData_Core.Script_Error if
+Name is not a defined array, if Index falls outside the array&#x27;s
+declared range, or (Virtual_Array only) if the resolved offset exceeds
+the registered constituent count.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Set_Array_Element (Name : String; Index : Integer; Val : Value);</pre>
+<div class='doc'>Writes element Index of array Name. Raises SData_Core.Script_Error
+under the same three conditions as Get_Array_Element.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
