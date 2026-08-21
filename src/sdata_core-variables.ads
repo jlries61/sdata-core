@@ -102,7 +102,14 @@ package SData_Core.Variables is
    --  Creates or resizes a real array (generates numbered variables)
    procedure Dim_Array (Name : String; Start_Idx, End_Idx : Integer; Is_Temp : Boolean);
 
+   --  Reads element Index of array Name. Raises SData_Core.Script_Error if
+   --  Name is not a defined array, if Index falls outside the array's
+   --  declared range, or (Virtual_Array only) if the resolved offset exceeds
+   --  the registered constituent count.
    function Get_Array_Element (Name : String; Index : Integer) return Value;
+
+   --  Writes element Index of array Name. Raises SData_Core.Script_Error
+   --  under the same three conditions as Get_Array_Element.
    procedure Set_Array_Element (Name : String; Index : Integer; Val : Value);
    function Has_Array (Name : String) return Boolean;
    function Is_Temporary_Array (Name : String) return Boolean;
