@@ -7,7 +7,6 @@ with Ada.Containers;
 with Ada.Exceptions;
 with SData_Core.Config;
 with SData_Core.Sorting;
-with SData_Core.Grouping;
 
 with Ada.Unchecked_Deallocation;
 with Ada_Sqlite3; use Ada_Sqlite3;
@@ -474,6 +473,17 @@ package body SData_Core.Table is
       return Grouping.In_Same_Group
         (Idx1, Idx2, Data_Table, Store, Current_Segment_Start, Table_Row_Count);
    end In_Same_Group;
+
+   -----------------------
+   -- Partition_By_Key --
+   -----------------------
+   function Partition_By_Key
+     (Physical_Rows : Row_Index_Vectors.Vector) return Row_Group_Vectors.Vector
+   is
+   begin
+      return Grouping.Partition_By_Key
+        (Physical_Rows, Data_Table, Store, Current_Segment_Start, Table_Row_Count);
+   end Partition_By_Key;
 
    ----------------------------
    -- Get_Backing_Store_Path --
