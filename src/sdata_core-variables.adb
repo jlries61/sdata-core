@@ -475,6 +475,19 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
       Arr_Def : Array_Definition_Type;
    begin
+      --  design.md's ARRAY command-reference row: "If an actual array with
+      --  the name specified already exists then the command shall fail
+      --  with an error message." (ADR-0015). Checked before building
+      --  Arr_Def so a rejected ARRAY leaves the existing real array and its
+      --  data columns completely untouched.
+      if Array_Symbols.Contains (Upper_Name)
+         and then Array_Symbols.Element (Upper_Name).Kind = Real_Array
+      then
+         raise SData_Core.Script_Error with
+           "Cannot redefine array '" & Upper_Name & "': an array already exists with that name. "
+           & "DROP it first, then use ARRAY to create a virtual array of the same name.";
+      end if;
+
       Arr_Def.Kind := Virtual_Array;
       Arr_Def.Is_Temporary := False; -- Virtual arrays are always permanent aliases
       Arr_Def.Start_Index := 1;      -- Virtual arrays are always 1-based
@@ -496,6 +509,15 @@ package body SData_Core.Variables is
       Upper_Name : constant String := To_Upper (Name);
       Arr_Def : Array_Definition_Type;
    begin
+      --  Same ADR-0015 guard as the String_List overload above.
+      if Array_Symbols.Contains (Upper_Name)
+         and then Array_Symbols.Element (Upper_Name).Kind = Real_Array
+      then
+         raise SData_Core.Script_Error with
+           "Cannot redefine array '" & Upper_Name & "': an array already exists with that name. "
+           & "DROP it first, then use ARRAY to create a virtual array of the same name.";
+      end if;
+
       Arr_Def.Kind := Virtual_Array;
       Arr_Def.Is_Temporary := False;
       Arr_Def.Start_Index := 1;
@@ -673,17 +695,23 @@ package body SData_Core.Variables is
       Arr_Def.End_Index := End_Idx;
       Arr_Def.Constituents.Append (To_Unbounded_String (Upper_Name)); -- Base name at Constituents[0]
 
-      --  Handle Redefinition/Resizing
+      --  Handle Redefinition/Resizing.  A Virtual_Array entry falls through
+      --  untouched -- design.md sec3.5: "Virtual array may be replaced by
+      --  permanent/temporary array using DIM (no effect on former
+      --  constituent variables)."  A virtual array owns no table columns of
+      --  its own (its constituents are ordinary variables, left alone
+      --  here), so there is nothing to drop/reconcile before the
+      --  unconditional Create_Real_Elements + Array_Symbols.Replace below
+      --  creates the new real array's own columns and overwrites the
+      --  registration (ADR-0015).
       if Array_Symbols.Contains (Upper_Name) then
          declare
             Existing_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
          begin
-            if Existing_Def.Kind = Virtual_Array then
-               raise Program_Error with "Cannot redefine virtual array '" & Upper_Name & "' as real array with DIM.";
-            elsif Existing_Def.Kind = Real_Array then
+            if Existing_Def.Kind = Real_Array then
                --  Check for temporary status change
                if Existing_Def.Is_Temporary /= Is_Temp then
-                  raise Program_Error with "Cannot change temporary status of existing real array '" & Upper_Name & "'.";
+                  raise SData_Core.Script_Error with "Cannot change temporary status of existing real array '" & Upper_Name & "'.";
                end if;
 
                --  Drop orphaned columns (outside new range); kept columns and their data are preserved.
@@ -999,6 +1027,18 @@ package body SData_Core.Variables is
             Base   : constant String       := Bounds_Maps.Key (Pos);
             Bounds : constant Bounds_Record := Bounds_Maps.Element (Pos);
          begin
+            --  ADR-0015: DIM now silently replaces an existing virtual
+            --  array rather than raising, so this auto-detection path
+            --  needs its own notice -- otherwise a virtual array sharing a
+            --  name with the just-loaded dataset's own base(n) columns
+            --  would be replaced with zero visibility. Matches the existing
+            --  Warn_Resizing precedent (Execute_AGGREGATE,
+            --  sdata_core-commands.adb).
+            if Has_Array (Base) and then Array_Symbols.Element (To_Upper (Base)).Kind = Virtual_Array then
+               SData_Core.IO.Put_Line
+                 ("USE: replacing virtual array '" & To_Upper (Base)
+                  & "' with a real array from the loaded dataset");
+            end if;
             Dim_Array (Base, Bounds.Min_Idx, Bounds.Max_Idx, False);
          end;
       end loop;
