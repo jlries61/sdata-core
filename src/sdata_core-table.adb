@@ -6,6 +6,7 @@ with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Exceptions;
 with SData_Core.Config;
+with SData_Core.IO;
 with SData_Core.Sorting;
 
 with Ada.Unchecked_Deallocation;
@@ -243,6 +244,9 @@ package body SData_Core.Table is
                declare
                   Res : Value (Val_String);
                begin
+                  SData_Core.IO.Put_Line_Error
+                    ("Warning: String truncated to "
+                     & SData_Core.Config.Max_String_Len'Image & " characters.");
                   Res.Str_Val := To_Unbounded_String (S (S'First .. S'First + SData_Core.Config.Max_String_Len - 1));
                   return Res;
                end;
