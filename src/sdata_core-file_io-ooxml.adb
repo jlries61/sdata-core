@@ -135,7 +135,25 @@ package body SData_Core.File_IO.OOXML is
             if Length (Found_Tgt) = 0 then
                return "xl/worksheets/sheet1.xml";
             end if;
-            return "xl/" & To_String (Found_Tgt);
+            --  ADR-0017: a relationship Target is either relative (resolve
+            --  against "xl/", the folder containing workbook.xml.rels's own
+            --  part) or absolute (leading '/' = already a complete
+            --  package-root path per OPC/ECMA-376 Part 2 -- must be used
+            --  as-is, not have "xl/" prepended a second time). openpyxl
+            --  emits the absolute form for the worksheet relationship.
+            --  Deliberately out of scope: normalizing ".." segments that
+            --  could in principle appear in a *relative* Target -- no known
+            --  writer emits that form, so it stays unreproduced and unfixed
+            --  (see ADR-0017's Alternatives Rejected).
+            declare
+               Tgt : constant String := To_String (Found_Tgt);
+            begin
+               if Tgt'Length > 0 and then Tgt (Tgt'First) = '/' then
+                  return Tgt (Tgt'First + 1 .. Tgt'Last);
+               else
+                  return "xl/" & Tgt;
+               end if;
+            end;
          end;
       end Find_Sheet_XML_Path;
 

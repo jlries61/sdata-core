@@ -54,6 +54,13 @@ directly, is common, not exceptional.
 | [ADR-0008](ADR-0008-defer-commands-namespacing.md) | Defer SData_Core.Commands sub-namespacing; record trigger conditions | Accepted | 2026-07-24 |
 | [ADR-0009](ADR-0009-cross-repo-session-tracking.md) | SSD tracking follows the crate, not the session's working directory | Accepted | 2026-07-24 |
 | [ADR-0010](ADR-0010-set-let-storage-class-hard-error.md) | SET/LET storage-class redefinition is a hard error, not an implicit conversion | Accepted | 2026-07-25 |
+| [ADR-0011](ADR-0011-eav-disk-spill-schema.md) | Disk spill moves from one-SQLite-column-per-data-column to an EAV schema | Accepted (amended) | 2026-07-28 |
+| [ADR-0012](ADR-0012-scalar-array-storage-class-hard-error.md) | LET/SET/DIM scalar<->array redefinition is a hard error, extending ADR-0010's precedent | Accepted | 2026-08-18 |
+| [ADR-0013](ADR-0013-group-boundaries-key-partition-not-sort-dependent.md) | New Table.Partition_By_Key primitive replaces adjacency-based grouping; BY stops sorting the table | Accepted | 2026-08-19 |
+| [ADR-0014](ADR-0014-array-element-reference-hard-error.md) | Array-element references (read and write) raise Script_Error, not Program_Error, on invalid reference | Accepted | 2026-08-21 |
+| [ADR-0015](ADR-0015-array-kind-replacement-symmetric-rules.md) | DIM/ARRAY array-kind replacement follows design.md symmetrically | Accepted | 2026-08-22 |
+| [ADR-0016](ADR-0016-clen-default-and-load-truncation-warning.md) | --clen defaults to 256 per design.md; Table.Coerce_Value warns on truncation | Accepted | 2026-08-23 |
+| [ADR-0017](ADR-0017-ooxml-absolute-target-path.md) | OOXML relationship Target resolution branches on absolute vs. relative form | Accepted | 2026-08-24 |
 
 ## Numbering
 
