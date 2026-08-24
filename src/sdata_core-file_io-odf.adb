@@ -164,9 +164,11 @@ package body SData_Core.File_IO.ODF is
          procedure Infer_And_Create_ODF_Schema
             (Col_Name_Vec : Name_Vecs.Vector;
              Row1_Present : Boolean;
-             Row1         : DOM.Core.Node) is
+             Row1         : DOM.Core.Node;
+             Final_Names  : out Name_Vecs.Vector) is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
+            Seen      : Name_Vecs.Vector;
          begin
             Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
             if Row1_Present then
@@ -199,16 +201,23 @@ package body SData_Core.File_IO.ODF is
                       then Raw_Name & "$"
                       else Raw_Name);
                begin
+                  Warn_If_Duplicate_Name (File_Name, Final_Name, Seen);
                   Add_Column (Final_Name, Col_Types (I));
+                  Final_Names.Append (To_Unbounded_String (Final_Name));
                end;
             end loop;
          end Infer_And_Create_ODF_Schema;
 
          procedure Load_ODF_Data_Rows
             (Rows      : DOM.Core.Node_List;
-             Col_Count : Natural) is
+             Col_Names : Name_Vecs.Vector) is
             Rows_To_Skip : Natural := Skip_Rows;
             Rows_Written : Natural := 0;
+            --  ADR-0018 amendment: the RAW per-cell-position decorated name
+            --  list (one entry per original header column, duplicates
+            --  included) -- see Load_OOXML_Data_Rows's matching comment for
+            --  why this replaces the physical (deduplicated) column count.
+            N_Cols       : constant Natural := Natural (Col_Names.Length);
          begin
             for I in 1 .. Length (Rows) - 1 loop
                declare
@@ -251,17 +260,17 @@ package body SData_Core.File_IO.ODF is
                                  Val : constant Value :=
                                     Get_Cell_Value
                                        (Cell,
-                                        (if Col_Idx <= Col_Count
+                                        (if Col_Idx <= N_Cols
                                          then Get_Column_Type
-                                                 (Column_Name (Col_Idx))
+                                                 (To_String (Col_Names (Col_Idx)))
                                          else Col_Numeric));
                               begin
                                  for K in 1 .. Repeat_Count loop
                                     pragma Warnings (Off, K);
-                                    if Col_Idx <= Col_Count then
+                                    if Col_Idx <= N_Cols then
                                        if Val.Kind = Val_Numeric
                                           and then Get_Column_Type
-                                             (Column_Name (Col_Idx))
+                                             (To_String (Col_Names (Col_Idx)))
                                              = Col_Integer
                                           and then Val.Num_Val
                                              /= Real'Truncation (Val.Num_Val)
@@ -272,14 +281,14 @@ package body SData_Core.File_IO.ODF is
                                              ("Warning: ODF import, row" &
                                               Row_Count'Image &
                                               ", column """ &
-                                              Column_Name (Col_Idx) &
+                                              To_String (Col_Names (Col_Idx)) &
                                               """: non-integer value" &
                                               " truncated");
                                        end if;
                                        if Val.Kind /= Val_Missing then
                                           begin
                                              Set_Value (Row_Count,
-                                                        Column_Name (Col_Idx),
+                                                        To_String (Col_Names (Col_Idx)),
                                                         Val);
                                           exception
                                              when E : others =>
@@ -289,7 +298,7 @@ package body SData_Core.File_IO.ODF is
                                                        "cell at row" &
                                                        Row_Count'Image &
                                                        ", column """ &
-                                                       Column_Name (Col_Idx) &
+                                                       To_String (Col_Names (Col_Idx)) &
                                                        """: " &
                                                        Ada.Exceptions.Exception_Message (E));
                                                 end if;
@@ -299,7 +308,7 @@ package body SData_Core.File_IO.ODF is
                                     end if;
                                  end loop;
                               end;
-                              exit when Col_Idx > Col_Count;
+                              exit when Col_Idx > N_Cols;
                            end loop;
                            Free (Cells);
                         end;
@@ -365,13 +374,15 @@ package body SData_Core.File_IO.ODF is
          if Length (Rows) > 0 then
             declare
                Col_Name_Vec : Name_Vecs.Vector;
+               Final_Names  : Name_Vecs.Vector;
             begin
                Collect_ODF_Headers (Item (Rows, 0), Col_Name_Vec);
                Infer_And_Create_ODF_Schema
                   (Col_Name_Vec,
                    Row1_Present => Length (Rows) > 1,
-                   Row1         => Item (Rows, 1));
-               Load_ODF_Data_Rows (Rows, Col_Count => Column_Count);
+                   Row1         => Item (Rows, 1),
+                   Final_Names  => Final_Names);
+               Load_ODF_Data_Rows (Rows, Col_Names => Final_Names);
             end;
          end if;
 

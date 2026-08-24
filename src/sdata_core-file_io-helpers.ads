@@ -46,4 +46,19 @@ private package SData_Core.File_IO.Helpers is
    function Has_Formulas_XML (Temp_File : String; Is_ODF : Boolean) return Boolean;
    function Convert_Via_LibreOffice (File_Name : String; Fmt : Format_Type) return String;
 
+   --  ADR-0018: warns once per duplicate column name (design.md sec4.2's
+   --  documented "last occurrence wins, warning issued" -- the warning half
+   --  was never implemented for any of CSV/ODF/OOXML). Final_Name must be
+   --  the exact string the caller is about to pass to Add_Column (or, for
+   --  CSV, append to its own name list) -- the fully $-suffix-decorated
+   --  name, not the raw header text, so this check can never diverge from
+   --  what Table.Add_Column will actually treat as a collision (its own key,
+   --  Column_Names.To_Column_Name, only uppercases -- no other
+   --  normalization). Seen accumulates across the caller's whole naming
+   --  loop; call once per column, in header order.
+   procedure Warn_If_Duplicate_Name
+      (File_Name  : String;
+       Final_Name : String;
+       Seen       : in out Name_Vecs.Vector);
+
 end SData_Core.File_IO.Helpers;

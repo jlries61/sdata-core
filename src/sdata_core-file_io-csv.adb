@@ -333,6 +333,7 @@ package body SData_Core.File_IO.CSV is
 
          declare
             Col_Determined : array (1 .. N_Hdr) of Boolean := (others => False);
+            Seen           : Name_Vecs.Vector;
          begin
             if Names_From_Header then
                for I in 1 .. N_Hdr loop
@@ -397,6 +398,7 @@ package body SData_Core.File_IO.CSV is
                       then Base_Name & "$"
                       else Base_Name);
                begin
+                  Warn_If_Duplicate_Name (File_Name, Name, Seen);
                   Col_Names.Append (new String'(Name));
                end;
             end loop;
