@@ -10,6 +10,7 @@ with GNAT.Strings;            use GNAT.Strings;
 with DOM.Core.Nodes;
 with Input_Sources.Strings;
 with Unicode.CES.Utf8;
+with SData_Core.IO;
 
 package body SData_Core.File_IO.Helpers is
 
@@ -291,5 +292,26 @@ package body SData_Core.File_IO.Helpers is
       end if;
       return "";
    end Convert_Via_LibreOffice;
+
+   -----------------------------
+   -- Warn_If_Duplicate_Name --
+   -----------------------------
+   procedure Warn_If_Duplicate_Name
+      (File_Name  : String;
+       Final_Name : String;
+       Seen       : in out Name_Vecs.Vector)
+   is
+      Upper_Name : constant String := To_Upper (Final_Name);
+   begin
+      for Prior of Seen loop
+         if To_Upper (To_String (Prior)) = Upper_Name then
+            SData_Core.IO.Put_Line_Error
+               ("Warning: """ & File_Name & """, duplicate column name """ &
+                Final_Name & """ -- last occurrence wins");
+            exit;
+         end if;
+      end loop;
+      Seen.Append (To_Unbounded_String (Final_Name));
+   end Warn_If_Duplicate_Name;
 
 end SData_Core.File_IO.Helpers;

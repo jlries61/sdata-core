@@ -312,9 +312,11 @@ package body SData_Core.File_IO.OOXML is
          procedure Infer_And_Create_OOXML_Schema
             (Col_Name_Vec : Name_Vecs.Vector;
              Row1_Present : Boolean;
-             Row1         : DOM.Core.Node) is
+             Row1         : DOM.Core.Node;
+             Final_Names  : out Name_Vecs.Vector) is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
+            Seen      : Name_Vecs.Vector;
          begin
             Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
             if Row1_Present then
@@ -346,16 +348,19 @@ package body SData_Core.File_IO.OOXML is
                       then Raw_Name & "$"
                       else Raw_Name);
                begin
+                  Warn_If_Duplicate_Name (File_Name, Final_Name, Seen);
                   Add_Column (Final_Name, Col_Types (I));
+                  Final_Names.Append (To_Unbounded_String (Final_Name));
                end;
             end loop;
          end Infer_And_Create_OOXML_Schema;
 
          procedure Load_OOXML_Data_Rows
             (Rows      : DOM.Core.Node_List;
-             Col_Count : Natural) is
+             Col_Names : Name_Vecs.Vector) is
             Rows_To_Skip : Natural := Skip_Rows;
             Rows_Written : Natural := 0;
+            N_Cols       : constant Natural := Natural (Col_Names.Length);
          begin
             for I in 1 .. Length (Rows) - 1 loop
                exit when Max_Rows > 0 and then Rows_Written >= Max_Rows;
@@ -371,16 +376,31 @@ package body SData_Core.File_IO.OOXML is
                            (DOM.Core.Element (Item (Rows, I)), "c");
                   begin
                      for J in 0 .. Length (Cells) - 1 loop
-                        if J < Col_Count then
+                        if J < N_Cols then
                            declare
+                              --  ADR-0018 amendment: look up by the
+                              --  RAW per-cell-position decorated name
+                              --  (Col_Names, one entry per original header
+                              --  column, duplicates included), not by
+                              --  Table's physical (deduplicated) column
+                              --  position -- Set_Value below resolves
+                              --  duplicates to the one physical column by
+                              --  NAME, matching CSV's Set_Value_Upper
+                              --  mechanism, so the LAST cell with a given
+                              --  name is genuinely the one whose value
+                              --  survives, and no trailing column is
+                              --  silently dropped just because an earlier
+                              --  duplicate shrank the physical column count.
+                              Col_Name : constant String :=
+                                 To_String (Col_Names (J + 1));
                               V : constant Value :=
                                  Get_Cell_Value
                                     (Item (Cells, J),
-                                     Get_Column_Type (Column_Name (J + 1)));
+                                     Get_Column_Type (Col_Name));
                            begin
                               if V.Kind = Val_Numeric
-                                 and then Get_Column_Type
-                                    (Column_Name (J + 1)) = Col_Integer
+                                 and then Get_Column_Type (Col_Name)
+                                    = Col_Integer
                                  and then V.Num_Val
                                     /= Real'Truncation (V.Num_Val)
                                  and then
@@ -390,11 +410,11 @@ package body SData_Core.File_IO.OOXML is
                                     ("Warning: OOXML import, row" &
                                      Row_Count'Image &
                                      ", column """ &
-                                     Column_Name (J + 1) &
+                                     Col_Name &
                                      """: non-integer value truncated");
                               end if;
                               if V.Kind /= Val_Missing then
-                                 Set_Value (Row_Count, Column_Name (J + 1), V);
+                                 Set_Value (Row_Count, Col_Name, V);
                               end if;
                            exception
                               when E : others =>
@@ -403,7 +423,7 @@ package body SData_Core.File_IO.OOXML is
                                        ("Warning: OOXML import skipped cell at row" &
                                         Row_Count'Image &
                                         ", column """ &
-                                        Column_Name (J + 1) & """: " &
+                                        Col_Name & """: " &
                                         Ada.Exceptions.Exception_Message (E));
                                  end if;
                            end;
@@ -464,13 +484,15 @@ package body SData_Core.File_IO.OOXML is
          if Length (Rows) > 0 then
             declare
                Col_Name_Vec : Name_Vecs.Vector;
+               Final_Names  : Name_Vecs.Vector;
             begin
                Collect_OOXML_Headers (Item (Rows, 0), Col_Name_Vec);
                Infer_And_Create_OOXML_Schema
                   (Col_Name_Vec,
                    Row1_Present => Length (Rows) > 1,
-                   Row1         => Item (Rows, 1));
-               Load_OOXML_Data_Rows (Rows, Col_Count => Column_Count);
+                   Row1         => Item (Rows, 1),
+                   Final_Names  => Final_Names);
+               Load_OOXML_Data_Rows (Rows, Col_Names => Final_Names);
             end;
          end if;
 
