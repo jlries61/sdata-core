@@ -371,10 +371,18 @@ package body SData_Core.File_IO.CSV is
                                     (D_Str (D_Fields (I).S .. D_Fields (I).E));
                            begin
                               if F /= "" and then F /= "." then
-                                 Col_Types.Replace_Element
-                                    (I, (if Is_Numeric_Field (F) then Col_Numeric
-                                         else Col_String));
-                                 Col_Determined (I) := True;
+                                 if not Is_Numeric_Field (F) then
+                                    Col_Types.Replace_Element (I, Col_String);
+                                    Col_Determined (I) := True;
+                                 end if;
+                                 --  ADR-0019: a numeric value leaves
+                                 --  Col_Types(I) at its Col_Numeric default
+                                 --  (set before this loop) and does NOT lock
+                                 --  in -- keep scanning the rest of the
+                                 --  window for a non-numeric value, matching
+                                 --  design.md's "any non-numeric value in
+                                 --  the first n rows" rule rather than the
+                                 --  old first-value-wins shape.
                               end if;
                            end;
                         end if;
