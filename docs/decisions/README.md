@@ -62,6 +62,7 @@ directly, is common, not exceptional.
 | [ADR-0016](ADR-0016-clen-default-and-load-truncation-warning.md) | --clen defaults to 256 per design.md; Table.Coerce_Value warns on truncation | Accepted | 2026-08-23 |
 | [ADR-0017](ADR-0017-ooxml-absolute-target-path.md) | OOXML relationship Target resolution branches on absolute vs. relative form | Accepted | 2026-08-24 |
 | [ADR-0018](ADR-0018-duplicate-column-name-warning.md) | Duplicate column name warning + ODF/OOXML "last occurrence wins" row-loading fix (amended) | Accepted (amended) | 2026-08-24 |
+| [ADR-0019](ADR-0019-scan-window-any-nonnumeric-forces-character.md) | CSV scan-window type inference: any non-numeric value in the window forces character | Accepted | 2026-08-24 |
 
 ## Numbering
 
