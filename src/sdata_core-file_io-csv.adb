@@ -150,6 +150,17 @@ package body SData_Core.File_IO.CSV is
       Needs_ASCII_Chk : Boolean := False;
       Rows_Written    : Natural := 0;
 
+      --  ADR-0020 (PD-7): counts non-numeric-value-in-numeric/integer-column
+      --  coercion warnings across this whole Parse_CSV call (i.e. per source
+      --  file -- a multi-file USE merge calls Parse_CSV once per source, so
+      --  each gets its own independent cap for free).  Design.md's "maximum
+      --  of 10 shall be written" only describes these two warning sites
+      --  (below); the sibling warnings in this procedure (unclosed quote,
+      --  non-integer truncation, integer out-of-range, extra fields) are
+      --  deliberately NOT counted here.
+      Coercion_Warn_Count : Natural := 0;
+      Coercion_Warn_Cap    : constant := 10;
+
       procedure Validate_ASCII (S : String) is
       begin
          for I in S'Range loop
@@ -240,20 +251,26 @@ package body SData_Core.File_IO.CSV is
                         --  integer: store as missing rather than as a string
                         --  so that arithmetic on the column stays well-typed.
                         if Col_Types (Field_Count) = Col_Numeric then
-                           SData_Core.IO.Put_Line_Error
-                              ("Warning: """ & File_Name & """, data row" &
-                               Natural'Image (Rows_Written) & ", column """ &
-                               Col_Names (Field_Count).all &
-                               """: non-numeric value """ & F &
-                               """ in numeric column -- stored as missing");
+                           Coercion_Warn_Count := Coercion_Warn_Count + 1;
+                           if Coercion_Warn_Count <= Coercion_Warn_Cap then
+                              SData_Core.IO.Put_Line_Error
+                                 ("Warning: """ & File_Name & """, data row" &
+                                  Natural'Image (Rows_Written) & ", column """ &
+                                  Col_Names (Field_Count).all &
+                                  """: non-numeric value """ & F &
+                                  """ in numeric column -- stored as missing");
+                           end if;
                            Val := (Kind => Val_Missing);
                         elsif Col_Types (Field_Count) = Col_Integer then
-                           SData_Core.IO.Put_Line_Error
-                              ("Warning: """ & File_Name & """, data row" &
-                               Natural'Image (Rows_Written) & ", column """ &
-                               Col_Names (Field_Count).all &
-                               """: non-numeric value """ & F &
-                               """ in integer column -- stored as missing");
+                           Coercion_Warn_Count := Coercion_Warn_Count + 1;
+                           if Coercion_Warn_Count <= Coercion_Warn_Cap then
+                              SData_Core.IO.Put_Line_Error
+                                 ("Warning: """ & File_Name & """, data row" &
+                                  Natural'Image (Rows_Written) & ", column """ &
+                                  Col_Names (Field_Count).all &
+                                  """: non-numeric value """ & F &
+                                  """ in integer column -- stored as missing");
+                           end if;
                            Val := (Kind => Val_Missing);
                         else
                            Val := (Kind    => Val_String,
@@ -446,6 +463,15 @@ package body SData_Core.File_IO.CSV is
                end if;
                Process_Line_Direct (Line_Buf (1 .. Line_Last));
             end loop;
+         end if;
+
+         if Coercion_Warn_Count > Coercion_Warn_Cap then
+            SData_Core.IO.Put_Line_Error
+               ("Warning: """ & File_Name & """:" &
+                Natural'Image (Coercion_Warn_Count - Coercion_Warn_Cap) &
+                " additional non-numeric-value warning(s) suppressed (" &
+                Trim (Natural'Image (Coercion_Warn_Cap), Ada.Strings.Left) &
+                " shown," & Natural'Image (Coercion_Warn_Count) & " total)");
          end if;
 
          for SA of Col_Names loop Free (SA); end loop;
