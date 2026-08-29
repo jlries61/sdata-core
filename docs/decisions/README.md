@@ -63,6 +63,8 @@ directly, is common, not exceptional.
 | [ADR-0017](ADR-0017-ooxml-absolute-target-path.md) | OOXML relationship Target resolution branches on absolute vs. relative form | Accepted | 2026-08-24 |
 | [ADR-0018](ADR-0018-duplicate-column-name-warning.md) | Duplicate column name warning + ODF/OOXML "last occurrence wins" row-loading fix (amended) | Accepted (amended) | 2026-08-24 |
 | [ADR-0019](ADR-0019-scan-window-any-nonnumeric-forces-character.md) | CSV scan-window type inference: any non-numeric value in the window forces character | Accepted | 2026-08-24 |
+| [ADR-0020](ADR-0020-coercion-warning-cap.md) | Cap non-numeric-value coercion warnings at 10 per USE source file | Accepted | 2026-08-25 |
+| [ADR-0021](ADR-0021-charset-ascii-hardfail.md) | CSV /CHARSET=ASCII violations hard-fail USE and SAVE instead of warning and continuing | Accepted | 2026-08-29 |
 
 ## Numbering
 

@@ -161,15 +161,19 @@ package body SData_Core.File_IO.CSV is
       Coercion_Warn_Count : Natural := 0;
       Coercion_Warn_Cap    : constant := 10;
 
+      --  ADR-0021 (PD-8): design.md §4.1/§4.5 state four times that a
+      --  charset violation fails the operation with an error message; this
+      --  used to warn and continue.  Raise on the first offending byte,
+      --  matching this procedure's own pre-existing short-circuit
+      --  granularity (one message per call, not exhaustive per byte).
       procedure Validate_ASCII (S : String) is
       begin
          for I in S'Range loop
             if Character'Pos (S (I)) > 127 then
-               SData_Core.IO.Put_Line_Error
-                  ("Warning: non-ASCII byte (value" &
-                   Integer'Image (Character'Pos (S (I))) &
-                   ") found in """ & File_Name & """");
-               return;
+               raise SData_Core.Script_Error with
+                  """" & File_Name & """: non-ASCII byte (value" &
+                  Integer'Image (Character'Pos (S (I))) &
+                  ") in input -- rejected (CHARSET=ASCII)";
             end if;
          end loop;
       end Validate_ASCII;
@@ -521,6 +525,17 @@ package body SData_Core.File_IO.CSV is
          if Read_Header then
             if not Ada.Text_IO.End_Of_File (File) then
                Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
+               --  ADR-0021 (PD-8) code review round 1, MAJOR-1: this header
+               --  read was the one call site that never routed through
+               --  Validate_ASCII (the Skip_Rows and NSCAN loops below both
+               --  already did) -- a non-ASCII byte confined to the header
+               --  row silently succeeded even under CHARSET=ASCII.  Checked
+               --  on the raw line before BOM-stripping, matching the other
+               --  two sites' own idiom of validating immediately after
+               --  Get_Line.
+               if Needs_ASCII_Chk then
+                  Validate_ASCII (Line_Buf (1 .. Line_Last));
+               end if;
                declare
                   L : constant String := Line_Buf (1 .. Line_Last);
                begin
@@ -629,13 +644,14 @@ package body SData_Core.File_IO.CSV is
                   (S, Ada.Strings.UTF_Encoding.UTF_8, Out_Scheme));
          else
             if Is_ASCII_Chk then
+               --  ADR-0021 (PD-8): raise on the first offending byte rather
+               --  than warning and writing the field unconverted anyway.
                for I in S'Range loop
                   if Character'Pos (S (I)) > 127 then
-                     SData_Core.IO.Put_Line_Error
-                        ("Warning: non-ASCII byte (value" &
-                         Integer'Image (Character'Pos (S (I))) &
-                         ") in output for """ & File_Name & """");
-                     exit;
+                     raise SData_Core.Script_Error with
+                        """" & File_Name & """: non-ASCII byte (value" &
+                        Integer'Image (Character'Pos (S (I))) &
+                        ") in output -- rejected (CHARSET=ASCII)";
                   end if;
                end loop;
             end if;
