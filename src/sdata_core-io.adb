@@ -89,6 +89,8 @@ package body SData_Core.IO is
       Local_Echo := Val;
    end Set_Local_Echo;
 
+   function Is_Local_Echo return Boolean is (Local_Echo);
+
    procedure Set_Pager (Cmd : String) is
       Words    : GNAT.OS_Lib.Argument_List (1 .. Max_Shell_Args);
       Count    : Natural;
@@ -195,7 +197,7 @@ package body SData_Core.IO is
          Ada.Text_IO.Flush (Redirect_File);
       end if;
 
-      if Local_Echo and then not SData_Core.Config.Quiet_Mode then
+      if Local_Echo then
          if Has_External_Pager and then Interactive_Mode then
             Append (Pager_Buffer, Item);
          else
@@ -221,7 +223,7 @@ package body SData_Core.IO is
          Ada.Text_IO.Flush (Redirect_File);
       end if;
 
-      if Local_Echo and then not SData_Core.Config.Quiet_Mode then
+      if Local_Echo then
          if Has_External_Pager and then Interactive_Mode then
             Append (Pager_Buffer, Item & ASCII.LF);
          else
@@ -239,7 +241,7 @@ package body SData_Core.IO is
          Ada.Text_IO.Flush (Redirect_File);
       end if;
 
-      if Local_Echo and then not SData_Core.Config.Quiet_Mode then
+      if Local_Echo then
          if Has_External_Pager and then Interactive_Mode then
             Append (Pager_Buffer, "" & ASCII.LF);
          else

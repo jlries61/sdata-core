@@ -274,8 +274,6 @@ package body SData_Core.File_IO.ODF is
                                              = Col_Integer
                                           and then Val.Num_Val
                                              /= Real'Truncation (Val.Num_Val)
-                                          and then
-                                             not SData_Core.Config.Quiet_Mode
                                        then
                                           Put_Line_Error
                                              ("Warning: ODF import, row" &
@@ -292,16 +290,14 @@ package body SData_Core.File_IO.ODF is
                                                         Val);
                                           exception
                                              when E : others =>
-                                                if not SData_Core.Config.Quiet_Mode then
-                                                   Put_Line_Error
-                                                      ("Warning: ODF import skipped " &
-                                                       "cell at row" &
-                                                       Row_Count'Image &
-                                                       ", column """ &
-                                                       To_String (Col_Names (Col_Idx)) &
-                                                       """: " &
-                                                       Ada.Exceptions.Exception_Message (E));
-                                                end if;
+                                                Put_Line_Error
+                                                   ("Warning: ODF import skipped " &
+                                                    "cell at row" &
+                                                    Row_Count'Image &
+                                                    ", column """ &
+                                                    To_String (Col_Names (Col_Idx)) &
+                                                    """: " &
+                                                    Ada.Exceptions.Exception_Message (E));
                                           end;
                                        end if;
                                        Col_Idx := Col_Idx + 1;
@@ -334,11 +330,9 @@ package body SData_Core.File_IO.ODF is
                   GNAT.OS_Lib.Delete_File (Converted, OK);
                   return;
                end if;
-               if not SData_Core.Config.Quiet_Mode then
-                  Put_Line_Error
-                     ("Warning: formula cells found in ODS file but LibreOffice " &
-                      "is not available; using cached values.");
-               end if;
+               Put_Line_Error
+                  ("Warning: formula cells found in ODS file but LibreOffice " &
+                   "is not available; using cached values.");
             end;
          end if;
 

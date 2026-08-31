@@ -196,12 +196,10 @@ package body SData_Core.File_IO.OOXML is
          GNAT.OS_Lib.Delete_File (Temp_Shared, Success);
       exception
          when E : others =>
-            if not SData_Core.Config.Quiet_Mode then
-               Put_Line_Error
-                  ("Warning: OOXML shared strings failed to load; " &
-                   "string cells will be missing: " &
-                   Ada.Exceptions.Exception_Message (E));
-            end if;
+            Put_Line_Error
+               ("Warning: OOXML shared strings failed to load; " &
+                "string cells will be missing: " &
+                Ada.Exceptions.Exception_Message (E));
       end Load_Shared_Strings;
 
       procedure Load_Sheet (Zip_Info : Zip.Zip_Info; Sheet_XML_Path : String) is
@@ -403,8 +401,6 @@ package body SData_Core.File_IO.OOXML is
                                     = Col_Integer
                                  and then V.Num_Val
                                     /= Real'Truncation (V.Num_Val)
-                                 and then
-                                    not SData_Core.Config.Quiet_Mode
                               then
                                  Put_Line_Error
                                     ("Warning: OOXML import, row" &
@@ -418,14 +414,12 @@ package body SData_Core.File_IO.OOXML is
                               end if;
                            exception
                               when E : others =>
-                                 if not SData_Core.Config.Quiet_Mode then
-                                    Put_Line_Error
-                                       ("Warning: OOXML import skipped cell at row" &
-                                        Row_Count'Image &
-                                        ", column """ &
-                                        Col_Name & """: " &
-                                        Ada.Exceptions.Exception_Message (E));
-                                 end if;
+                                 Put_Line_Error
+                                    ("Warning: OOXML import skipped cell at row" &
+                                     Row_Count'Image &
+                                     ", column """ &
+                                     Col_Name & """: " &
+                                     Ada.Exceptions.Exception_Message (E));
                            end;
                         end if;
                      end loop;
@@ -452,11 +446,9 @@ package body SData_Core.File_IO.OOXML is
                   GNAT.OS_Lib.Delete_File (Converted, OK);
                   return;
                end if;
-               if not SData_Core.Config.Quiet_Mode then
-                  Put_Line_Error
-                     ("Warning: formula cells found in XLSX file but LibreOffice " &
-                      "is not available; using cached values.");
-               end if;
+               Put_Line_Error
+                  ("Warning: formula cells found in XLSX file but LibreOffice " &
+                   "is not available; using cached values.");
             end;
          end if;
 

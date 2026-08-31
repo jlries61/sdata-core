@@ -304,7 +304,7 @@ package body SData_Core.Commands is
              SData_Core.Config.Runtime.Options_SAVEOVERWRT,
              SData_Core.Config.Runtime.Options_CHARSET
                 (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
-         if not SData_Core.Config.Quiet_Mode then
+         if SData_Core.IO.Is_Local_Echo then
             SData_Core.IO.Put_Line
               ("Dataset saved: " &
                SData_Core.Config.Runtime.Output_Table_Path
@@ -345,7 +345,7 @@ package body SData_Core.Commands is
              SData_Core.Config.Runtime.Save_Charset
                 (1 .. SData_Core.Config.Runtime.Save_Charset_Len),
              SData_Core.Config.Runtime.Save_Decimals);
-         if not SData_Core.Config.Quiet_Mode then
+         if SData_Core.IO.Is_Local_Echo then
             SData_Core.IO.Put_Line
               ("Dataset saved: " &
                SData_Core.Config.Runtime.Save_File_Path

@@ -22,9 +22,6 @@ package SData_Core.Config is
    Input_File_Path : String (1 .. Max_Path_Len) := (others => ' ');
    Input_File_Len  : Natural := 0;
 
-   --  If True, suppresses informational messages (e.g., "Dataset opened").
-   Quiet_Mode    : Boolean := False;
-
    --  Optional output dataset from command line (-s).
    Output_Dataset_Path : String (1 .. Max_Path_Len) := (others => ' ');
    Output_Dataset_Len  : Natural := 0;

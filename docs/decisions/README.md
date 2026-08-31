@@ -65,6 +65,7 @@ directly, is common, not exceptional.
 | [ADR-0019](ADR-0019-scan-window-any-nonnumeric-forces-character.md) | CSV scan-window type inference: any non-numeric value in the window forces character | Accepted | 2026-08-24 |
 | [ADR-0020](ADR-0020-coercion-warning-cap.md) | Cap non-numeric-value coercion warnings at 10 per USE source file | Accepted | 2026-08-25 |
 | [ADR-0021](ADR-0021-charset-ascii-hardfail.md) | CSV /CHARSET=ASCII violations hard-fail USE and SAVE instead of warning and continuing | Accepted | 2026-08-29 |
+| [ADR-0022](ADR-0022-retire-quiet-mode-unify-local-echo.md) | Retire SData_Core.Config.Quiet_Mode; SData_Core.IO.Local_Echo is the sole console-output-suppression flag | Accepted | 2026-08-31 |
 
 ## Numbering
 

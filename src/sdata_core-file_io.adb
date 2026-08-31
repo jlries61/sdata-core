@@ -48,7 +48,7 @@ package body SData_Core.File_IO is
          Set_Value (3, "NAME$",
             (Kind    => Val_String,
              Str_Val => To_Unbounded_String ("Charlie")));
-         if not SData_Core.Config.Quiet_Mode then
+         if Is_Local_Echo then
             Put_Line ("Generating mock data...");
          end if;
          return;
@@ -85,7 +85,7 @@ package body SData_Core.File_IO is
             Parse_OOXML (File_Name, Sheet_Name, Skip_Rows, Max_Rows);
       end case;
 
-      if not SData_Core.Config.Quiet_Mode then
+      if Is_Local_Echo then
          Put_Line ("Dataset opened: " & File_Name);
       end if;
    end Open_Input;
