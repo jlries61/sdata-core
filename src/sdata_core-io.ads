@@ -27,6 +27,7 @@ package SData_Core.IO is
    procedure Set_Interactive (Val : Boolean);
    function Is_Interactive return Boolean;
    procedure Set_Local_Echo (Val : Boolean);
+   function Is_Local_Echo return Boolean;
 
    --  External pager support (interactive mode only).
 
