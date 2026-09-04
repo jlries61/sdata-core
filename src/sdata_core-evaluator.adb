@@ -420,7 +420,19 @@ package body SData_Core.Evaluator is
          end if;
       end;
 
-      return (Kind => Val_Missing);
+      --  ADR-062/sdata#76: defense-in-depth backstop, matching the sibling
+      --  Call_Function's existing behavior. The primary fix for known
+      --  Declarative/Immediate-tier callers (RSEED/NOTE/DIM/SAVE's IF=) is
+      --  sdata's own Check_Statement/Check_Expr reuse, which raises this
+      --  same class of error earlier and with arity detail this layer
+      --  can't easily reconstruct -- this raise exists so a *future*
+      --  command that evaluates a user expression without calling
+      --  Check_Statement/Check_Expr first fails loudly instead of
+      --  silently, not as the primary UX for today's four call sites.
+      --  Confirmed safe: only 2 call sites of Evaluate_Function exist in
+      --  the whole ecosystem (both inside this file), neither depends on
+      --  a silent Val_Missing return for a legitimate purpose.
+      raise SData_Core.Script_Error with "unknown function '" & Name & "'";
    end Evaluate_Function;
 
    --------------------
