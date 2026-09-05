@@ -114,6 +114,24 @@ package SData_Core.Variables is
    function Has_Array (Name : String) return Boolean;
    function Is_Temporary_Array (Name : String) return Boolean;
 
+   --  Returns True iff writing element Index of array Name should go through
+   --  Set_Temporary (SET) rather than Set_Permanent (LET) -- the per-element
+   --  sibling of Is_Temporary_Array's array-wide query. For a Real_Array
+   --  this is the array-wide Is_Temporary flag (uniform by construction --
+   --  DIM .../TEMP applies to every element). For a Virtual_Array this is
+   --  the *resolved constituent's own* storage class: True iff it is a
+   --  genuine temporary (present in Temp_Symbols and not currently Held --
+   --  the same "genuine temporary" test Set_Permanent's own ADR-0010 check
+   --  uses, so a held-permanent variable's Temp_Symbols carry-over mirror
+   --  does not misdispatch). A constituent that is neither a table column
+   --  nor in Temp_Symbols (never yet assigned) returns False.
+   --
+   --  Raises SData_Core.Script_Error under the same three conditions as
+   --  Get_Array_Element/Set_Array_Element: Name is not a defined array,
+   --  Index falls outside the array's declared range, or (Virtual_Array
+   --  only) the resolved offset exceeds the registered constituent count.
+   function Array_Element_Is_Temporary (Name : String; Index : Integer) return Boolean;
+
    --  Returns the bounds of an array if it exists.
    procedure Get_Array_Bounds (Name : String; Start_Idx, End_Idx : out Integer);
 

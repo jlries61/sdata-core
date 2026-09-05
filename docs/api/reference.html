@@ -1899,6 +1899,26 @@ under the same three conditions as Get_Array_Element.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   function Array_Element_Is_Temporary (Name : String; Index : Integer) return Boolean;</pre>
+<div class='doc'>Returns True iff writing element Index of array Name should go through
+Set_Temporary (SET) rather than Set_Permanent (LET) -- the per-element
+sibling of Is_Temporary_Array&#x27;s array-wide query. For a Real_Array
+this is the array-wide Is_Temporary flag (uniform by construction --
+DIM .../TEMP applies to every element). For a Virtual_Array this is
+the *resolved constituent&#x27;s own* storage class: True iff it is a
+genuine temporary (present in Temp_Symbols and not currently Held --
+the same &quot;genuine temporary&quot; test Set_Permanent&#x27;s own ADR-0010 check
+uses, so a held-permanent variable&#x27;s Temp_Symbols carry-over mirror
+does not misdispatch). A constituent that is neither a table column
+nor in Temp_Symbols (never yet assigned) returns False.
+
+Raises SData_Core.Script_Error under the same three conditions as
+Get_Array_Element/Set_Array_Element: Name is not a defined array,
+Index falls outside the array&#x27;s declared range, or (Virtual_Array
+only) the resolved offset exceeds the registered constituent count.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   procedure Get_Array_Bounds (Name : String; Start_Idx, End_Idx : out Integer);</pre>
 <div class='doc'>Returns the bounds of an array if it exists.</div>
 </div>
