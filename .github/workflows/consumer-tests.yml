@@ -67,7 +67,11 @@ jobs:
           #
           # v0.23.1 is a routine bump (sdata-side interpreter fix, sdata#76 --
           # no sdata-core API change), keeping the pin from lagging further.
-          ref: v0.23.1
+          #
+          # v0.24.0 is another routine bump (ADR-064: lexer Token_Bad silent-
+          # continue fix, sdata#77 -- sdata-only per ADR-040, no sdata-core
+          # API change).
+          ref: v0.24.0
           path: sdata
 
       - name: Set up Alire
