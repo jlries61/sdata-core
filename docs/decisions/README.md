@@ -67,6 +67,7 @@ directly, is common, not exceptional.
 | [ADR-0021](ADR-0021-charset-ascii-hardfail.md) | CSV /CHARSET=ASCII violations hard-fail USE and SAVE instead of warning and continuing | Accepted | 2026-08-29 |
 | [ADR-0022](ADR-0022-retire-quiet-mode-unify-local-echo.md) | Retire SData_Core.Config.Quiet_Mode; SData_Core.IO.Local_Echo is the sole console-output-suppression flag | Accepted | 2026-08-31 |
 | [ADR-0023](ADR-0023-virtual-array-element-per-element-storage-class-dispatch.md) | Virtual-array element writes dispatch LET/SET by the resolved constituent's storage class, not the array-level flag | Accepted | 2026-09-04 |
+| [ADR-0024](ADR-0024-use-time-array-detection-skips-scalar-collision.md) | USE-time subscripted-column auto-detection skips a base name that already exists as a scalar, instead of aborting | Accepted | 2026-09-05 |
 
 ## Numbering
 

@@ -1060,22 +1060,69 @@ package body SData_Core.Variables is
       --  Pass 2: register each base name as a DIM array.
       for Pos in Map.Iterate loop
          declare
-            Base   : constant String       := Bounds_Maps.Key (Pos);
-            Bounds : constant Bounds_Record := Bounds_Maps.Element (Pos);
+            Base       : constant String       := Bounds_Maps.Key (Pos);
+            Bounds     : constant Bounds_Record := Bounds_Maps.Element (Pos);
+            Upper_Base : constant String        := To_Upper (Base);
          begin
-            --  ADR-0015: DIM now silently replaces an existing virtual
-            --  array rather than raising, so this auto-detection path
-            --  needs its own notice -- otherwise a virtual array sharing a
-            --  name with the just-loaded dataset's own base(n) columns
-            --  would be replaced with zero visibility. Matches the existing
-            --  Warn_Resizing precedent (Execute_AGGREGATE,
-            --  sdata_core-commands.adb).
-            if Has_Array (Base) and then Array_Symbols.Element (To_Upper (Base)).Kind = Virtual_Array then
-               SData_Core.IO.Put_Line
-                 ("USE: replacing virtual array '" & To_Upper (Base)
-                  & "' with a real array from the loaded dataset");
+            --  ADR-0024: a dataset legitimately shaped with both a bare
+            --  column Base and its own subscripted siblings Base(1)..
+            --  Base(n) is not an auto-detection target -- Base already
+            --  means something on its own. Skip registering it as an array
+            --  (leaving every column reachable by its literal name) rather
+            --  than calling Dim_Array, whose own ADR-0012 scalar-conflict
+            --  guard would otherwise raise and abort the whole USE/reshape.
+            --  Checked against both storage classes Dim_Array itself
+            --  guards against, not just Table.Has_Column -- a pre-existing
+            --  SET temporary named Base hits the identical rejection.
+            if SData_Core.Table.Has_Column (Upper_Base) or else Temp_Symbols.Contains (Upper_Base) then
+               --  The Upper_Base & "(n)" columns are not orphaned by this --
+               --  they stay in the table (SAVE, KEEP/DROP, TRANSPOSE all
+               --  work as usual) and remain individually reachable through
+               --  ordinary expression syntax via the existing backtick
+               --  quoted-identifier form (design.md sec3.2, the same escape
+               --  hatch a reserved-keyword or embedded-space column name
+               --  already requires) -- bare "Upper_Base(n)" syntax alone is
+               --  unavoidably ambiguous with array-element/function-call
+               --  syntax once Upper_Base isn't a registered array, so the
+               --  notice says so.
+               --
+               --  code-reviewer MINOR-1 (2026-09-05): Upper_Base may ALSO
+               --  already be a registered array (from an earlier ARRAY/DIM,
+               --  unrelated to this USE) -- distinct from, and not fixed
+               --  by, this guard. Reporting it as "a scalar variable"
+               --  unconditionally would misdescribe that case; branch on
+               --  Has_Array to say what Upper_Base actually is.
+               if Has_Array (Upper_Base) then
+                  SData_Core.IO.Put_Line
+                    ("USE: not registering """ & Upper_Base & """ as an array from "
+                     & Upper_Base & "(1).." & Upper_Base & "(n): """ & Upper_Base
+                     & """ already exists as an array (unrelated to this dataset)"
+                     & " and that registration is left unchanged. The """ & Upper_Base
+                     & "(n)"" columns are still loaded; reference them with the"
+                     & " backtick form, e.g. `" & Upper_Base & "(1)`.");
+               else
+                  SData_Core.IO.Put_Line
+                    ("USE: not registering """ & Upper_Base & """ as an array from "
+                     & Upper_Base & "(1).." & Upper_Base & "(n): """ & Upper_Base
+                     & """ already exists as a scalar variable. The """ & Upper_Base
+                     & "(n)"" columns are still loaded; reference them with the"
+                     & " backtick form, e.g. `" & Upper_Base & "(1)`.");
+               end if;
+            else
+               --  ADR-0015: DIM now silently replaces an existing virtual
+               --  array rather than raising, so this auto-detection path
+               --  needs its own notice -- otherwise a virtual array sharing
+               --  a name with the just-loaded dataset's own base(n)
+               --  columns would be replaced with zero visibility. Matches
+               --  the existing Warn_Resizing precedent (Execute_AGGREGATE,
+               --  sdata_core-commands.adb).
+               if Has_Array (Base) and then Array_Symbols.Element (Upper_Base).Kind = Virtual_Array then
+                  SData_Core.IO.Put_Line
+                    ("USE: replacing virtual array '" & Upper_Base
+                     & "' with a real array from the loaded dataset");
+               end if;
+               Dim_Array (Base, Bounds.Min_Idx, Bounds.Max_Idx, False);
             end if;
-            Dim_Array (Base, Bounds.Min_Idx, Bounds.Max_Idx, False);
          end;
       end loop;
    end Register_Subscripted_Columns;
