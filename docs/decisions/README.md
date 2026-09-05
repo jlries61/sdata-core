@@ -66,6 +66,7 @@ directly, is common, not exceptional.
 | [ADR-0020](ADR-0020-coercion-warning-cap.md) | Cap non-numeric-value coercion warnings at 10 per USE source file | Accepted | 2026-08-25 |
 | [ADR-0021](ADR-0021-charset-ascii-hardfail.md) | CSV /CHARSET=ASCII violations hard-fail USE and SAVE instead of warning and continuing | Accepted | 2026-08-29 |
 | [ADR-0022](ADR-0022-retire-quiet-mode-unify-local-echo.md) | Retire SData_Core.Config.Quiet_Mode; SData_Core.IO.Local_Echo is the sole console-output-suppression flag | Accepted | 2026-08-31 |
+| [ADR-0023](ADR-0023-virtual-array-element-per-element-storage-class-dispatch.md) | Virtual-array element writes dispatch LET/SET by the resolved constituent's storage class, not the array-level flag | Accepted | 2026-09-04 |
 
 ## Numbering
 

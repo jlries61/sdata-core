@@ -749,6 +749,64 @@ package body SData_Core.Variables is
       end if;
    end Dim_Array;
 
+   ---------------------------
+   -- Resolve_Element_Name --
+   ---------------------------
+   --  Resolves (Arr_Def, Index) to the physical variable/column name backing
+   --  that array element, raising Script_Error for an out-of-range Index
+   --  (both kinds) or an offset exceeding Constituents' Length (virtual
+   --  arrays only). Shared by Get_Array_Element, Set_Array_Element, and
+   --  Array_Element_Is_Temporary so the three cannot drift.
+   function Resolve_Element_Name
+     (Arr_Def : Array_Definition_Type; Upper_Name : String; Index : Integer) return String
+   is
+   begin
+      if Index < Arr_Def.Start_Index or else Index > Arr_Def.End_Index then
+         raise SData_Core.Script_Error with
+           "Array index " & Index'Image & " out of bounds for '" & Upper_Name & "'.";
+      end if;
+
+      if Arr_Def.Kind = Virtual_Array then
+         --  Lookup from constituents list
+         declare
+            Offset : constant Positive := Index - Arr_Def.Start_Index + 1; -- Virtual arrays are 1-based internally
+         begin
+            if Offset > Integer (Arr_Def.Constituents.Length) then
+               raise SData_Core.Script_Error with
+                 "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
+            end if;
+            return To_String (Arr_Def.Constituents.Element (Offset));
+         end;
+      else -- Real_Array
+         --  Construct name like ARRAY_NAME(INDEX)
+         return Get_Real_Var_Name (To_String (Arr_Def.Constituents.First_Element), Index);
+      end if;
+   end Resolve_Element_Name;
+
+   --------------------------
+   -- Element_Is_Temporary --
+   --------------------------
+   --  Given an already-resolved element name and its owning Arr_Def, returns
+   --  whether a write to it should use Set_Temporary. For a Real_Array this
+   --  is the array-wide flag (uniform by construction). For a Virtual_Array
+   --  this checks the resolved constituent's own class: genuinely temporary
+   --  iff present in Temp_Symbols and not currently Held -- the same
+   --  "genuine temporary" test Set_Permanent's own ADR-0010 check uses, so a
+   --  held-permanent variable's Temp_Symbols carry-over mirror does not
+   --  misdispatch a write to it as temporary.
+   function Element_Is_Temporary (Arr_Def : Array_Definition_Type; Var_Name : String) return Boolean is
+   begin
+      if Arr_Def.Kind = Real_Array then
+         return Arr_Def.Is_Temporary;
+      else
+         declare
+            Upper_Var : constant String := To_Upper (Var_Name);
+         begin
+            return Temp_Symbols.Contains (Upper_Var) and then not Is_Held (Upper_Var);
+         end;
+      end if;
+   end Element_Is_Temporary;
+
    -----------------------
    -- Get_Array_Element --
    -----------------------
@@ -762,26 +820,7 @@ package body SData_Core.Variables is
       declare
          Arr_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
       begin
-         if Index < Arr_Def.Start_Index or else Index > Arr_Def.End_Index then
-            raise SData_Core.Script_Error with
-              "Array index " & Index'Image & " out of bounds for '" & Upper_Name & "'.";
-         end if;
-
-         if Arr_Def.Kind = Virtual_Array then
-            --  Lookup from constituents list
-            declare
-               Offset : constant Positive := Index - Arr_Def.Start_Index + 1; -- Virtual arrays are 1-based internally
-            begin
-               if Offset > Integer (Arr_Def.Constituents.Length) then
-                  raise SData_Core.Script_Error with
-                    "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
-               end if;
-               return Get (To_String (Arr_Def.Constituents.Element (Offset)));
-            end;
-         else -- Real_Array
-            --  Construct name like ARRAY_NAME(INDEX)
-            return Get (Get_Real_Var_Name (To_String (Arr_Def.Constituents.First_Element), Index));
-         end if;
+         return Get (Resolve_Element_Name (Arr_Def, Upper_Name, Index));
       end;
    end Get_Array_Element;
 
@@ -798,39 +837,18 @@ package body SData_Core.Variables is
       end if;
 
       declare
-         Arr_Def : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
+         Arr_Def  : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
+         Var_Name : constant String := Resolve_Element_Name (Arr_Def, Upper_Name, Index);
       begin
-         if Index < Arr_Def.Start_Index or else Index > Arr_Def.End_Index then
-            raise SData_Core.Script_Error with
-              "Array index " & Index'Image & " out of bounds for '" & Upper_Name & "'.";
+         --  Set the value using the scope this specific element actually
+         --  belongs to (ADR-0023: per-element, not Arr_Def.Is_Temporary,
+         --  which is always False for virtual arrays and therefore
+         --  meaningless for dispatch on them).
+         if Element_Is_Temporary (Arr_Def, Var_Name) then
+            Set_Temporary (Var_Name, Val);
+         else
+            Set_Permanent (Var_Name, Val);
          end if;
-
-         declare
-            Var_Name_Str : Unbounded_String;
-         begin
-            if Arr_Def.Kind = Virtual_Array then
-               --  Lookup from constituents list
-               declare
-                  Offset : constant Positive := Index - Arr_Def.Start_Index + 1;
-               begin
-                  if Offset > Integer (Arr_Def.Constituents.Length) then
-                     raise SData_Core.Script_Error with
-                       "Array index " & Index'Image & " out of bounds for virtual array '" & Upper_Name & "'.";
-                  end if;
-                  Var_Name_Str := To_Unbounded_String (To_String (Arr_Def.Constituents.Element (Offset)));
-               end;
-            else -- Real_Array
-               --  Construct name like ARRAY_NAME(INDEX)
-               Var_Name_Str := To_Unbounded_String (Get_Real_Var_Name (To_String (Arr_Def.Constituents.First_Element), Index));
-            end if;
-
-            --  Set the value using appropriate scope (temporary or permanent)
-            if Arr_Def.Is_Temporary then
-               Set_Temporary (To_String (Var_Name_Str), Val);
-            else
-               Set_Permanent (To_String (Var_Name_Str), Val);
-            end if;
-         end;
       end;
    end Set_Array_Element;
 
@@ -854,6 +872,24 @@ package body SData_Core.Variables is
          return False;
       end if;
    end Is_Temporary_Array;
+
+   --------------------------------
+   -- Array_Element_Is_Temporary --
+   --------------------------------
+   function Array_Element_Is_Temporary (Name : String; Index : Integer) return Boolean is
+      Upper_Name : constant String := To_Upper (Name);
+   begin
+      if not Array_Symbols.Contains (Upper_Name) then
+         raise SData_Core.Script_Error with "Array '" & Upper_Name & "' not defined.";
+      end if;
+
+      declare
+         Arr_Def  : constant Array_Definition_Type := Array_Symbols.Element (Upper_Name);
+         Var_Name : constant String := Resolve_Element_Name (Arr_Def, Upper_Name, Index);
+      begin
+         return Element_Is_Temporary (Arr_Def, Var_Name);
+      end;
+   end Array_Element_Is_Temporary;
 
    ----------------------
    -- Get_Array_Bounds --
