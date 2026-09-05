@@ -152,8 +152,36 @@ def parse_spec(path):
         if block and not any(m in d for d in block for m in LICENSE_MARKERS):
             overview = block
 
+    #  `fresh` accumulates comment lines seen since the last declaration was
+    #  consumed -- this is "this declaration's own comment", full stop.
+    #  `carry` is a *single-hop* fallback: the fresh comment a `type`
+    #  declaration just displayed, made available to exactly the next
+    #  declaration if (and only if) that next declaration has no fresh
+    #  comment of its own. This exists because a supporting type (a record
+    #  or array used only as the following routine's parameter/return type)
+    #  is frequently documented by a comment that's really about the routine
+    #  -- see Resolve_Use_Defaults/Use_Defaults and Call_Function/
+    #  Value_Array. It deliberately does NOT chain past a second hop: a type
+    #  with no fresh comment of its own never displays -- or re-propagates --
+    #  an inherited `carry`, and only a *routine* may fall back to one. Two
+    #  early, broader designs were tried and rejected before this one: (a)
+    #  never resetting `pending` after any type let carry accumulate without
+    #  bound through a whole run of separately-commented types (each type in
+    #  SData_Core.Evaluator's Expression_Kind/Binary_Op/Unary_Op/... chain
+    #  ended up showing the concatenation of every prior type's comment,
+    #  not just its own); (b) letting a bare, uncommented type inherit and
+    #  re-display `carry` regardless of what kind consumed it produced the
+    #  same failure one hop later (Expression, a bare forward declaration,
+    #  would have shown "Unary operators." -- Unary_Op's comment -- as if it
+    #  were its own). Single-hop, routine-only fallback is the narrowest rule
+    #  that still fixes the two concrete cases above without either failure
+    #  mode; it does not recover multi-hop cases like Execute_AGGREGATE's
+    #  fuller context sitting behind two intervening record/instantiation
+    #  declarations -- a known, accepted gap, not a silent one.
     decls = []
-    pending = []
+    fresh = []
+    carry = []
+    blank_run = 0
     i = (pkg_idx or 0) + 1
     while i < len(lines):
         stripped = lines[i].strip()
@@ -161,21 +189,39 @@ def parse_spec(path):
             break
         c = comment_text(lines[i])
         if c is not None:
-            pending.append(c)
+            fresh.append(c)
+            blank_run = 0
             i += 1
             continue
-        if not stripped:                   # blank line resets the doc block
-            pending = []
+        if not stripped:
+            #  A single blank line is tolerated as a paragraph break within an
+            #  otherwise-contiguous doc block (common style: an explanatory
+            #  paragraph, one blank line for readability, then the group of
+            #  declarations it describes -- e.g. the OPTIONS_* setter family
+            #  and the Config.Runtime read-accessor block both write it this
+            #  way). Two or more consecutive blanks is treated as a genuine
+            #  section break and drops both buffers, same as before.
+            blank_run += 1
+            if blank_run >= 2:
+                fresh = []
+                carry = []
             i += 1
             continue
+        blank_run = 0
         kind = classify(lines[i])
         if kind:
             sig, trailing, last = consume_signature(lines, i, kind)
-            decls.append((kind, sig, pending + trailing))
-            pending = []
+            #  A declaration's own fresh comment always wins outright; only
+            #  a routine with no fresh comment of its own falls back to a
+            #  single-hop carry from an immediately preceding documented type.
+            doc = fresh if fresh else (carry if kind == "routine" else [])
+            decls.append((kind, sig, doc + trailing))
+            carry = fresh if (kind == "type" and fresh) else []
+            fresh = []
             i = last + 1
         else:
-            pending = []
+            fresh = []
+            carry = []
             i += 1
     return pkg_name, overview, decls
 

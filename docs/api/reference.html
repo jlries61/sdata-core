@@ -105,6 +105,24 @@ friendlier than the bare Constraint_Error a slice assignment raises.</div>
       Header_Specified    : Boolean := False;
       Charset             : String  := &quot;&quot;;
       Charset_Specified   : Boolean := False) return Use_Defaults;</pre>
+<div class='doc'>--------------------------------------------------------------
+Resolve_Use_Defaults — the single authority for the
+&quot;specified on the USE statement, else fall back to OPTIONS state&quot;
+merge that consumers previously open-coded.  Front ends parse the
+surface syntax, then call this to obtain the effective delimiter /
+header / charset to hand to Execute_USE, so the merge rule lives in
+one place rather than drifting between consumers (per ADR; closes
+the Evans &quot;two authorities for USE defaults&quot; finding).
+
+Each *_Specified flag MUST be supplied by the caller and MUST NOT be
+inferred from emptiness: an empty Charset is a legal explicit value
+(&quot;autodetect&quot;) distinct from &quot;charset unspecified&quot;.  When a flag is
+False the corresponding SData_Core.Config.Runtime.Options_* accessor
+supplies the value.  The Delimiter passed in must already be decoded
+to its literal form (e.g. TAB -&gt; HT); the OPTIONS fallback is used
+verbatim.  Raises SData_Core.Script_Error if an effective delimiter
+or charset exceeds its bound (Max_Delimiter_Len / Max_Charset_Len) —
+friendlier than the bare Constraint_Error a slice assignment raises.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -334,6 +352,18 @@ Stat_List  registered aggregate names; empty =&gt; N MIN MEAN MAX STD.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Execute_STATS (Options : Stats_Options);</pre>
+<div class='doc'>--------------------------------------------------------------
+STATS — compute summary statistics for the chosen (or, by default,
+all numeric) variables, one row per (active BY group x variable),
+with one column per requested statistic.  Reuses the registered
+aggregate functions.  Mirrors AGGREGATE&#x27;s build-and-swap: on success
+the fresh stats table replaces the in-memory table, a pending SAVE is
+flushed, and the active SELECT and BY are cleared.  All validation
+precedes any side effect.  Printing is the caller&#x27;s concern.
+
+Var_List   analysis variables; empty =&gt; all numeric columns (minus BY).
+A whole-array base name expands to its elements.
+Stat_List  registered aggregate names; empty =&gt; N MIN MEAN MAX STD.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -387,6 +417,16 @@ table has been committed).  Both paths share the same implementation.</div>
 <div class='kind'>routine</div>
 <pre>   procedure Execute_REPEAT (Count : Natural);</pre>
 <div class='doc'>--------------------------------------------------------------
+Interpreter-state mutators (added per audit Findings R1/U2/E2).
+
+These wrap the corresponding SData_Core.Config.Runtime field
+writes that consumers previously performed inline.  Each is a
+thin pass-through, except that the String-valued OPTIONS setters
+validate length up-front and raise SData_Core.Script_Error on
+overflow — friendlier than the bare Constraint_Error a direct
+slice assignment would raise.
+--------------------------------------------------------------
+--------------------------------------------------------------
 REPEAT — set or clear the deferred-program repeat state.
 
 Count &gt; 0  sets Repeat_Active := True and Repeat_Count := Count.
@@ -406,6 +446,21 @@ consumer&#x27;s responsibility (each is a distinct concern in core).</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Execute_OPTIONS_CSVDLM        (Value : String);</pre>
+<div class='doc'>--------------------------------------------------------------
+OPTIONS — update one OPTIONS-command runtime setting.
+
+Each procedure mirrors a single Options_* field in
+SData_Core.Config.Runtime.  String-valued setters validate
+Value&#x27;Length up-front:
+Execute_OPTIONS_CSVDLM rejects empty values (a zero-length
+delimiter is nonsense) and values longer than Max_Delimiter_Len.
+Execute_OPTIONS_TXTFMT rejects empty values and values longer
+than Max_Delimiter_Len (note: the recognised TXTFMT set lives
+in the host application&#x27;s grammar, not in core).
+Execute_OPTIONS_CHARSET allows empty (meaning &quot;autodetect&quot;) and
+rejects values longer than Max_Charset_Len.
+Boolean / Natural setters need no validation beyond the parameter
+type.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -507,6 +562,11 @@ this field directly; Clear_Select_Filter exists so it no longer must.)</p>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Save_File_Path      return String;</pre>
+<div class='doc'>Read accessors.  Each returns the current value of the corresponding
+private state variable.  At the call site these read identically to
+the previous public variables (Ada lets you slice a function result
+the same way you slice a String variable), so existing consumer
+code continues to compile unchanged.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -655,6 +715,8 @@ this field directly; Clear_Select_Filter exists so it no longer must.)</p>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Reset;</pre>
+<div class='doc'>--------------------------------------------------------------
+Lifecycle procedures (public).</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -698,7 +760,10 @@ for statement fields, while this package no longer needs to with SData.AST.</p>
       Expr_Array_Access,
       Expr_Missing
    );</pre>
-<div class='doc'>Kinds of expressions supported in the language.
+<div class='doc'>-------------------------------------------------------------------------
+Expression types (moved from SData.AST)
+-------------------------------------------------------------------------
+Kinds of expressions supported in the language.
 e.g., 123.45
 e.g., &quot;Hello&quot;
 e.g., SALARY
@@ -790,7 +855,10 @@ Supports multiple subscripts: X(1, 3, 5)</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Evaluate (Expr : Expression_Access) return Value;</pre>
-<div class='doc'>Computes the value of an AST expression.</div>
+<div class='doc'>-------------------------------------------------------------------------
+Evaluator public interface
+-------------------------------------------------------------------------
+Computes the value of an AST expression.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -844,6 +912,9 @@ the dispatch table.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Call_Function (Name : String; Args : Value_Array) return Value;</pre>
+<div class='doc'>Thin shim for unit tests: call a registered function by name with
+pre-evaluated arguments.  Raises SData_Core.Script_Error if Name is not in
+the dispatch table.</div>
 </div>
 <div class='decl'>
 <div class='kind'>type</div>
@@ -948,7 +1019,10 @@ probability.  Each is flagged again at the declaration below.</p>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Z_PDF (Z : Real) return Real;</pre>
-<div class='doc'>Standard Normal (Z) -- mean 0, standard deviation 1.
+<div class='doc'>=======================================================================
+Probability Distribution Functions
+=======================================================================
+Standard Normal (Z) -- mean 0, standard deviation 1.
 Density phi(z).</div>
 </div>
 <div class='decl'>
@@ -1314,6 +1388,13 @@ set.  See ADR-0007 / spec sec 4.1.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Col_Numeric return Column_Type renames SData_Core.Columns.Col_Numeric;</pre>
+<div class='doc'>Kinds of data allowed in a column.  Relocated to SData_Core.Columns and
+re-exported here so the public API is byte-for-byte unchanged.  The
+subtype + literal renames are not enough on their own: the enumeration&#x27;s
+predefined &quot;=&quot; now lives in Columns, so a caller doing `use
+SData_Core.Table` (without `use type`) would lose direct visibility of
+it.  Re-exporting &quot;=&quot; here restores the prior directly-visible operator
+set.  See ADR-0007 / spec sec 4.1.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -1429,6 +1510,12 @@ would be unused and draw a -gnaty warning.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Ascending  return Sort_Direction renames SData_Core.Columns.Ascending;</pre>
+<div class='doc'>Sorting support.  Relocated to SData_Core.Columns and re-exported here so
+consumer aggregates (Sort_Criteria_Array) and `.Dir := Ascending`
+assignments keep compiling byte-for-byte (sec 4.4, same shim pattern as
+Column_Type).  No &quot;=&quot; re-export: neither consumer compares Sort_Direction
+or Sort_Criteria values (only assigns/declares them), so an &quot;=&quot; rename
+would be unused and draw a -gnaty warning.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -1472,6 +1559,7 @@ would be unused and draw a -gnaty warning.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Set_Index_Map (Map : Index_Array);</pre>
+<div class='doc'>Filtered view support (SELECT filter)</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
