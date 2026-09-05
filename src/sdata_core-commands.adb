@@ -406,6 +406,7 @@ package body SData_Core.Commands is
         ("USE", SData_Core.Table.Row_Count, Final => True);
 
       SData_Core.Variables.Refresh_PDV_Names;
+      SData_Core.Variables.Resolve_Column_Array_Collisions;  --  ADR-0025
       SData_Core.Variables.Register_Subscripted_Columns;
    end Execute_USE;
 
@@ -867,6 +868,7 @@ package body SData_Core.Commands is
       SData_Core.Table.Commit_Output_Table;
       SData_Core.Table.Clear_Index_Map;     --  stale SELECT map no longer valid
       SData_Core.Variables.Refresh_PDV_Names;
+      SData_Core.Variables.Resolve_Column_Array_Collisions;  --  ADR-0025
       SData_Core.Variables.Register_Subscripted_Columns;  --  ADR-041 re-detect
 
       if SData_Core.Config.Runtime.Save_File_Active then

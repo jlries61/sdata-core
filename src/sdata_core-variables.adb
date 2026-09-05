@@ -1127,4 +1127,25 @@ package body SData_Core.Variables is
       end loop;
    end Register_Subscripted_Columns;
 
+   -------------------------------------
+   -- Resolve_Column_Array_Collisions --
+   -------------------------------------
+   procedure Resolve_Column_Array_Collisions is
+   begin
+      for I in 1 .. SData_Core.Table.Column_Count loop
+         declare
+            Name : constant String := SData_Core.Table.Column_Name (I);
+         begin
+            if Has_Array (Name) then
+               SData_Core.IO.Put_Line
+                 ("USE: array """ & To_Upper (Name) & """ was already defined "
+                  & "(unrelated to the just-loaded dataset); removing its "
+                  & "registration -- column """ & To_Upper (Name)
+                  & """ from the loaded dataset takes precedence.");
+               Undefine_Array (Name);
+            end if;
+         end;
+      end loop;
+   end Resolve_Column_Array_Collisions;
+
 end SData_Core.Variables;

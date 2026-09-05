@@ -2027,6 +2027,25 @@ Gaps in the numeric sequence are permitted.  Call after Execute_USE.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   procedure Resolve_Column_Array_Collisions;</pre>
+<div class='doc'>Post-load reconciliation (issue #132): USE/reshape commands overwrite
+the entire in-memory table, but Array_Symbols is a separate namespace
+Table.Add_Column has no visibility into (Table sits below Variables in
+this crate&#x27;s dependency graph) and cannot guard against loading a
+literal column whose name collides with an already-registered array --
+the shadow-state defect ADR-0010/ADR-0012 closed for LET/SET/DIM,
+reappearing on this fourth path. Undefines the stale registration
+(ADR-0025, extending ADR-0015&#x27;s &quot;DIM silently replaces an existing
+virtual array&quot; precedent to virtual and real arrays alike) so the
+freshly-loaded column becomes the name&#x27;s sole, unambiguous meaning;
+prints a notice so the removal isn&#x27;t silent. Call before
+Register_Subscripted_Columns so that routine&#x27;s own messaging reflects
+post-reconciliation state. Call after Open_Input (or the reshape
+epilogue&#x27;s table-commit step) so &quot;every column in the table&quot; and
+&quot;every column this operation just loaded&quot; are the same set.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   function Expand_Array_Names (Name : String) return Name_Vectors.Vector;</pre>
 <div class='doc'>Expands an array base Name into the actual column/variable names
 backing it: for a Virtual_Array, its Constituents as registered by
