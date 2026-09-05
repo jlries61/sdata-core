@@ -71,7 +71,13 @@ jobs:
           # v0.24.0 is another routine bump (ADR-064: lexer Token_Bad silent-
           # continue fix, sdata#77 -- sdata-only per ADR-040, no sdata-core
           # API change).
-          ref: v0.24.0
+          #
+          # v0.25.0 lands the sdata-side half of ADR-065 (OUTPUT-file
+          # transcript fix, sdata#81) -- the sdata-core-side half already
+          # merged here as PR #140 (v0.14.4) before this pin bump; no new
+          # sdata-core API surface, just the floor constraint moving to
+          # ^0.14.4 on the sdata side.
+          ref: v0.25.0
           path: sdata
 
       - name: Set up Alire
