@@ -64,7 +64,10 @@ jobs:
           # once sdata-core PR #128 merged; this bump closes the gap sdata-core's
           # own CLAUDE.md warns about (a stale pin silently validating nothing
           # current).
-          ref: v0.23.0
+          #
+          # v0.23.1 is a routine bump (sdata-side interpreter fix, sdata#76 --
+          # no sdata-core API change), keeping the pin from lagging further.
+          ref: v0.23.1
           path: sdata
 
       - name: Set up Alire
