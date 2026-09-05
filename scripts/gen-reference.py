@@ -42,6 +42,15 @@ PUBLIC_PACKAGES = (
 ROUTINE_RE = re.compile(r"^\s*(?:overriding\s+)?(?:function|procedure)\b", re.I)
 TYPE_RE = re.compile(r"^\s*(?:type|subtype)\b", re.I)
 INSTANCE_RE = re.compile(r"^\s*package\s+[\w.]+\s+is\s+new\b", re.I)
+#  A package instantiation with "is" and "new" split across two lines
+#  (`package Foo is` / `  new Bar (...)`) -- INSTANCE_RE only matches the
+#  single-line form. Checked one line ahead by the caller (parse_spec),
+#  not here, since it needs the next line's content, not just this one's.
+INSTANCE_CONTINUATION_RE = re.compile(r"^\s*package\s+[\w.]+\s+is\s*$", re.I)
+#  The declared name of a type/subtype/package-instance line -- used to
+#  check whether a later routine's own signature actually references the
+#  type carry is offering it (see carry_name below).
+DECL_NAME_RE = re.compile(r"^\s*(?:type|subtype|package)\s+([\w.]+)", re.I)
 #  An object, constant or exception declaration: one or more identifiers,
 #  then a colon.  (Routines start with a keyword and are matched above.)
 OBJECT_RE = re.compile(r"^\s*[A-Za-z]\w*(?:\s*,\s*[A-Za-z]\w*)*\s*:(?!=)", re.I)
@@ -154,33 +163,78 @@ def parse_spec(path):
 
     #  `fresh` accumulates comment lines seen since the last declaration was
     #  consumed -- this is "this declaration's own comment", full stop.
-    #  `carry` is a *single-hop* fallback: the fresh comment a `type`
-    #  declaration just displayed, made available to exactly the next
-    #  declaration if (and only if) that next declaration has no fresh
-    #  comment of its own. This exists because a supporting type (a record
-    #  or array used only as the following routine's parameter/return type)
-    #  is frequently documented by a comment that's really about the routine
+    #  `carry` is a fallback: the fresh comment a `type` declaration just
+    #  displayed, made available to later declarations that have no fresh
+    #  comment of their own. This exists because a supporting type (a record
+    #  or array used only as a routine's parameter/return type) is
+    #  frequently documented by a comment that's really about the routine
     #  -- see Resolve_Use_Defaults/Use_Defaults and Call_Function/
-    #  Value_Array. It deliberately does NOT chain past a second hop: a type
-    #  with no fresh comment of its own never displays -- or re-propagates --
-    #  an inherited `carry`, and only a *routine* may fall back to one. Two
-    #  early, broader designs were tried and rejected before this one: (a)
-    #  never resetting `pending` after any type let carry accumulate without
-    #  bound through a whole run of separately-commented types (each type in
-    #  SData_Core.Evaluator's Expression_Kind/Binary_Op/Unary_Op/... chain
-    #  ended up showing the concatenation of every prior type's comment,
-    #  not just its own); (b) letting a bare, uncommented type inherit and
-    #  re-display `carry` regardless of what kind consumed it produced the
-    #  same failure one hop later (Expression, a bare forward declaration,
-    #  would have shown "Unary operators." -- Unary_Op's comment -- as if it
-    #  were its own). Single-hop, routine-only fallback is the narrowest rule
-    #  that still fixes the two concrete cases above without either failure
-    #  mode; it does not recover multi-hop cases like Execute_AGGREGATE's
-    #  fuller context sitting behind two intervening record/instantiation
-    #  declarations -- a known, accepted gap, not a silent one.
+    #  Value_Array (single hop) and Aggregate_Invar_Kind -> Aggregate_Spec
+    #  -> Aggregate_Spec_Vectors -> Execute_AGGREGATE (multi-hop: two bare
+    #  intervening types, issue #135).
+    #
+    #  Two invariants keep this from reintroducing either failure mode an
+    #  earlier, broader design hit (see PR #134's own history): (1) a
+    #  declaration's fresh comment always wins OUTRIGHT over `carry` -- never
+    #  blended, never appended-to -- so a type or routine with its own
+    #  comment can never show a concatenation of its own text and something
+    #  inherited (this is what actually broke SData_Core.Evaluator's
+    #  Expression_Kind/Binary_Op/Unary_Op/... chain the first time: fresh
+    #  comments kept appending onto old carry instead of replacing it).
+    #  (2) `carry` is only ever *displayed* by a `routine` -- a bare `type`
+    #  with no fresh of its own is transparent (passes `carry` through
+    #  unchanged) but never shows it and never re-derives it from anything
+    #  but its own fresh comment. This is why Expression/Expression_Access
+    #  (bare forward declarations right after the commented Unary_Op) show
+    #  nothing rather than incorrectly inheriting "Unary operators." --
+    #  bare types don't display carry at all, only pass it along.
+    #
+    #  What changed for #135 versus PR #134's original narrower rule: `carry`
+    #  used to reset after any bare type (single-hop only). It now survives
+    #  through an unbounded run of *consecutive bare types* (still killed by
+    #  2+ blank lines, a fresh comment of its own -- which replaces it, not
+    #  appends to it -- or an unclassified line), so a routine several bare
+    #  helper types downstream of a documented type can still inherit it.
+    #
+    #  A routine with its OWN fresh comment additionally combines it with
+    #  carry (carry first, then its own note) -- but ONLY when `carry_names`
+    #  (every type identifier the current, still-live carry has passed
+    #  through -- the type that originated it, plus every bare type it was
+    #  transparently carried across since) contains a name that actually
+    #  appears in that routine's own signature. Without this gate, a routine
+    #  whose own comment is a complete, self-sufficient description (not a
+    #  supplementary trailing note) would incorrectly have an unrelated
+    #  upstream type's comment prepended to it merely for being the next
+    #  declaration with a fresh comment of its own -- found by auditing the
+    #  whole corpus, not just the two target cases: Is_Known_Function (own
+    #  comment: "True iff Name... is a registered evaluator function") was
+    #  picking up Aggregate_Metadata's comment, an unrelated type two
+    #  declarations earlier that Is_Known_Function's signature never
+    #  mentions.
+    #
+    #  `carry_names` must accumulate across the whole bare-type chain, not
+    #  just remember the originating type: Execute_AGGREGATE mentions
+    #  Aggregate_Spec_Vectors, not Aggregate_Invar_Kind (the type that
+    #  actually originated the carried overview text three declarations
+    #  earlier) -- an first version of this gate that tracked only the
+    #  single originating name wrongly rejected this exact case, the one
+    #  #135 was filed about. Tracking the whole set correctly keeps
+    #  Execute_AGGREGATE (mentions Aggregate_Spec_Vectors), Function_Arity
+    #  (returns Arity_Spec), and Chi_Square_Tests (takes Count_Matrix, the
+    #  origin, reached transparently through Count_Vector/Chi_Square_Result/
+    #  GOF_Result) combining, while Is_Known_Function reverts to showing
+    #  only its own comment. Verified by hand against every declaration in
+    #  all 7 public-contract spec files, not just the handful of cases
+    #  originally reported -- no remaining misattribution found. Accepted,
+    #  stated residual risk: this is a syntactic name match, not a semantic
+    #  one -- a routine whose signature happens to textually mention an
+    #  unrelated type's name (coincidence, not reference) could still
+    #  wrongly combine; not observed anywhere in this corpus, and multi-word
+    #  Ada identifiers make an accidental match unlikely in practice.
     decls = []
     fresh = []
     carry = []
+    carry_names = []
     blank_run = 0
     i = (pkg_idx or 0) + 1
     while i < len(lines):
@@ -205,23 +259,67 @@ def parse_spec(path):
             if blank_run >= 2:
                 fresh = []
                 carry = []
+                carry_names = []
             i += 1
             continue
         blank_run = 0
         kind = classify(lines[i])
+        if kind is None and INSTANCE_CONTINUATION_RE.match(lines[i]) \
+           and i + 1 < len(lines) and lines[i + 1].lstrip().lower().startswith("new"):
+            #  `package Foo is` / `  new Bar (...)` -- classify() only ever
+            #  sees one line, so INSTANCE_RE (single-line "is new") misses
+            #  this split form entirely; without this check the line falls
+            #  through to the "unclassified" branch below and silently
+            #  resets both fresh and carry, which is exactly why
+            #  Aggregate_Spec_Vectors (#135) was invisible to the parser,
+            #  not merely undocumented.
+            kind = "type"
         if kind:
             sig, trailing, last = consume_signature(lines, i, kind)
-            #  A declaration's own fresh comment always wins outright; only
-            #  a routine with no fresh comment of its own falls back to a
-            #  single-hop carry from an immediately preceding documented type.
-            doc = fresh if fresh else (carry if kind == "routine" else [])
+            #  A type's own fresh comment always wins outright over carry
+            #  (never blended -- see the module-level comment above `decls`
+            #  for why). A routine is different: its own fresh comment is
+            #  usually a short trailing note (e.g. "Raises Script_Error...")
+            #  that *supplements* rather than replaces a fuller upstream
+            #  overview -- but only combine when carry_names shows this
+            #  routine's own signature actually references one of the types
+            #  the live carry has passed through; otherwise carry is just
+            #  unrelated upstream noise and this routine shows only its own
+            #  fresh, same as pre-#135. Empty operands degrade correctly
+            #  either way: no carry -> just its own fresh; no fresh -> just
+            #  carry; neither -> nothing.
+            if kind == "routine":
+                if fresh and carry and any(
+                    re.search(r"\b" + re.escape(n) + r"\b", sig) for n in carry_names
+                ):
+                    doc = carry + fresh
+                elif fresh:
+                    doc = fresh
+                else:
+                    doc = carry
+            else:
+                doc = fresh
             decls.append((kind, sig, doc + trailing))
-            carry = fresh if (kind == "type" and fresh) else []
+            if kind == "type":
+                name_match = DECL_NAME_RE.match(lines[i])
+                name = name_match.group(1) if name_match else None
+                if fresh:
+                    carry = fresh
+                    carry_names = [name] if name else []
+                elif carry and name:
+                    #  Bare type -- transparent: carry's text is unchanged,
+                    #  but this type's own name joins the set a later
+                    #  routine's signature might reference.
+                    carry_names.append(name)
+            else:
+                carry = []
+                carry_names = []
             fresh = []
             i = last + 1
         else:
             fresh = []
             carry = []
+            carry_names = []
             i += 1
     return pkg_name, overview, decls
 

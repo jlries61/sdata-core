@@ -278,9 +278,29 @@ a whole registered array, element-wise</div>
    end record;</pre>
 </div>
 <div class='decl'>
+<div class='kind'>type</div>
+<pre>   package Aggregate_Spec_Vectors is
+     new Ada.Containers.Vectors (Positive, Aggregate_Spec);</pre>
+</div>
+<div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector);</pre>
-<div class='doc'>Raises SData_Core.Script_Error (per the AGGREGATE error catalog,
+<div class='doc'>--------------------------------------------------------------
+AGGREGATE — collapse the current table into one row per active BY
+group, computing registered aggregate functions over chosen input
+columns.  Grouping is taken from the active BY statement (no /BY=);
+the active SELECT filter is respected during the input scan.  On
+success the fresh one-row-per-group table replaces the in-memory
+table, a pending SAVE is flushed, and the active SELECT and BY are
+cleared.  All errors abort before any side effect (see ADR-046).
+
+An Aggregate_Spec describes one &quot;&lt;outvar&gt; = &lt;fn&gt;(&lt;invar&gt;)&quot; clause:
+Outvar      target column name (may end in &#x27;$&#x27; for character output).
+Fn_Name     registered aggregate function name (case-insensitive).
+Invar_Kind  shape of the input reference (see below).
+Invar_Name  input column / array base name (empty for Invar_Empty).
+Invar_Index array element subscript (only for Invar_Array_Element).
+Raises SData_Core.Script_Error (per the AGGREGATE error catalog,
 ADR-046 / design spec sec 5) on any validation failure; on such a
 failure the in-memory table, the pending SAVE, and the active
 SELECT/BY are all left untouched.</div>
@@ -323,7 +343,30 @@ parser, error #1).</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Execute_TRANSPOSE (Options : Transpose_Options);</pre>
-<div class='doc'>Raises SData_Core.Script_Error (per the TRANSPOSE error catalog,
+<div class='doc'>--------------------------------------------------------------
+TRANSPOSE — reshape the current table so that each transposed input
+column becomes one output row.  Either each input row of a block
+becomes one element of an output array (/ARRAY, default _X_), or
+named subsets of rows become named output columns (/ID).  With an
+active BY, each consecutive-key block is transposed separately into
+the same fresh output table.  The active SELECT filter is respected
+during the scan; on success the fresh table replaces the in-memory
+table, a pending SAVE is flushed, and the active SELECT and BY are
+cleared.  All validation precedes any side effect (see ADR-047).
+
+A Transpose_Options record carries the parsed options:
+Keep_List   columns/arrays to transpose (empty = every non-BY column).
+Drop_List   columns/arrays to exclude from the transposed set.
+Name_Col    name of the character column holding each source column&#x27;s
+name (empty -&gt; default _NAME_$).
+Id_Col      /ID column whose values become output column names.
+Array_Name  /ARRAY base name (empty -&gt; _X_ when neither /ID nor
+/ARRAY is given).
+Has_Id      True when /ID was specified.
+Has_Array   True when /ARRAY was specified.
+/ID and /ARRAY are mutually exclusive (enforced by the front-end
+parser, error #1).
+Raises SData_Core.Script_Error (per the TRANSPOSE error catalog,
 ADR-047 / design spec sec 4) on any validation failure; on such a
 failure the in-memory table, the pending SAVE, and the active
 SELECT/BY are all left untouched.  A failure during the post-commit
@@ -495,9 +538,22 @@ threshold above which /JOIN merges emit a warning.  Value 0
 disables the warning entirely.</div>
 </div>
 <div class='decl'>
+<div class='kind'>type</div>
+<pre>   package Reserved_Keyword_Sets is
+     new Ada.Containers.Indefinite_Ordered_Sets (String);</pre>
+<div class='doc'>--------------------------------------------------------------
+Reserved-keyword warning support (per quoted-identifiers design,
+2026-05-30; promoted to sdata-core 2026-06-17 as the one shareable
+sliver). Each consumer passes its own grammar-specific keyword set.</div>
+</div>
+<div class='decl'>
 <div class='kind'>routine</div>
 <pre>   procedure Warn_Reserved_Columns (Keywords : Reserved_Keyword_Sets.Set);</pre>
-<div class='doc'>Walk the current table&#x27;s columns; for each upper-cased column name
+<div class='doc'>--------------------------------------------------------------
+Reserved-keyword warning support (per quoted-identifiers design,
+2026-05-30; promoted to sdata-core 2026-06-17 as the one shareable
+sliver). Each consumer passes its own grammar-specific keyword set.
+Walk the current table&#x27;s columns; for each upper-cased column name
 that is a member of Keywords, emit one stderr warning. No-op when
 Config.Runtime.Options_Warn_Reserved is False (gating lives here, the
 single authority — callers do not check the toggle).</div>
@@ -958,7 +1014,12 @@ the upper bound is left at Natural&#x27;Last so a valid call is never rejected.<
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Function_Arity (Name : String) return Arity_Spec;</pre>
-<div class='doc'>Returns the arity of a known function.  Raises SData_Core.Script_Error
+<div class='doc'>Per-function argument-count metadata.  A call with fewer than Min_Args
+or more than Max_Args arguments is out of range.  Max_Args = Natural&#x27;Last
+means &quot;no upper bound&quot; (variadic).  These bounds are deliberately SOUND,
+not COMPLETE: where a handler accepts an open-ended or ambiguous count
+the upper bound is left at Natural&#x27;Last so a valid call is never rejected.
+Returns the arity of a known function.  Raises SData_Core.Script_Error
 when Name is not a registered function -- call Is_Known_Function first.</div>
 </div>
 <div class='decl'>
@@ -1357,7 +1418,11 @@ Pure: take a matrix / vector of counts, return the statistics. --
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Chi_Square_Tests (Counts : Count_Matrix) return Chi_Square_Result;</pre>
-<div class='doc'>Chi-square family for an R x C table of observed counts.</div>
+<div class='doc'>----------------------------------------------------------------
+Contingency-table tests (SAS PROC FREQ /CHISQ analogue).      --
+Pure: take a matrix / vector of counts, return the statistics. --
+----------------------------------------------------------------
+Chi-square family for an R x C table of observed counts.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
