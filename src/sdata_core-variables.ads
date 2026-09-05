@@ -146,6 +146,23 @@ package SData_Core.Variables is
    --  Gaps in the numeric sequence are permitted.  Call after Execute_USE.
    procedure Register_Subscripted_Columns;
 
+   --  Post-load reconciliation (issue #132): USE/reshape commands overwrite
+   --  the entire in-memory table, but Array_Symbols is a separate namespace
+   --  Table.Add_Column has no visibility into (Table sits below Variables in
+   --  this crate's dependency graph) and cannot guard against loading a
+   --  literal column whose name collides with an already-registered array --
+   --  the shadow-state defect ADR-0010/ADR-0012 closed for LET/SET/DIM,
+   --  reappearing on this fourth path. Undefines the stale registration
+   --  (ADR-0025, extending ADR-0015's "DIM silently replaces an existing
+   --  virtual array" precedent to virtual and real arrays alike) so the
+   --  freshly-loaded column becomes the name's sole, unambiguous meaning;
+   --  prints a notice so the removal isn't silent. Call before
+   --  Register_Subscripted_Columns so that routine's own messaging reflects
+   --  post-reconciliation state. Call after Open_Input (or the reshape
+   --  epilogue's table-commit step) so "every column in the table" and
+   --  "every column this operation just loaded" are the same set.
+   procedure Resolve_Column_Array_Collisions;
+
    --  Expands an array base Name into the actual column/variable names
    --  backing it: for a Virtual_Array, its Constituents as registered by
    --  Define_Array; for a Real_Array, the generated "Name(I)" names for
