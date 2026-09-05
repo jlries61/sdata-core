@@ -304,12 +304,10 @@ package body SData_Core.Commands is
              SData_Core.Config.Runtime.Options_SAVEOVERWRT,
              SData_Core.Config.Runtime.Options_CHARSET
                 (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
-         if SData_Core.IO.Is_Local_Echo then
-            SData_Core.IO.Put_Line
-              ("Dataset saved: " &
-               SData_Core.Config.Runtime.Output_Table_Path
-                  (1 .. SData_Core.Config.Runtime.Output_Table_Len));
-         end if;
+         SData_Core.IO.Put_Line
+           ("Dataset saved: " &
+            SData_Core.Config.Runtime.Output_Table_Path
+               (1 .. SData_Core.Config.Runtime.Output_Table_Len));
       exception
          when SData_Core.File_IO.Save_Refused => null;
          when E : Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
@@ -345,12 +343,10 @@ package body SData_Core.Commands is
              SData_Core.Config.Runtime.Save_Charset
                 (1 .. SData_Core.Config.Runtime.Save_Charset_Len),
              SData_Core.Config.Runtime.Save_Decimals);
-         if SData_Core.IO.Is_Local_Echo then
-            SData_Core.IO.Put_Line
-              ("Dataset saved: " &
-               SData_Core.Config.Runtime.Save_File_Path
-                  (1 .. SData_Core.Config.Runtime.Save_File_Len));
-         end if;
+         SData_Core.IO.Put_Line
+           ("Dataset saved: " &
+            SData_Core.Config.Runtime.Save_File_Path
+               (1 .. SData_Core.Config.Runtime.Save_File_Len));
       exception
          when SData_Core.File_IO.Save_Refused => null;
          when E : Ada.IO_Exceptions.Name_Error | Ada.IO_Exceptions.Use_Error =>
