@@ -2,6 +2,8 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
+with SData_Core.Table;
+
 package SData_Core.File_IO.OOXML is
 
    procedure Parse_OOXML (File_Name  : String;
@@ -11,6 +13,8 @@ package SData_Core.File_IO.OOXML is
 
    procedure Write_OOXML (File_Name  : String;
                           Sheet_Name : String := "Sheet1";
-                          Decimals   : Integer := -1);
+                          Decimals   : Integer := -1;
+                          View       : SData_Core.Table.Table_View :=
+                             SData_Core.Table.Default_View);
 
 end SData_Core.File_IO.OOXML;

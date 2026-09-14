@@ -409,11 +409,13 @@ package body SData_Core.File_IO.ODF is
    -- Write_ODF --
    ---------------
    procedure Write_ODF (File_Name : String; Sheet_Name : String := "Sheet1";
-                        Decimals  : Integer := -1) is
+                        Decimals  : Integer := -1;
+                        View      : SData_Core.Table.Table_View :=
+                           SData_Core.Table.Default_View) is
       use Zip.Create;
       Info          : Zip_Create_Info;
       Z_File_Stream : aliased Zip_File_Stream;
-      N             : constant Natural := Column_Count;
+      N             : constant Natural := Column_Count (View);
       Sname         : constant String  :=
          (if Sheet_Name = "" then "Sheet1" else Sheet_Name);
    begin
@@ -470,18 +472,18 @@ package body SData_Core.File_IO.ODF is
          for C in 1 .. N loop
             Append (S1,
                "<table:table-cell office:value-type=""string""><text:p>" &
-               Escape_XML (Column_Name (C)) & "</text:p></table:table-cell>");
+               Escape_XML (Column_Name (C, View)) & "</text:p></table:table-cell>");
          end loop;
          Append (S1, "</table:table-row>" & ASCII.LF);
 
          --  Iterate the logical (post-SELECT) view; identity when unfiltered.
-         for L in 1 .. Logical_Row_Count loop
+         for L in 1 .. Logical_Row_Count (View) loop
             SData_Core.IO.Show_Progress ("SAVE", L);
             Append (S1, "<table:table-row>");
             for C in 1 .. N loop
                declare
-                  R : constant Positive := Logical_To_Physical (L);
-                  V : constant Value := Get_Value (R, Column_Name (C));
+                  R : constant Positive := Logical_To_Physical (L, View);
+                  V : constant Value := Get_Value (R, Column_Name (C, View), View);
                begin
                   case V.Kind is
                      when Val_Numeric =>
@@ -533,7 +535,7 @@ package body SData_Core.File_IO.ODF is
             end loop;
             Append (S1, "</table:table-row>" & ASCII.LF);
          end loop;
-         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count, Final => True);
+         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count (View), Final => True);
 
          Append (S1,
             "</table:table></office:spreadsheet></office:body></office:document-content>");

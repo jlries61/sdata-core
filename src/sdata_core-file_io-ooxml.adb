@@ -531,11 +531,13 @@ package body SData_Core.File_IO.OOXML is
    -- Write_OOXML --
    -----------------
    procedure Write_OOXML (File_Name : String; Sheet_Name : String := "Sheet1";
-                          Decimals  : Integer := -1) is
+                          Decimals  : Integer := -1;
+                          View      : SData_Core.Table.Table_View :=
+                             SData_Core.Table.Default_View) is
       use Zip.Create;
       Info          : Zip_Create_Info;
       Z_File_Stream : aliased Zip_File_Stream;
-      N             : constant Natural := Column_Count;
+      N             : constant Natural := Column_Count (View);
       Sname         : constant String  :=
          (if Sheet_Name = "" then "Sheet1" else Sheet_Name);
    begin
@@ -631,7 +633,7 @@ package body SData_Core.File_IO.OOXML is
          for C in 1 .. N loop
             declare
                Ref : constant String := Col_To_Letters (C) & "1";
-               Val : constant String := Escape_XML (Column_Name (C));
+               Val : constant String := Escape_XML (Column_Name (C, View));
             begin
                Append (S1,
                   "<c r=""" & Ref & """ t=""inlineStr""><is><t>" &
@@ -643,18 +645,18 @@ package body SData_Core.File_IO.OOXML is
          --  Iterate the logical (post-SELECT) view; identity when unfiltered.
          --  The sheet row reference uses the logical position L (consecutive
          --  1..N), while cell values are read from the physical row.
-         for L in 1 .. Logical_Row_Count loop
+         for L in 1 .. Logical_Row_Count (View) loop
             SData_Core.IO.Show_Progress ("SAVE", L);
             Append (S1,
                "<row r=""" & Trim (Integer (L + 1)'Img, Ada.Strings.Both) &
                """>");
             for C in 1 .. N loop
                declare
-                  R   : constant Positive := Logical_To_Physical (L);
+                  R   : constant Positive := Logical_To_Physical (L, View);
                   Ref : constant String :=
                      Col_To_Letters (C) &
                      Trim (Integer (L + 1)'Img, Ada.Strings.Both);
-                  V   : constant Value := Get_Value (R, Column_Name (C));
+                  V   : constant Value := Get_Value (R, Column_Name (C, View), View);
                begin
                   case V.Kind is
                      when Val_Numeric =>
@@ -697,7 +699,7 @@ package body SData_Core.File_IO.OOXML is
             end loop;
             Append (S1, "</row>" & ASCII.LF);
          end loop;
-         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count, Final => True);
+         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count (View), Final => True);
 
          Append (S1, "</sheetData>" & ASCII.LF);
          Append (S1, "</worksheet>");

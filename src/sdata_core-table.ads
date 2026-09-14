@@ -44,12 +44,55 @@ package SData_Core.Table is
    --  Has_Column first when uncertainty is possible).
    function Get_Column_Type (Name : String) return Column_Type;
 
+   --  A read-only view onto a table's columns/rows, usable by File_IO's
+   --  writers in place of the global Data_Table singleton (ADR-071 /
+   --  TABLES's /SAVE option).  Default_View (Is_Default => True) preserves
+   --  every existing caller's behavior byte-for-byte: the 5 accessors below
+   --  read Data_Table/Column_Order/Table_Row_Count and honor the active
+   --  SELECT Filter_Map exactly as they always have.  A non-default View
+   --  reads Data/Order directly and is never SELECT-filtered -- Logical_
+   --  Row_Count/Logical_To_Physical are identity over Row_Count for it,
+   --  since an ephemeral view (e.g. a TABLES crosstab staged in
+   --  Output_Data_Table) has no independent SELECT-filter concept, and
+   --  Filter_Map's indices belong to Data_Table's row space, not the
+   --  view's.  Get_Value_Upper for a non-default View never consults
+   --  Backing_Store -- see Output_View below.
+   type Table_View (Is_Default : Boolean := True) is record
+      case Is_Default is
+         when True =>
+            null;
+         when False =>
+            Data      : access Column_Maps.Map;
+            Order     : access Columns.Column_Name_Vectors.Vector;
+            Row_Count : Natural;
+      end case;
+   end record;
+
+   Default_View : constant Table_View := (Is_Default => True);
+
+   --  A view onto the current Output_* staging table (built via
+   --  Initialize_Output_Table / Add_Output_Column / Add_Output_Row /
+   --  Set_Output_Value*).  O(1) -- takes 'Access, never copies any column
+   --  data.  Not valid for a spilled Output_* segment -- see
+   --  Output_Is_Spilled.
+   function Output_View return Table_View;
+
+   --  True if the Output_* staging table has spilled to the SQLite backing
+   --  store (Output_Segment_Start > 1, the same condition
+   --  Commit_Output_Table checks internally).  A caller building an
+   --  ephemeral Table_View (Output_View) over a spilled Output_* table
+   --  would read wrong (missing) data for any row outside the live
+   --  in-memory segment, since a non-default View never consults
+   --  Backing_Store -- callers must check this first and fail loudly
+   --  (e.g. TABLES's /SAVE) rather than read silently-wrong data.
+   function Output_Is_Spilled return Boolean;
+
    --  Returns the number of columns in the table.
-   function Column_Count return Natural;
+   function Column_Count (View : Table_View := Default_View) return Natural;
 
    --  Returns the Ith column name in user-visible (insertion) order, 1-based.
    --  Used to iterate column names without heap-allocating a String_List.
-   function Column_Name (I : Positive) return String;
+   function Column_Name (I : Positive; View : Table_View := Default_View) return String;
 
    --  Returns the number of rows (records) in the table.
    function Row_Count return Natural;
@@ -74,8 +117,12 @@ package SData_Core.Table is
    procedure Add_Row;
 
    --  Retrieves the value for a specific row and column.
-   function Get_Value (Row : Positive; Column_Name : String) return Value;
-   function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value;
+   function Get_Value
+     (Row : Positive; Column_Name : String; View : Table_View := Default_View)
+      return Value;
+   function Get_Value_Upper
+     (Row : Positive; Upper_Name : String; View : Table_View := Default_View)
+      return Value;
 
    --  Updates the value at a specific row and column.
    --  Raises Type_Mismatch_Error if the value kind doesn't match the column type.
@@ -117,8 +164,9 @@ package SData_Core.Table is
    type Index_Array is array (Positive range <>) of Positive;
    procedure Set_Index_Map (Map : Index_Array);
    procedure Clear_Index_Map;
-   function Logical_To_Physical (Logical : Positive) return Positive;
-   function Logical_Row_Count return Natural;
+   function Logical_To_Physical
+     (Logical : Positive; View : Table_View := Default_View) return Positive;
+   function Logical_Row_Count (View : Table_View := Default_View) return Natural;
    function Is_Filtered return Boolean;
 
    --  Output Table Management
@@ -201,8 +249,10 @@ private
    --  The global data table state.
    Data_Table : Column_Maps.Map;
 
-   Output_Data_Table : Column_Maps.Map;
-   Output_Column_Order : Columns.Column_Name_Vectors.Vector;
+   --  aliased: Output_View (public part) takes 'Access onto both, to build
+   --  a Table_View with no copy of any column data (ADR-071).
+   Output_Data_Table : aliased Column_Maps.Map;
+   Output_Column_Order : aliased Columns.Column_Name_Vectors.Vector;
    Output_Table_Row_Count : Natural := 0;
    Record_Explicitly_Written : Boolean := False;
 

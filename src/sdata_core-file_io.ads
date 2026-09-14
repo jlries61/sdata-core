@@ -8,6 +8,7 @@
 --  or native logic for specific file types.
 
 with SData_Core.Config; use SData_Core.Config;
+with SData_Core.Table;
 
 package SData_Core.File_IO is
 
@@ -37,6 +38,11 @@ package SData_Core.File_IO is
    --  Sheet_Name sets the output sheet name in ODF/OOXML files (default: "Sheet1").
    --  Delimiter, Write_Header, and Allow_Overwrite apply to CSV format only.
    --  Charset specifies the output character encoding ("", "AUTO", "UTF-8", "UTF-16", "ASCII").
+   --  View (default: SData_Core.Table.Default_View, ADR-071) selects which
+   --  table is written -- the global Data_Table singleton by default, or a
+   --  caller-supplied Table_View (e.g. SData_Core.Table.Output_View) so a
+   --  caller can write a table other than Data_Table without installing it
+   --  as Data_Table first. See SData_Core.Table.Table_View.
    procedure Open_Output (File_Name       : String;
                           Fmt             : Format_Type;
                           Sheet_Name      : String  := "";
@@ -44,6 +50,8 @@ package SData_Core.File_IO is
                           Write_Header    : Boolean := True;
                           Allow_Overwrite : Boolean := True;
                           Charset         : String  := "";
-                          Decimals        : Integer := -1);
+                          Decimals        : Integer := -1;
+                          View            : SData_Core.Table.Table_View :=
+                             SData_Core.Table.Default_View);
 
 end SData_Core.File_IO;

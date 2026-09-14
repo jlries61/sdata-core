@@ -1492,13 +1492,63 @@ Constraint_Error if the column does not exist (caller should test
 Has_Column first when uncertainty is possible).</div>
 </div>
 <div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Table_View (Is_Default : Boolean := True) is record
+      case Is_Default is
+         when True =&gt;
+            null;
+         when False =&gt;
+            Data      : access Column_Maps.Map;
+            Order     : access Columns.Column_Name_Vectors.Vector;
+            Row_Count : Natural;
+      end case;</pre>
+<div class='doc'>A read-only view onto a table&#x27;s columns/rows, usable by File_IO&#x27;s
+writers in place of the global Data_Table singleton (ADR-071 /
+TABLES&#x27;s /SAVE option).  Default_View (Is_Default =&gt; True) preserves
+every existing caller&#x27;s behavior byte-for-byte: the 5 accessors below
+read Data_Table/Column_Order/Table_Row_Count and honor the active
+SELECT Filter_Map exactly as they always have.  A non-default View
+reads Data/Order directly and is never SELECT-filtered -- Logical_
+Row_Count/Logical_To_Physical are identity over Row_Count for it,
+since an ephemeral view (e.g. a TABLES crosstab staged in
+Output_Data_Table) has no independent SELECT-filter concept, and
+Filter_Map&#x27;s indices belong to Data_Table&#x27;s row space, not the
+view&#x27;s.  Get_Value_Upper for a non-default View never consults
+Backing_Store -- see Output_View below.</div>
+</div>
+<div class='decl'>
+<div class='kind'>constant</div>
+<pre>   Default_View : constant Table_View := (Is_Default =&gt; True);</pre>
+</div>
+<div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Column_Count return Natural;</pre>
+<pre>   function Output_View return Table_View;</pre>
+<div class='doc'>A view onto the current Output_* staging table (built via
+Initialize_Output_Table / Add_Output_Column / Add_Output_Row /
+Set_Output_Value*).  O(1) -- takes &#x27;Access, never copies any column
+data.  Not valid for a spilled Output_* segment -- see
+Output_Is_Spilled.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Output_Is_Spilled return Boolean;</pre>
+<div class='doc'>True if the Output_* staging table has spilled to the SQLite backing
+store (Output_Segment_Start &gt; 1, the same condition
+Commit_Output_Table checks internally).  A caller building an
+ephemeral Table_View (Output_View) over a spilled Output_* table
+would read wrong (missing) data for any row outside the live
+in-memory segment, since a non-default View never consults
+Backing_Store -- callers must check this first and fail loudly
+(e.g. TABLES&#x27;s /SAVE) rather than read silently-wrong data.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Column_Count (View : Table_View := Default_View) return Natural;</pre>
 <div class='doc'>Returns the number of columns in the table.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Column_Name (I : Positive) return String;</pre>
+<pre>   function Column_Name (I : Positive; View : Table_View := Default_View) return String;</pre>
 <div class='doc'>Returns the Ith column name in user-visible (insertion) order, 1-based.
 Used to iterate column names without heap-allocating a String_List.</div>
 </div>
@@ -1530,12 +1580,16 @@ O(1).  See Spill_Table_To_Disk for the all-or-nothing write contract.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Get_Value (Row : Positive; Column_Name : String) return Value;</pre>
+<pre>   function Get_Value
+     (Row : Positive; Column_Name : String; View : Table_View := Default_View)
+      return Value;</pre>
 <div class='doc'>Retrieves the value for a specific row and column.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value;</pre>
+<pre>   function Get_Value_Upper
+     (Row : Positive; Upper_Name : String; View : Table_View := Default_View)
+      return Value;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
@@ -1632,11 +1686,12 @@ would be unused and draw a -gnaty warning.</div>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Logical_To_Physical (Logical : Positive) return Positive;</pre>
+<pre>   function Logical_To_Physical
+     (Logical : Positive; View : Table_View := Default_View) return Positive;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   function Logical_Row_Count return Natural;</pre>
+<pre>   function Logical_Row_Count (View : Table_View := Default_View) return Natural;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>

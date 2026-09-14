@@ -120,20 +120,47 @@ package body SData_Core.Table is
       end;
    end Get_Column_Type;
 
+   -----------------
+   -- Output_View --
+   -----------------
+   function Output_View return Table_View is
+   begin
+      return (Is_Default => False,
+              Data       => Output_Data_Table'Access,
+              Order      => Output_Column_Order'Access,
+              Row_Count  => Output_Table_Row_Count);
+   end Output_View;
+
+   -----------------------
+   -- Output_Is_Spilled --
+   -----------------------
+   function Output_Is_Spilled return Boolean is
+   begin
+      return Output_Segment_Start > 1;
+   end Output_Is_Spilled;
+
    ------------------
    -- Column_Count --
    ------------------
-   function Column_Count return Natural is
+   function Column_Count (View : Table_View := Default_View) return Natural is
    begin
-      return Natural (Data_Table.Length);
+      if View.Is_Default then
+         return Natural (Data_Table.Length);
+      else
+         return Natural (View.Data.Length);
+      end if;
    end Column_Count;
 
    -----------------
    -- Column_Name --
    -----------------
-   function Column_Name (I : Positive) return String is
+   function Column_Name (I : Positive; View : Table_View := Default_View) return String is
    begin
-      return Image (Column_Order.Element (I));
+      if View.Is_Default then
+         return Image (Column_Order.Element (I));
+      else
+         return Image (View.Order.Element (I));
+      end if;
    end Column_Name;
 
    ---------------
@@ -170,33 +197,70 @@ package body SData_Core.Table is
    ---------------
    -- Get_Value --
    ---------------
-   function Get_Value (Row : Positive; Column_Name : String) return Value is
+   function Get_Value
+     (Row : Positive; Column_Name : String; View : Table_View := Default_View)
+      return Value
+   is
    begin
-      return Get_Value_Upper (Row, Ada.Characters.Handling.To_Upper (Column_Name));
+      return Get_Value_Upper
+        (Row, Ada.Characters.Handling.To_Upper (Column_Name), View);
    end Get_Value;
 
    --  The "_Upper" suffix is historical: To_Column_Name canonicalizes the key
    --  internally now, so callers need not pre-upper-case Upper_Name.  Kept for
    --  signature compatibility (rename is low value, out of M4 scope).
-   function Get_Value_Upper (Row : Positive; Upper_Name : String) return Value is
-      Cur : constant Column_Maps.Cursor :=
-         Data_Table.Find (To_Column_Name (Upper_Name));
+   function Get_Value_Upper
+     (Row : Positive; Upper_Name : String; View : Table_View := Default_View)
+      return Value
+   is
    begin
-      if not Column_Maps.Has_Element (Cur) then
-         return (Kind => Val_Missing);
+      if not View.Is_Default then
+         --  A non-default View is always fully in-memory by contract
+         --  (Output_Is_Spilled must be checked by the caller before
+         --  building one) -- never consults Backing_Store, so the
+         --  Backing_Store.Is_Active global flag (which reflects whichever
+         --  table -- Data_Table or Output_Data_Table -- last spilled) can
+         --  never leak into an ephemeral view's reads (ADR-071).
+         declare
+            Cur : constant Column_Maps.Cursor :=
+               View.Data.Find (To_Column_Name (Upper_Name));
+         begin
+            if not Column_Maps.Has_Element (Cur) then
+               return (Kind => Val_Missing);
+            end if;
+            declare
+               Ref : constant Column_Maps.Constant_Reference_Type :=
+                  View.Data.Constant_Reference (Cur);
+            begin
+               if Row in 1 .. Natural (Ref.Element.all.Data.Length) then
+                  return Ref.Element.all.Data.Element (Row);
+               else
+                  return (Kind => Val_Missing);
+               end if;
+            end;
+         end;
       end if;
+
       declare
-         Ref : constant Column_Maps.Constant_Reference_Type :=
-            Data_Table.Constant_Reference (Cur);
-         Len : constant Natural := Natural (Ref.Element.all.Data.Length);
+         Cur : constant Column_Maps.Cursor :=
+            Data_Table.Find (To_Column_Name (Upper_Name));
       begin
-         if Row >= Current_Segment_Start and then Row < Current_Segment_Start + Len then
-            return Ref.Element.all.Data.Element (Row - Current_Segment_Start + 1);
-         elsif Store.Is_Active then
-            return Store.Fetch (Row, Upper_Name, Data_Table, Table_Row_Count);
-         else
+         if not Column_Maps.Has_Element (Cur) then
             return (Kind => Val_Missing);
          end if;
+         declare
+            Ref : constant Column_Maps.Constant_Reference_Type :=
+               Data_Table.Constant_Reference (Cur);
+            Len : constant Natural := Natural (Ref.Element.all.Data.Length);
+         begin
+            if Row >= Current_Segment_Start and then Row < Current_Segment_Start + Len then
+               return Ref.Element.all.Data.Element (Row - Current_Segment_Start + 1);
+            elsif Store.Is_Active then
+               return Store.Fetch (Row, Upper_Name, Data_Table, Table_Row_Count);
+            else
+               return (Kind => Val_Missing);
+            end if;
+         end;
       end;
    end Get_Value_Upper;
 
@@ -500,9 +564,16 @@ package body SData_Core.Table is
    -------------------------
    -- Logical_To_Physical --
    -------------------------
-   function Logical_To_Physical (Logical : Positive) return Positive is
+   function Logical_To_Physical
+     (Logical : Positive; View : Table_View := Default_View) return Positive
+   is
    begin
-      if Filter_Map = null then
+      --  A non-default View has no SELECT-filter concept of its own --
+      --  Filter_Map's indices belong to Data_Table's row space, not the
+      --  view's -- so this is always identity for it (ADR-071).
+      if not View.Is_Default then
+         return Logical;
+      elsif Filter_Map = null then
          return Logical;
       elsif Logical <= Filter_Map'Length then
          return Filter_Map (Logical);
@@ -514,9 +585,11 @@ package body SData_Core.Table is
    ------------------------
    -- Logical_Row_Count --
    ------------------------
-   function Logical_Row_Count return Natural is
+   function Logical_Row_Count (View : Table_View := Default_View) return Natural is
    begin
-      if Filter_Map = null then
+      if not View.Is_Default then
+         return View.Row_Count;
+      elsif Filter_Map = null then
          return Table_Row_Count;
       else
          return Filter_Map'Length;
