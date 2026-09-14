@@ -603,7 +603,9 @@ package body SData_Core.File_IO.CSV is
                         Write_Header    : Boolean := True;
                         Allow_Overwrite : Boolean := True;
                         Charset         : String  := "";
-                        Decimals        : Integer := -1) is
+                        Decimals        : Integer := -1;
+                        View            : SData_Core.Table.Table_View :=
+                           SData_Core.Table.Default_View) is
       use Ada.Directories;
 
       TXTFMT_Len : constant Natural := SData_Core.Config.Runtime.Options_TXTFMT_Len;
@@ -633,7 +635,7 @@ package body SData_Core.File_IO.CSV is
 
       File  : Ada.Streams.Stream_IO.File_Type;
       Strm  : Ada.Streams.Stream_IO.Stream_Access;
-      N     : constant Natural := Column_Count;
+      N     : constant Natural := Column_Count (View);
       D_Str : constant String := Delimiter;
 
       procedure Write_String (S : String) is
@@ -716,7 +718,7 @@ package body SData_Core.File_IO.CSV is
       if N > 0 then
          if Write_Header then
             for I in 1 .. N loop
-               Write_String (CSV_Quote (Column_Name (I)));
+               Write_String (CSV_Quote (Column_Name (I, View)));
                if I /= N then
                   Write_String (D_Str);
                end if;
@@ -728,15 +730,15 @@ package body SData_Core.File_IO.CSV is
          --  filter is active, so an unfiltered SAVE is byte-for-byte
          --  unchanged.  The caller (Execute_RUN / Commit_Step) rebuilds the
          --  filter map before flushing, matching DISPLAY's contract.
-         for L in 1 .. Logical_Row_Count loop
+         for L in 1 .. Logical_Row_Count (View) loop
             SData_Core.IO.Show_Progress ("SAVE", L);
             declare
-               R : constant Positive := Logical_To_Physical (L);
+               R : constant Positive := Logical_To_Physical (L, View);
             begin
                for C in 1 .. N loop
                   declare
                      Val : constant Value :=
-                        Get_Value_Upper (R, Column_Name (C));
+                        Get_Value_Upper (R, Column_Name (C, View), View);
                   begin
                      if Val.Kind = Val_Numeric then
                         if Is_Inf (Val.Num_Val) then
@@ -763,7 +765,7 @@ package body SData_Core.File_IO.CSV is
             end;
             Write_String (EOL);
          end loop;
-         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count, Final => True);
+         SData_Core.IO.Show_Progress ("SAVE", Logical_Row_Count (View), Final => True);
       end if;
       Ada.Streams.Stream_IO.Close (File);
    exception
