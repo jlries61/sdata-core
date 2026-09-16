@@ -77,7 +77,7 @@ jobs:
           # merged here as PR #140 (v0.14.4) before this pin bump; no new
           # sdata-core API surface, just the floor constraint moving to
           # ^0.14.4 on the sdata side.
-          ref: v0.25.0
+          ref: v0.31.0
           path: sdata
 
       - name: Set up Alire
