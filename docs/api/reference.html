@@ -257,11 +257,15 @@ table, a pending SAVE is flushed, and the active SELECT and BY are
 cleared.  All errors abort before any side effect (see ADR-046).
 
 An Aggregate_Spec describes one &quot;&lt;outvar&gt; = &lt;fn&gt;(&lt;invar&gt;)&quot; clause:
-Outvar      target column name (may end in &#x27;$&#x27; for character output).
-Fn_Name     registered aggregate function name (case-insensitive).
-Invar_Kind  shape of the input reference (see below).
-Invar_Name  input column / array base name (empty for Invar_Empty).
-Invar_Index array element subscript (only for Invar_Array_Element).
+Outvar         target column name (may end in &#x27;$&#x27; for character output).
+Fn_Name        registered aggregate function name (case-insensitive).
+Invar_Kind     shape of the input reference (see below).
+Invar_Name     input column / array base name (empty for Invar_Empty).
+Invar_Index    array element subscript (only for Invar_Array_Element).
+Has_Pctl_Value True for &quot;&lt;outvar&gt; = PCTL(&lt;invar&gt;, &lt;p&gt;)&quot; -- an extra
+integer percentile argument (ADR-075/sdata#93).
+Pctl_Value     the percentile (0..100); meaningful only when
+Has_Pctl_Value is True.
 N() with no argument -&gt; group row count
 a scalar column name
 an array element, e.g. x(1)
@@ -270,11 +274,13 @@ a whole registered array, element-wise</div>
 <div class='decl'>
 <div class='kind'>type</div>
 <pre>   type Aggregate_Spec is record
-      Outvar      : Ada.Strings.Unbounded.Unbounded_String;
-      Fn_Name     : Ada.Strings.Unbounded.Unbounded_String;
-      Invar_Kind  : Aggregate_Invar_Kind := Invar_Empty;
-      Invar_Name  : Ada.Strings.Unbounded.Unbounded_String;
-      Invar_Index : Natural := 0;
+      Outvar         : Ada.Strings.Unbounded.Unbounded_String;
+      Fn_Name        : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Kind     : Aggregate_Invar_Kind := Invar_Empty;
+      Invar_Name     : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Index    : Natural := 0;
+      Has_Pctl_Value : Boolean := False;
+      Pctl_Value     : Natural := 0;
    end record;</pre>
 </div>
 <div class='decl'>
@@ -295,11 +301,15 @@ table, a pending SAVE is flushed, and the active SELECT and BY are
 cleared.  All errors abort before any side effect (see ADR-046).
 
 An Aggregate_Spec describes one &quot;&lt;outvar&gt; = &lt;fn&gt;(&lt;invar&gt;)&quot; clause:
-Outvar      target column name (may end in &#x27;$&#x27; for character output).
-Fn_Name     registered aggregate function name (case-insensitive).
-Invar_Kind  shape of the input reference (see below).
-Invar_Name  input column / array base name (empty for Invar_Empty).
-Invar_Index array element subscript (only for Invar_Array_Element).
+Outvar         target column name (may end in &#x27;$&#x27; for character output).
+Fn_Name        registered aggregate function name (case-insensitive).
+Invar_Kind     shape of the input reference (see below).
+Invar_Name     input column / array base name (empty for Invar_Empty).
+Invar_Index    array element subscript (only for Invar_Array_Element).
+Has_Pctl_Value True for &quot;&lt;outvar&gt; = PCTL(&lt;invar&gt;, &lt;p&gt;)&quot; -- an extra
+integer percentile argument (ADR-075/sdata#93).
+Pctl_Value     the percentile (0..100); meaningful only when
+Has_Pctl_Value is True.
 Raises SData_Core.Script_Error (per the AGGREGATE error catalog,
 ADR-046 / design spec sec 5) on any validation failure; on such a
 failure the in-memory table, the pending SAVE, and the active
@@ -375,9 +385,10 @@ AGGREGATE, the in-memory replacement has already happened.</div>
 </div>
 <div class='decl'>
 <div class='kind'>type</div>
-<pre>   type Stats_Options is record
-      Var_List  : SData_Core.Table.Name_Vectors.Vector;
-      Stat_List : SData_Core.Table.Name_Vectors.Vector;
+<pre>   type Stat_Request is record
+      Name           : Ada.Strings.Unbounded.Unbounded_String;
+      Has_Pctl_Value : Boolean := False;
+      Pctl_Value     : Natural := 0;
    end record;</pre>
 <div class='doc'>--------------------------------------------------------------
 STATS — compute summary statistics for the chosen (or, by default,
@@ -390,11 +401,23 @@ precedes any side effect.  Printing is the caller&#x27;s concern.
 
 Var_List   analysis variables; empty =&gt; all numeric columns (minus BY).
 A whole-array base name expands to its elements.
-Stat_List  registered aggregate names; empty =&gt; N MIN MEAN MAX STD.</div>
+Stat_List  requested statistics; empty =&gt; N MIN MEAN MAX STD. A
+Stat_Request&#x27;s Name is the registered (dispatch) function
+name -- for PCTL, always the literal &quot;PCTL&quot;, never a
+percentile-qualified name -- and Has_Pctl_Value/
+Pctl_Value carry the &quot;PCTL(&lt;p&gt;)&quot; form&#x27;s integer argument
+(0..100), per ADR-075/sdata#93. This is a BREAKING change
+to Stat_List&#x27;s element type (was a bare Name_Vectors.Vector
+of plain names) -- see ADR-075.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   package Stat_Request_Vectors is
+     new Ada.Containers.Vectors (Positive, Stat_Request);</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
-<pre>   procedure Execute_STATS (Options : Stats_Options);</pre>
+<pre>   function Stat_Display_Name (S : Stat_Request) return String;</pre>
 <div class='doc'>--------------------------------------------------------------
 STATS — compute summary statistics for the chosen (or, by default,
 all numeric) variables, one row per (active BY group x variable),
@@ -406,7 +429,32 @@ precedes any side effect.  Printing is the caller&#x27;s concern.
 
 Var_List   analysis variables; empty =&gt; all numeric columns (minus BY).
 A whole-array base name expands to its elements.
-Stat_List  registered aggregate names; empty =&gt; N MIN MEAN MAX STD.</div>
+Stat_List  requested statistics; empty =&gt; N MIN MEAN MAX STD. A
+Stat_Request&#x27;s Name is the registered (dispatch) function
+name -- for PCTL, always the literal &quot;PCTL&quot;, never a
+percentile-qualified name -- and Has_Pctl_Value/
+Pctl_Value carry the &quot;PCTL(&lt;p&gt;)&quot; form&#x27;s integer argument
+(0..100), per ADR-075/sdata#93. This is a BREAKING change
+to Stat_List&#x27;s element type (was a bare Name_Vectors.Vector
+of plain names) -- see ADR-075.
+The output column name for a Stat_Request: the plain registered name
+for every non-percentile statistic (unchanged), or &quot;PCTL&quot; &amp; the
+integer percentile (e.g. &quot;PCTL25&quot;) for a PCTL(&lt;p&gt;) request -- avoids
+every PCTL(&lt;p&gt;) entry silently colliding on the literal column name
+&quot;PCTL&quot; (Table.Add_Output_Column no-ops on a duplicate name), which
+would otherwise misalign Execute_STATS&#x27;s per-column output index for
+any /STATS= list requesting more than one percentile.</div>
+</div>
+<div class='decl'>
+<div class='kind'>type</div>
+<pre>   type Stats_Options is record
+      Var_List  : SData_Core.Table.Name_Vectors.Vector;
+      Stat_List : Stat_Request_Vectors.Vector;
+   end record;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   procedure Execute_STATS (Options : Stats_Options);</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>

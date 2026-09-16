@@ -28,7 +28,8 @@ procedure Aggregate_Exec_Test is
       Fn_Name     => To_Unbounded_String (Fn),
       Invar_Kind  => Kind,
       Invar_Name  => To_Unbounded_String (Invar),
-      Invar_Index => Index);
+      Invar_Index => Index,
+      others      => <>);
 
    --  Build the fixture table: G = (1,1,2), X = (10,20,30), grouped by G.
    procedure Build_Fixture is

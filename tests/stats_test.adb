@@ -37,6 +37,12 @@ procedure Stats_Test is
    function Is_Int (R : Value; Expected : Integer) return Boolean is
      (R.Kind = Val_Integer and then R.Int_Val = Int (Expected));
 
+   --  Stat_List's element type became Stat_Request (ADR-075/sdata#93,
+   --  ../sdata/doc/adrs.md) -- a plain bare-name request everywhere this
+   --  driver needs one.
+   function Stat (Name : String) return Stat_Request is
+     (Name => To_Unbounded_String (Name), others => <>);
+
    Opts   : Stats_Options;
    Raised : Boolean;
 
@@ -57,10 +63,10 @@ begin
    Opts.Var_List.Clear;  Opts.Var_List.Append (To_Unbounded_String ("X"));
    Opts.Var_List.Append (To_Unbounded_String ("Y"));
    Opts.Stat_List.Clear;
-   Opts.Stat_List.Append (To_Unbounded_String ("N"));
-   Opts.Stat_List.Append (To_Unbounded_String ("MIN"));
-   Opts.Stat_List.Append (To_Unbounded_String ("MEAN"));
-   Opts.Stat_List.Append (To_Unbounded_String ("MAX"));
+   Opts.Stat_List.Append (Stat ("N"));
+   Opts.Stat_List.Append (Stat ("MIN"));
+   Opts.Stat_List.Append (Stat ("MEAN"));
+   Opts.Stat_List.Append (Stat ("MAX"));
    Execute_STATS (Opts);
 
    Assert (Tbl.Column_Count = 5, "no-BY: schema _NAME_$,N,MIN,MEAN,MAX");
@@ -100,8 +106,8 @@ begin
 
    Opts.Var_List.Clear;    --  default -> all numeric columns minus BY (= X only)
    Opts.Stat_List.Clear;
-   Opts.Stat_List.Append (To_Unbounded_String ("N"));
-   Opts.Stat_List.Append (To_Unbounded_String ("MEAN"));
+   Opts.Stat_List.Append (Stat ("N"));
+   Opts.Stat_List.Append (Stat ("MEAN"));
    Execute_STATS (Opts);
 
    Assert (Tbl.Column_Count = 4, "BY: schema G,_NAME_$,N,MEAN");
@@ -134,7 +140,7 @@ begin
    Tbl.Add_Row; Tbl.Set_Value (3, "N", Num (3.0));
 
    Opts.Var_List.Clear;  Opts.Var_List.Append (To_Unbounded_String ("NOSUCHCOL"));
-   Opts.Stat_List.Clear; Opts.Stat_List.Append (To_Unbounded_String ("MEAN"));
+   Opts.Stat_List.Clear; Opts.Stat_List.Append (Stat ("MEAN"));
    Raised := False;
    begin
       Execute_STATS (Opts);
@@ -160,7 +166,7 @@ begin
                            Str_Val => To_Unbounded_String ("hi")));
 
    Opts.Var_List.Clear;  Opts.Var_List.Append (To_Unbounded_String ("S"));
-   Opts.Stat_List.Clear; Opts.Stat_List.Append (To_Unbounded_String ("MEAN"));
+   Opts.Stat_List.Clear; Opts.Stat_List.Append (Stat ("MEAN"));
    Raised := False;
    begin
       Execute_STATS (Opts);

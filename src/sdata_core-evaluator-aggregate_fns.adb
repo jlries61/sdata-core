@@ -196,6 +196,85 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       end if;
    end Handle_Median;
 
+   --  Compute_Percentile — shared core for Handle_Pctl (ADR-075/sdata#93).
+   --  Linear interpolation between order statistics (the "R-7" / NIST
+   --  method 7 / Excel PERCENTILE.INC definition): rank = P/100*(N-1)+1,
+   --  interpolating between the order statistics at floor(rank) and
+   --  ceil(rank). This is a direct generalization of Handle_Median's own
+   --  formula above -- verified algebraically to reduce to it exactly at
+   --  P = 50 for both odd and even N (see ADR-075) -- so MEDIAN and PCTL(x,
+   --  50) always agree, though MEDIAN keeps its own handler rather than
+   --  delegating, per the issue's own scope (not asked to alias them).
+   function Compute_Percentile
+     (P : Natural; Vals : Value_Vectors.Vector) return Value
+   is
+      package Float_Vecs is new Ada.Containers.Vectors (Positive, Real);
+      package Float_Sort  is new Float_Vecs.Generic_Sorting;
+      FVals   : Float_Vecs.Vector;
+      N_Count : Natural := 0;
+   begin
+      for I in 1 .. Integer (Vals.Length) loop
+         declare V : constant Value := Vals.Element (I);
+         begin
+            if V.Kind /= Val_Missing then
+               FVals.Append (Convert_To_Real (V));
+               N_Count := N_Count + 1;
+            end if;
+         end;
+      end loop;
+      if N_Count = 0 then return (Kind => Val_Missing); end if;
+      Float_Sort.Sort (FVals);
+      declare
+         Rank : constant Real := Real (P) / 100.0 * Real (N_Count - 1) + 1.0;
+         Lo   : constant Positive := Positive (Real'Floor (Rank));
+         Hi   : constant Positive := Positive (Real'Ceiling (Rank));
+         Frac : constant Real := Rank - Real (Lo);
+      begin
+         return Num_Result
+           (FVals.Element (Lo)
+            + Frac * (FVals.Element (Hi) - FVals.Element (Lo)));
+      end;
+   end Compute_Percentile;
+
+   --  Handle_Pctl — the PCTL aggregate (ADR-075/sdata#93). Vals arrives with
+   --  the percentile as its LAST element (a trailing sentinel appended by
+   --  the caller -- Execute_AGGREGATE's Emit_Group, Execute_STATS's per-
+   --  (group x variable) dispatch loop, or Evaluate_Function's own generic
+   --  argument-flattening when PCTL is used in an ordinary expression) and
+   --  every preceding element as data. This keeps Fn_Handler's shared
+   --  (Name, Vals) signature completely unchanged -- see ADR-075's
+   --  "Alternative rejected" for why widening it was not an option.
+   function Handle_Pctl (Name : String; Vals : Value_Vectors.Vector) return Value is
+      pragma Unreferenced (Name);
+      N : constant Natural := Natural (Vals.Length);
+   begin
+      if N = 0 then
+         raise SData_Core.Script_Error with
+           "PCTL: internal error -- no percentile argument present";
+      end if;
+      declare
+         P_Val : constant Value := Vals.Element (N);
+      begin
+         if P_Val.Kind /= Val_Integer then
+            raise SData_Core.Script_Error with
+              "PCTL: percentile argument must be an integer";
+         end if;
+         if P_Val.Int_Val < 0 or else P_Val.Int_Val > 100 then
+            raise SData_Core.Script_Error with
+              "PCTL: percentile must be between 0 and 100, got"
+              & P_Val.Int_Val'Image;
+         end if;
+         declare
+            Data : Value_Vectors.Vector;
+         begin
+            for I in 1 .. N - 1 loop
+               Data.Append (Vals.Element (I));
+            end loop;
+            return Compute_Percentile (Natural (P_Val.Int_Val), Data);
+         end;
+      end;
+   end Handle_Pctl;
+
    ---------------------------------------------------------------------------
 
    procedure Register is
@@ -218,6 +297,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Dispatch_Table.Insert ("GMEAN",  Handle_Gmean'Access);
       Dispatch_Table.Insert ("HMEAN",  Handle_Hmean'Access);
       Dispatch_Table.Insert ("MEDIAN", Handle_Median'Access);
+      Dispatch_Table.Insert ("PCTL",   Handle_Pctl'Access);
 
       --  Paired aggregate-only type metadata (per ADR-046 / architect C1).
       Aggregate_Meta_Table.Insert ("SUM",    Num);
@@ -231,6 +311,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Aggregate_Meta_Table.Insert ("GMEAN",  Num);
       Aggregate_Meta_Table.Insert ("HMEAN",  Num);
       Aggregate_Meta_Table.Insert ("MEDIAN", Num);
+      Aggregate_Meta_Table.Insert ("PCTL",   Num);
 
       --  Arity metadata.  Aggregates are variadic (row-wise across the whole
       --  argument list / a whole group column), so Max is Natural'Last.  Most
@@ -247,6 +328,12 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Register_Arity ("GMEAN",  1, Natural'Last);
       Register_Arity ("HMEAN",  1, Natural'Last);
       Register_Arity ("MEDIAN", 1, Natural'Last);
+      --  PCTL(var, p): exactly 2 syntactic arguments (the ordinary-
+      --  expression / Evaluate_Function path only -- Execute_AGGREGATE and
+      --  Execute_STATS invoke Call_Function directly and never consult
+      --  Function_Arity at all; confirmed its sole call site ecosystem-wide
+      --  is sdata-interpreter.adb's Check_Expr).
+      Register_Arity ("PCTL",   2, 2);
    end Register;
 
 begin
