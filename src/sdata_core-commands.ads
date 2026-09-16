@@ -191,11 +191,15 @@ package SData_Core.Commands is
    --  cleared.  All errors abort before any side effect (see ADR-046).
    --
    --  An Aggregate_Spec describes one "<outvar> = <fn>(<invar>)" clause:
-   --    Outvar      target column name (may end in '$' for character output).
-   --    Fn_Name     registered aggregate function name (case-insensitive).
-   --    Invar_Kind  shape of the input reference (see below).
-   --    Invar_Name  input column / array base name (empty for Invar_Empty).
-   --    Invar_Index array element subscript (only for Invar_Array_Element).
+   --    Outvar         target column name (may end in '$' for character output).
+   --    Fn_Name        registered aggregate function name (case-insensitive).
+   --    Invar_Kind     shape of the input reference (see below).
+   --    Invar_Name     input column / array base name (empty for Invar_Empty).
+   --    Invar_Index    array element subscript (only for Invar_Array_Element).
+   --    Has_Pctl_Value True for "<outvar> = PCTL(<invar>, <p>)" -- an extra
+   --                   integer percentile argument (ADR-075/sdata#93).
+   --    Pctl_Value     the percentile (0..100); meaningful only when
+   --                   Has_Pctl_Value is True.
    type Aggregate_Invar_Kind is
      (Invar_Empty,          --  N() with no argument -> group row count
       Invar_Scalar,         --  a scalar column name
@@ -203,11 +207,13 @@ package SData_Core.Commands is
       Invar_Array_Name);    --  a whole registered array, element-wise
 
    type Aggregate_Spec is record
-      Outvar      : Ada.Strings.Unbounded.Unbounded_String;
-      Fn_Name     : Ada.Strings.Unbounded.Unbounded_String;
-      Invar_Kind  : Aggregate_Invar_Kind := Invar_Empty;
-      Invar_Name  : Ada.Strings.Unbounded.Unbounded_String;
-      Invar_Index : Natural := 0;
+      Outvar         : Ada.Strings.Unbounded.Unbounded_String;
+      Fn_Name        : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Kind     : Aggregate_Invar_Kind := Invar_Empty;
+      Invar_Name     : Ada.Strings.Unbounded.Unbounded_String;
+      Invar_Index    : Natural := 0;
+      Has_Pctl_Value : Boolean := False;
+      Pctl_Value     : Natural := 0;
    end record;
 
    package Aggregate_Spec_Vectors is
@@ -271,10 +277,34 @@ package SData_Core.Commands is
    --
    --    Var_List   analysis variables; empty => all numeric columns (minus BY).
    --               A whole-array base name expands to its elements.
-   --    Stat_List  registered aggregate names; empty => N MIN MEAN MAX STD.
+   --    Stat_List  requested statistics; empty => N MIN MEAN MAX STD. A
+   --               Stat_Request's Name is the registered (dispatch) function
+   --               name -- for PCTL, always the literal "PCTL", never a
+   --               percentile-qualified name -- and Has_Pctl_Value/
+   --               Pctl_Value carry the "PCTL(<p>)" form's integer argument
+   --               (0..100), per ADR-075/sdata#93. This is a BREAKING change
+   --               to Stat_List's element type (was a bare Name_Vectors.Vector
+   --               of plain names) -- see ADR-075.
+   type Stat_Request is record
+      Name           : Ada.Strings.Unbounded.Unbounded_String;
+      Has_Pctl_Value : Boolean := False;
+      Pctl_Value     : Natural := 0;
+   end record;
+   package Stat_Request_Vectors is
+     new Ada.Containers.Vectors (Positive, Stat_Request);
+
+   --  The output column name for a Stat_Request: the plain registered name
+   --  for every non-percentile statistic (unchanged), or "PCTL" & the
+   --  integer percentile (e.g. "PCTL25") for a PCTL(<p>) request -- avoids
+   --  every PCTL(<p>) entry silently colliding on the literal column name
+   --  "PCTL" (Table.Add_Output_Column no-ops on a duplicate name), which
+   --  would otherwise misalign Execute_STATS's per-column output index for
+   --  any /STATS= list requesting more than one percentile.
+   function Stat_Display_Name (S : Stat_Request) return String;
+
    type Stats_Options is record
       Var_List  : SData_Core.Table.Name_Vectors.Vector;
-      Stat_List : SData_Core.Table.Name_Vectors.Vector;
+      Stat_List : Stat_Request_Vectors.Vector;
    end record;
 
    procedure Execute_STATS (Options : Stats_Options);

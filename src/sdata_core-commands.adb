@@ -948,12 +948,14 @@ package body SData_Core.Commands is
       --  Output-column descriptor, flattened across BY vars + spec columns.
       type Out_Source is (Src_By, Src_Count, Src_Fn);
       type Out_Desc is record
-         Name   : Unbounded_String;
-         Ctype  : Tbl.Column_Type;
-         Source : Out_Source;
-         By_Idx : Natural := 0;            --  Src_By: 1-based BY-var index
-         Fn     : Unbounded_String;        --  Src_Fn: function name
-         Col    : Unbounded_String;        --  Src_Fn: physical input column
+         Name           : Unbounded_String;
+         Ctype          : Tbl.Column_Type;
+         Source         : Out_Source;
+         By_Idx         : Natural := 0;    --  Src_By: 1-based BY-var index
+         Fn             : Unbounded_String; --  Src_Fn: function name
+         Col            : Unbounded_String; --  Src_Fn: physical input column
+         Has_Pctl_Value : Boolean := False; --  Src_Fn: PCTL(<invar>, <p>)
+         Pctl_Value     : Natural := 0;    --  Src_Fn: percentile (0..100)
       end record;
       package Desc_Vectors is new Ada.Containers.Vectors (Positive, Out_Desc);
       Descs : Desc_Vectors.Vector;
@@ -1100,11 +1102,13 @@ package body SData_Core.Commands is
                                   Source => Src_Count, others => <>));
                   when Invar_Scalar | Invar_Array_Element =>
                      Descs.Append
-                       (Out_Desc'(Name   => To_Unbounded_String (Outvar),
-                                  Ctype  => Ct, Source => Src_Fn,
-                                  Fn     => Spec.Fn_Name,
-                                  Col    => To_Unbounded_String
+                       (Out_Desc'(Name           => To_Unbounded_String (Outvar),
+                                  Ctype          => Ct, Source => Src_Fn,
+                                  Fn             => Spec.Fn_Name,
+                                  Col            => To_Unbounded_String
                                               (First_Input_Column (Spec)),
+                                  Has_Pctl_Value => Spec.Has_Pctl_Value,
+                                  Pctl_Value     => Spec.Pctl_Value,
                                   others => <>));
                   when Invar_Array_Name =>
                      declare
@@ -1120,6 +1124,8 @@ package body SData_Core.Commands is
                                         Fn     => Spec.Fn_Name,
                                         Col    => To_Unbounded_String
                                           (Vars.Get_Array_Element_Column (Base, K)),
+                                        Has_Pctl_Value => Spec.Has_Pctl_Value,
+                                        Pctl_Value     => Spec.Pctl_Value,
                                         others => <>));
                         end loop;
                      end;
@@ -1198,10 +1204,22 @@ package body SData_Core.Commands is
                        (R, J, (Kind    => Val_Integer,
                                Int_Val => Int (Rows.Length)));
                   when Src_Fn =>
+                     --  ADR-075/sdata#93: PCTL(<invar>, <p>) appends its
+                     --  percentile as the TRAILING element of a fresh copy
+                     --  of Group_Values's result (non-destructive `&`
+                     --  concatenation -- Fn_Handler's shared (Name, Vals)
+                     --  signature is unchanged). Every other function's
+                     --  call is unaffected.
                      Tbl.Set_Output_Value_By_Col
                        (R, J, Eval.Call_Function
                                 (To_String (D.Fn),
-                                 Group_Values (Rows, To_String (D.Col))));
+                                 (if D.Has_Pctl_Value
+                                  then Eval."&"
+                                         (Group_Values (Rows, To_String (D.Col)),
+                                          Value'(Kind    => Val_Integer,
+                                                 Int_Val => Int (D.Pctl_Value)))
+                                  else Group_Values
+                                         (Rows, To_String (D.Col)))));
                end case;
             end;
          end loop;
@@ -1637,6 +1655,20 @@ package body SData_Core.Commands is
    end Execute_TRANSPOSE;
 
    --------------------------------------------------------------------
+   --  Stat_Display_Name                                               --
+   --------------------------------------------------------------------
+   function Stat_Display_Name (S : Stat_Request) return String is
+      U : constant String := To_Upper (To_String (S.Name));
+   begin
+      if S.Has_Pctl_Value then
+         return U & Ada.Strings.Fixed.Trim
+                       (S.Pctl_Value'Image, Ada.Strings.Left);
+      else
+         return U;
+      end if;
+   end Stat_Display_Name;
+
+   --------------------------------------------------------------------
    --  Execute_STATS                                                  --
    --------------------------------------------------------------------
    --  Computes summary statistics for the chosen (or, by default, all
@@ -1654,7 +1686,7 @@ package body SData_Core.Commands is
       end record;
       package Var_Recs is new Ada.Containers.Vectors (Positive, Var_Rec);
 
-      Stats : SData_Core.Table.Name_Vectors.Vector;
+      Stats : Stat_Request_Vectors.Vector;
       Vlist : Var_Recs.Vector;
 
       function Is_By (Name : String) return Boolean is
@@ -1676,21 +1708,43 @@ package body SData_Core.Commands is
    begin
       --  1. Resolve the statistic list (default N MIN MEAN MAX STD).
       if Options.Stat_List.Is_Empty then
-         Stats.Append (To_Unbounded_String ("N"));
-         Stats.Append (To_Unbounded_String ("MIN"));
-         Stats.Append (To_Unbounded_String ("MEAN"));
-         Stats.Append (To_Unbounded_String ("MAX"));
-         Stats.Append (To_Unbounded_String ("STD"));
+         Stats.Append (Stat_Request'(Name => To_Unbounded_String ("N"), others => <>));
+         Stats.Append (Stat_Request'(Name => To_Unbounded_String ("MIN"), others => <>));
+         Stats.Append (Stat_Request'(Name => To_Unbounded_String ("MEAN"), others => <>));
+         Stats.Append (Stat_Request'(Name => To_Unbounded_String ("MAX"), others => <>));
+         Stats.Append (Stat_Request'(Name => To_Unbounded_String ("STD"), others => <>));
       else
          Stats := Options.Stat_List;
       end if;
       for S of Stats loop
-         if not Eval.Is_Aggregate (To_String (S)) then
+         if not Eval.Is_Aggregate (To_String (S.Name)) then
             raise SData_Core.Script_Error with
-              "STATS: '" & To_String (S)
+              "STATS: '" & To_String (S.Name)
               & "' is not a registered aggregate function";
          end if;
       end loop;
+      --  Duplicate-display-name check (ADR-075/sdata#93): two PCTL(<p>)
+      --  requests with the SAME percentile (or, degenerately, any other
+      --  statistic repeated) would otherwise collide on Add_Output_Column
+      --  (which silently no-ops on a duplicate name), misaligning every
+      --  later column index against Stats' own length. Reject explicitly
+      --  rather than silently dropping a requested statistic.
+      declare
+         Seen : Name_Sets.Set;
+      begin
+         for S of Stats loop
+            declare
+               D : constant String := Stat_Display_Name (S);
+            begin
+               if Seen.Contains (D) then
+                  raise SData_Core.Script_Error with
+                    "STATS: statistic '" & D
+                    & "' requested more than once";
+               end if;
+               Seen.Insert (D);
+            end;
+         end loop;
+      end;
 
       --  2. Resolve the variable list.
       if Options.Var_List.Is_Empty then
@@ -1739,9 +1793,9 @@ package body SData_Core.Commands is
       for V of Vlist loop
          if V.Is_Char then
             for S of Stats loop
-               if not Eval.Lookup (To_String (S)).Accepts_Character then
+               if not Eval.Lookup (To_String (S.Name)).Accepts_Character then
                   raise SData_Core.Script_Error with
-                    "STATS: statistic '" & To_String (S)
+                    "STATS: statistic '" & Stat_Display_Name (S)
                     & "' cannot be applied to character variable '"
                     & To_String (V.Name) & "'";
                end if;
@@ -1755,7 +1809,7 @@ package body SData_Core.Commands is
       Tbl.Add_Output_Column ("_NAME_$", Tbl.Col_String);
       for S of Stats loop
          declare
-            U : constant String := To_Upper (To_String (S));
+            U : constant String := Stat_Display_Name (S);
          begin
             Tbl.Add_Output_Column
               (U, (if U = "N" or else U = "NMISS"
@@ -1785,9 +1839,22 @@ package body SData_Core.Commands is
                      (Kind => Val_String, Str_Val => V.Name));
                   Col := Col + 1;
                   for S of Stats loop
+                     --  ADR-075/sdata#93: a PCTL(<p>) request appends its
+                     --  percentile as the TRAILING element of a fresh copy
+                     --  of Vals (Ada array concatenation is non-destructive
+                     --  -- the shared Vals above, reused by every OTHER
+                     --  entry in this same loop, is never mutated). Every
+                     --  other statistic's Call_Function call is unchanged.
                      Tbl.Set_Output_Value_By_Col
                        (R, Col,
-                        Eval.Call_Function (To_String (S), Vals));
+                        Eval.Call_Function
+                          (To_String (S.Name),
+                           (if S.Has_Pctl_Value
+                            then Eval."&"
+                                   (Vals,
+                                    Value'(Kind    => Val_Integer,
+                                           Int_Val => Int (S.Pctl_Value)))
+                            else Vals)));
                      Col := Col + 1;
                   end loop;
                end;
