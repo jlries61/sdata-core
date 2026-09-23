@@ -23,15 +23,21 @@ package SData_Core.File_IO is
    pragma Annotate (GNATcheck, Exempt_On, "Too_Many_Parameters",
                     "Format-agnostic API; parameters 3-9 are optional with safe defaults "
                     & "and all callers use named notation");
-   procedure Open_Input (File_Name   : String;
-                         Fmt         : Format_Type;
-                         Sheet_Name  : String  := "";
-                         Delimiter   : String  := ",";
-                         Read_Header : Boolean := True;
-                         Charset     : String  := "";
-                         Skip_Rows   : Natural := 0;
-                         Max_Rows    : Natural := 0;
-                         Nscan_Rows  : Natural := 0);
+   --  Missing_Tokens (CSV only -- ADR-0026): a comma-separated list of
+   --  literal strings that, when a field's value matches one exactly, are
+   --  treated as missing in addition to the built-in "" and ".". ODF/OOXML
+   --  have no NSCAN-window inference to interact with (see Parse_ODF /
+   --  Parse_OOXML) and are unaffected by this parameter.
+   procedure Open_Input (File_Name      : String;
+                         Fmt            : Format_Type;
+                         Sheet_Name     : String  := "";
+                         Delimiter      : String  := ",";
+                         Read_Header    : Boolean := True;
+                         Charset        : String  := "";
+                         Skip_Rows      : Natural := 0;
+                         Max_Rows       : Natural := 0;
+                         Nscan_Rows     : Natural := 0;
+                         Missing_Tokens : String  := "");
    pragma Annotate (GNATcheck, Exempt_Off, "Too_Many_Parameters");
 
    --  Writes the current Data Table to a file.
@@ -43,6 +49,9 @@ package SData_Core.File_IO is
    --  caller-supplied Table_View (e.g. SData_Core.Table.Output_View) so a
    --  caller can write a table other than Data_Table without installing it
    --  as Data_Table first. See SData_Core.Table.Table_View.
+   --  Missing_Token (CSV/ODF/OOXML -- ADR-0026): a single literal string
+   --  written for a missing cell instead of leaving it blank (CSV) / empty
+   --  (ODF/OOXML). "" (the default) is today's unchanged blank/empty output.
    procedure Open_Output (File_Name       : String;
                           Fmt             : Format_Type;
                           Sheet_Name      : String  := "";
@@ -51,6 +60,7 @@ package SData_Core.File_IO is
                           Allow_Overwrite : Boolean := True;
                           Charset         : String  := "";
                           Decimals        : Integer := -1;
+                          Missing_Token   : String  := "";
                           View            : SData_Core.Table.Table_View :=
                              SData_Core.Table.Default_View);
 

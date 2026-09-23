@@ -13,15 +13,16 @@ with SData_Core.File_IO.OOXML;     use SData_Core.File_IO.OOXML;
 
 package body SData_Core.File_IO is
 
-   procedure Open_Input (File_Name   : String;
-                         Fmt         : Format_Type;
-                         Sheet_Name  : String  := "";
-                         Delimiter   : String  := ",";
-                         Read_Header : Boolean := True;
-                         Charset     : String  := "";
-                         Skip_Rows   : Natural := 0;
-                         Max_Rows    : Natural := 0;
-                         Nscan_Rows  : Natural := 0) is
+   procedure Open_Input (File_Name      : String;
+                         Fmt            : Format_Type;
+                         Sheet_Name     : String  := "";
+                         Delimiter      : String  := ",";
+                         Read_Header    : Boolean := True;
+                         Charset        : String  := "";
+                         Skip_Rows      : Natural := 0;
+                         Max_Rows       : Natural := 0;
+                         Nscan_Rows     : Natural := 0;
+                         Missing_Tokens : String  := "") is
       Actual_Fmt : Format_Type := Fmt;
       Ext_Idx    : Natural := 0;
       U_Name     : constant String := To_Upper (File_Name);
@@ -76,7 +77,7 @@ package body SData_Core.File_IO is
       case Actual_Fmt is
          when SData_Core.Config.CSV =>
             Parse_CSV (File_Name, Delimiter, Read_Header, Charset,
-                       Skip_Rows, Max_Rows, Nscan_Rows);
+                       Skip_Rows, Max_Rows, Nscan_Rows, Missing_Tokens);
          when SData_Core.Config.ODF =>
             Parse_ODF (File_Name, Sheet_Name, Skip_Rows, Max_Rows);
          when SData_Core.Config.OOXML =>
@@ -97,6 +98,7 @@ package body SData_Core.File_IO is
                           Allow_Overwrite : Boolean := True;
                           Charset         : String  := "";
                           Decimals        : Integer := -1;
+                          Missing_Token   : String  := "";
                           View            : SData_Core.Table.Table_View :=
                              SData_Core.Table.Default_View) is
       Actual_Fmt : Format_Type := Fmt;
@@ -128,11 +130,11 @@ package body SData_Core.File_IO is
       case Actual_Fmt is
          when SData_Core.Config.CSV =>
             Write_CSV (File_Name, Delimiter, Write_Header, Allow_Overwrite,
-                       Charset, Decimals, View);
+                       Charset, Decimals, Missing_Token, View);
          when SData_Core.Config.ODF =>
-            Write_ODF (File_Name, Sname, Decimals, View);
+            Write_ODF (File_Name, Sname, Decimals, Missing_Token, View);
          when SData_Core.Config.OOXML =>
-            Write_OOXML (File_Name, Sname, Decimals, View);
+            Write_OOXML (File_Name, Sname, Decimals, Missing_Token, View);
       end case;
    end Open_Output;
 

@@ -52,6 +52,8 @@ package body SData_Core.Config.Runtime is
    function Save_Charset     return String  is (Save_Charset_Value);
    function Save_Charset_Len return Natural is (Save_Charset_Len_Value);
    function Save_Decimals    return Integer is (Save_Decimals_Value);
+   function Save_Missing_Token     return String  is (Save_Missing_Token_Value);
+   function Save_Missing_Token_Len return Natural is (Save_Missing_Token_Len_Value);
 
    function Select_Filter_Expr return SData_Core.Evaluator.Expression_Access is
      (Select_Filter_Expr_Value);
@@ -100,6 +102,8 @@ package body SData_Core.Config.Runtime is
       Save_Charset_Value        := (others => ' ');
       Save_Charset_Len_Value    := 0;
       Save_Decimals_Value       := -1;
+      Save_Missing_Token_Value     := (others => ' ');
+      Save_Missing_Token_Len_Value := 0;
       Clear_Select_Filter;
    end Reset;
 

@@ -342,7 +342,9 @@ package body SData_Core.Commands is
              SData_Core.Config.Runtime.Options_SAVEOVERWRT,
              SData_Core.Config.Runtime.Save_Charset
                 (1 .. SData_Core.Config.Runtime.Save_Charset_Len),
-             SData_Core.Config.Runtime.Save_Decimals);
+             SData_Core.Config.Runtime.Save_Decimals,
+             SData_Core.Config.Runtime.Save_Missing_Token
+                (1 .. SData_Core.Config.Runtime.Save_Missing_Token_Len));
          SData_Core.IO.Put_Line
            ("Dataset saved: " &
             SData_Core.Config.Runtime.Save_File_Path
@@ -372,7 +374,8 @@ package body SData_Core.Commands is
       Skip_Rows   : Natural := 0;
       Max_Rows    : Natural := 0;
       Nscan_Rows  : Natural := 0;
-      Is_Mock     : Boolean := False)
+      Is_Mock     : Boolean := False;
+      Missing_Tokens : String := "")
    is
    begin
       SData_Core.Config.Runtime.End_Repeat;
@@ -393,7 +396,8 @@ package body SData_Core.Commands is
             Charset,
             Skip_Rows,
             Max_Rows,
-            Nscan_Rows);
+            Nscan_Rows,
+            Missing_Tokens);
       end;
 
       --  Final progress total for the load (per-row ticks are emitted inside
@@ -456,7 +460,8 @@ package body SData_Core.Commands is
       Delimiter    : String  := ",";
       Write_Header : Boolean := True;
       Charset      : String  := "";
-      Decimals     : Integer := -1)
+      Decimals     : Integer := -1;
+      Missing_Token : String := "")
    is
    begin
       if File_Name'Length = 0 then
@@ -483,6 +488,7 @@ package body SData_Core.Commands is
                   (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
          end if;
          SData_Core.Config.Runtime.Internal.Set_Save_Decimals (Decimals);
+         SData_Core.Config.Runtime.Internal.Set_Save_Missing_Token (Missing_Token);
       end;
    end Execute_SAVE;
 
