@@ -77,7 +77,24 @@ jobs:
           # merged here as PR #140 (v0.14.4) before this pin bump; no new
           # sdata-core API surface, just the floor constraint moving to
           # ^0.14.4 on the sdata side.
-          ref: v0.31.0
+          #
+          # NOTE: this running commentary is not a complete history.  The pin
+          # moved v0.25.0 -> v0.31.0 across several releases that were bumped
+          # without notes here; only the entries above and below were written
+          # at the time.  Treat a missing version as "no note was taken",
+          # not as "nothing notable happened".
+          #
+          # v0.35.0 adds USE /MISSING= and SAVE /MISSING= (sdata ADR-083 /
+          # this crate's ADR-0026): user-declared missing-value tokens.  The
+          # sdata-core half is purely additive -- every new parameter
+          # (Parse_CSV's Missing_Tokens, Write_CSV/ODF/OOXML's Missing_Token,
+          # Execute_USE/Execute_SAVE's pass-throughs) defaults to "", so the
+          # PREVIOUS pin (v0.31.0) also built and passed against this crate's
+          # main while that change was in flight -- unlike the v0.23.0 case
+          # above, this bump was never load-bearing for the gate.  It is a
+          # routine currency bump: keep the stability check validating a
+          # current consumer rather than one four minors behind.
+          ref: v0.35.0
           path: sdata
 
       - name: Set up Alire
