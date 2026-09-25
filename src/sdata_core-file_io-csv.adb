@@ -205,6 +205,13 @@ package body SData_Core.File_IO.CSV is
       --  the pre-existing "" / "." checks, so declaring a token adds no new
       --  whitespace sensitivity to data comparison, only to how the token
       --  list itself is written.
+      --
+      --  SCOPE: numeric columns only (user ruling 2026-09-25 on code review
+      --  round 1, MAJOR-1).  Both call sites are therefore reached only for a
+      --  column that is numeric or still a numeric candidate: the scan-window
+      --  loop runs only while a column's type is undetermined, and the per-row
+      --  load guards the call with Col_Types (...) /= Col_String.  A character
+      --  column stores text as text, declared token or not.
       package Missing_Token_Vecs is new Ada.Containers.Vectors
          (Positive, Unbounded_String);
       Missing_Token_List  : Missing_Token_Vecs.Vector;
@@ -297,12 +304,27 @@ package body SData_Core.File_IO.CSV is
                   if Field_Count <= N_Cols then
                      if F = "" or else F = "." then
                         Val := (Kind => Val_Missing);
-                     elsif Is_Declared_Missing (F) then
+                     elsif Col_Types (Field_Count) /= Col_String
+                        and then Is_Declared_Missing (F)
+                     then
                         --  A declared MISSING= token is expected, not an
                         --  anomaly -- no per-value warning (unlike the
                         --  coercion-warning branches below), just a single
                         --  summary count printed once at the end of the load
                         --  (Load_Data_Rows, below).
+                        --
+                        --  NUMERIC COLUMNS ONLY (code review round 1, MAJOR-1,
+                        --  user ruling 2026-09-25).  A character column stores
+                        --  text as text: a declared token that also happens to
+                        --  be a legitimate string value there (the textbook
+                        --  case is "NA" as Nebraska's state code in a CODE$
+                        --  column) must NOT be silently discarded just because
+                        --  some *other*, numeric column in the same file needed
+                        --  the sentinel declared.  The scan-window loop in
+                        --  Infer_Column_Types still skips declared tokens
+                        --  unconditionally -- that is the cliff fix itself, and
+                        --  it only ever runs for a column whose type is still
+                        --  undetermined (i.e. a numeric candidate).
                         Missing_Match_Count := Missing_Match_Count + 1;
                         Val := (Kind => Val_Missing);
                      elsif Col_Types (Field_Count) /= Col_String

@@ -50,6 +50,17 @@ missing" warning, which is unchanged for a genuinely undeclared anomaly) — ins
 printed once per `Parse_CSV` call, if the count is non-zero: `Note: "<file>": N value(s) matched a
 declared MISSING token`.
 
+**Numeric columns only** (amended 2026-09-25 — user ruling closing sdata code review round 1, MAJOR-1).
+The per-row call site is guarded by `Col_Types (Field_Count) /= Col_String`, so a declared token is
+honored in a numeric or integer column and ignored in a character one, where the field is stored as
+ordinary text instead. The scan-window call site needs no such guard: `Infer_Column_Types` only
+consults it for a column whose type is still undetermined, which by construction is a numeric
+candidate. The first implementation applied the token to every column regardless of type — reviewed as
+a silent data-loss risk, since a script declaring `MISSING="NA"` for one numeric column would also
+erase `NA` from an unrelated `CODE$` column where it is a legitimate value (Nebraska's postal code).
+Scoping to numeric columns keeps the mechanism aimed at the type-inference cliff it exists to close,
+which only arises for a column whose type is being inferred in the first place.
+
 `Parse_ODF`/`Parse_OOXML` are **not** given this parameter. Neither has an `Nscan_Rows`-equivalent
 parameter today (confirmed by reading both `.ads` files before starting) — their own type inference is a
 narrower, row-1-only rule (see ADR-0019's "Alternatives Rejected" for the prior finding that this is a
