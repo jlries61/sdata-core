@@ -530,9 +530,10 @@ package body SData_Core.File_IO.OOXML is
    -----------------
    -- Write_OOXML --
    -----------------
-   procedure Write_OOXML (File_Name : String; Sheet_Name : String := "Sheet1";
-                          Decimals  : Integer := -1;
-                          View      : SData_Core.Table.Table_View :=
+   procedure Write_OOXML (File_Name     : String; Sheet_Name : String := "Sheet1";
+                          Decimals      : Integer := -1;
+                          Missing_Token : String  := "";
+                          View          : SData_Core.Table.Table_View :=
                              SData_Core.Table.Default_View) is
       use Zip.Create;
       Info          : Zip_Create_Info;
@@ -693,7 +694,18 @@ package body SData_Core.File_IO.OOXML is
                            Escape_XML (SData_Core.Values.To_String (V)) &
                            "</t></is></c>");
                      when Val_Missing =>
-                        null;
+                        --  sdata ADR-083 / sdata-core ADR-0026: write a
+                        --  string cell for SAVE's write-side MISSING= token
+                        --  when given (same rationale as the ODF/CSV
+                        --  writers); no cell (today's behavior) when
+                        --  Missing_Token is empty.
+                        if Missing_Token /= "" then
+                           Append (S1,
+                              "<c r=""" & Ref &
+                              """ t=""inlineStr""><is><t>" &
+                              Escape_XML (Missing_Token) &
+                              "</t></is></c>");
+                        end if;
                   end case;
                end;
             end loop;

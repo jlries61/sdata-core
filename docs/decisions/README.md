@@ -69,6 +69,7 @@ directly, is common, not exceptional.
 | [ADR-0023](ADR-0023-virtual-array-element-per-element-storage-class-dispatch.md) | Virtual-array element writes dispatch LET/SET by the resolved constituent's storage class, not the array-level flag | Accepted | 2026-09-04 |
 | [ADR-0024](ADR-0024-use-time-array-detection-skips-scalar-collision.md) | USE-time subscripted-column auto-detection skips a base name that already exists as a scalar, instead of aborting | Accepted | 2026-09-05 |
 | [ADR-0025](ADR-0025-use-time-array-collision-auto-undefine.md) | USE/reshape-time column load auto-undefines a colliding pre-existing array registration, instead of silently shadowing it | Accepted | 2026-09-05 |
+| [ADR-0026](ADR-0026-missing-value-tokens.md) | CSV/ODF/OOXML I/O: user-declared MISSING-value tokens (read-side list, write-side single token) | Accepted | 2026-09-23 |
 
 ## Numbering
 

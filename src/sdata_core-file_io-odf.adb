@@ -408,9 +408,10 @@ package body SData_Core.File_IO.ODF is
    ---------------
    -- Write_ODF --
    ---------------
-   procedure Write_ODF (File_Name : String; Sheet_Name : String := "Sheet1";
-                        Decimals  : Integer := -1;
-                        View      : SData_Core.Table.Table_View :=
+   procedure Write_ODF (File_Name     : String; Sheet_Name : String := "Sheet1";
+                        Decimals      : Integer := -1;
+                        Missing_Token : String  := "";
+                        View          : SData_Core.Table.Table_View :=
                            SData_Core.Table.Default_View) is
       use Zip.Create;
       Info          : Zip_Create_Info;
@@ -529,7 +530,20 @@ package body SData_Core.File_IO.ODF is
                            Escape_XML (SData_Core.Values.To_String (V)) &
                            "</text:p></table:table-cell>");
                      when Val_Missing =>
-                        Append (S1, "<table:table-cell/>");
+                        --  sdata ADR-083 / sdata-core ADR-0026: SAVE's
+                        --  write-side MISSING= token, written as a string
+                        --  cell when given (verbatim, never split -- see
+                        --  the CSV writer's comment for the read/write
+                        --  asymmetry rationale); an empty cell (today's
+                        --  behavior) when omitted.
+                        if Missing_Token = "" then
+                           Append (S1, "<table:table-cell/>");
+                        else
+                           Append (S1,
+                              "<table:table-cell office:value-type=""string""><text:p>" &
+                              Escape_XML (Missing_Token) &
+                              "</text:p></table:table-cell>");
+                        end if;
                   end case;
                end;
             end loop;

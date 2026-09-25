@@ -51,7 +51,8 @@ to depend on any host-specific AST.</p>
       Skip_Rows   : Natural := 0;
       Max_Rows    : Natural := 0;
       Nscan_Rows  : Natural := 0;
-      Is_Mock     : Boolean := False);</pre>
+      Is_Mock     : Boolean := False;
+      Missing_Tokens : String := &quot;&quot;);</pre>
 <div class='doc'>--------------------------------------------------------------
 USE — open and read an input dataset into the data table.
 
@@ -133,7 +134,8 @@ friendlier than the bare Constraint_Error a slice assignment raises.</div>
       Delimiter   : String  := &quot;,&quot;;
       Write_Header : Boolean := True;
       Charset     : String  := &quot;&quot;;
-      Decimals    : Integer := -1);</pre>
+      Decimals    : Integer := -1;
+      Missing_Token : String := &quot;&quot;);</pre>
 <div class='doc'>--------------------------------------------------------------
 SAVE — register a pending output dataset.
 
@@ -811,6 +813,14 @@ code continues to compile unchanged.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Save_Decimals    return Integer;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Missing_Token     return String;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Missing_Token_Len return Natural;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>

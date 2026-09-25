@@ -15,6 +15,9 @@ package SData_Core is
    Max_Delimiter_Len   : constant := 8;    -- max delimiter or short format string
    Max_Charset_Len     : constant := 64;   -- max charset name (e.g. "UTF-8", "ISO-8859-1")
    Max_Options_Val_Len : constant := 256;  -- max OPTIONS command value string
+   Max_Missing_Spec_Len : constant := 256; -- max USE/SAVE MISSING= option value
+                                            -- (USE: comma-separated token list;
+                                            --  SAVE: one verbatim write token)
 
    Script_Error : exception;
 

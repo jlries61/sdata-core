@@ -6,13 +6,14 @@ with SData_Core.Table;
 
 package SData_Core.File_IO.CSV is
 
-   procedure Parse_CSV (File_Name   : String;
-                        Delimiter   : String  := ",";
-                        Read_Header : Boolean := True;
-                        Charset     : String  := "";
-                        Skip_Rows   : Natural := 0;
-                        Max_Rows    : Natural := 0;
-                        Nscan_Rows  : Natural := 0);
+   procedure Parse_CSV (File_Name      : String;
+                        Delimiter      : String  := ",";
+                        Read_Header    : Boolean := True;
+                        Charset        : String  := "";
+                        Skip_Rows      : Natural := 0;
+                        Max_Rows       : Natural := 0;
+                        Nscan_Rows     : Natural := 0;
+                        Missing_Tokens : String  := "");
 
    procedure Write_CSV (File_Name       : String;
                         Delimiter       : String  := ",";
@@ -20,6 +21,7 @@ package SData_Core.File_IO.CSV is
                         Allow_Overwrite : Boolean := True;
                         Charset         : String  := "";
                         Decimals        : Integer := -1;
+                        Missing_Token   : String  := "";
                         View            : SData_Core.Table.Table_View :=
                            SData_Core.Table.Default_View);
 

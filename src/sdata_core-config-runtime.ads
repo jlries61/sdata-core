@@ -95,6 +95,8 @@ package SData_Core.Config.Runtime is
    function Save_Charset     return String;
    function Save_Charset_Len return Natural;
    function Save_Decimals    return Integer;
+   function Save_Missing_Token     return String;
+   function Save_Missing_Token_Len return Natural;
 
    function Select_Filter_Expr return SData_Core.Evaluator.Expression_Access;
 
@@ -180,6 +182,9 @@ private
                               (others => ' ');
    Save_Charset_Len_Value : Natural := 0;
    Save_Decimals_Value    : Integer := -1;   --  -1 = no /DECIMALS given
+   Save_Missing_Token_Value     : String (1 .. SData_Core.Max_Missing_Spec_Len) :=
+                                    (others => ' ');
+   Save_Missing_Token_Len_Value : Natural := 0;  --  0 = no /MISSING given
 
    --  Persistent SELECT filter expression.  Set by Execute_SELECT and
    --  cleared by Reset (NEW command) or Clear_Select_Filter.  Shared

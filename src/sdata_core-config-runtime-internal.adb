@@ -63,6 +63,13 @@ package body SData_Core.Config.Runtime.Internal is
       Save_Decimals_Value := Value;
    end Set_Save_Decimals;
 
+   procedure Set_Save_Missing_Token (Value : String) is
+   begin
+      Save_Missing_Token_Value                     := (others => ' ');
+      Save_Missing_Token_Value (1 .. Value'Length) := Value;
+      Save_Missing_Token_Len_Value                 := Value'Length;
+   end Set_Save_Missing_Token;
+
    procedure Set_Output_Table_Path (Value : String) is
    begin
       Output_Table_Path_Value                     := (others => ' ');

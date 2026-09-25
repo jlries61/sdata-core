@@ -135,13 +135,14 @@ package body SData_Core.File_IO.CSV is
    ---------------
    -- Parse_CSV --
    ---------------
-   procedure Parse_CSV (File_Name   : String;
-                        Delimiter   : String  := ",";
-                        Read_Header : Boolean := True;
-                        Charset     : String  := "";
-                        Skip_Rows   : Natural := 0;
-                        Max_Rows    : Natural := 0;
-                        Nscan_Rows  : Natural := 0) is
+   procedure Parse_CSV (File_Name      : String;
+                        Delimiter      : String  := ",";
+                        Read_Header    : Boolean := True;
+                        Charset        : String  := "";
+                        Skip_Rows      : Natural := 0;
+                        Max_Rows       : Natural := 0;
+                        Nscan_Rows     : Natural := 0;
+                        Missing_Tokens : String  := "") is
       File : Ada.Text_IO.File_Type;
 
       All_Lines       : Line_Vecs.Vector;
@@ -190,6 +191,73 @@ package body SData_Core.File_IO.CSV is
       Col_Names : Col_Name_Vecs.Vector;
       Col_Types : Col_Type_Vecs.Vector;
 
+      --  sdata ADR-083 / sdata-core ADR-0026: user-declared MISSING= tokens
+      --  (USE's read side).  Built once, below, from Missing_Tokens; consulted
+      --  identically by Infer_Column_Types's scan-window loop and
+      --  Process_Line_Direct's per-row load loop so a declared token can
+      --  never have a different outcome depending on which row it lands on
+      --  -- the exact asymmetry this feature exists to close for a declared
+      --  sentinel (the underlying NSCAN-window inference rule itself,
+      --  ADR-0019, is unchanged and still applies to any *undeclared*
+      --  anomaly).  Each token is CSV-unquoted and trimmed, the same
+      --  treatment Infer_Column_Types already gives a header column name
+      --  below -- a field's own VALUE is compared untrimmed, exactly like
+      --  the pre-existing "" / "." checks, so declaring a token adds no new
+      --  whitespace sensitivity to data comparison, only to how the token
+      --  list itself is written.
+      --
+      --  SCOPE: numeric columns only (user ruling 2026-09-25 on code review
+      --  round 1, MAJOR-1).  Both call sites are therefore reached only for a
+      --  column that is numeric or still a numeric candidate: the scan-window
+      --  loop runs only while a column's type is undetermined, and the per-row
+      --  load guards the call with Col_Types (...) /= Col_String.  A character
+      --  column stores text as text, declared token or not.
+      package Missing_Token_Vecs is new Ada.Containers.Vectors
+         (Positive, Unbounded_String);
+      Missing_Token_List  : Missing_Token_Vecs.Vector;
+      Missing_Match_Count : Natural := 0;
+
+      function Is_Declared_Missing (F : String) return Boolean is
+      begin
+         for Tok of Missing_Token_List loop
+            if F = To_String (Tok) then
+               return True;
+            end if;
+         end loop;
+         return False;
+      end Is_Declared_Missing;
+
+      --  Split Missing_Tokens on "," -- deliberately hardcoded, independent
+      --  of Delimiter: the MISSING= list's own separator is a fixed part of
+      --  its syntax, not inherited from the input file's field delimiter
+      --  (a pipe-delimited file's /DLM="|" must not change how /MISSING=
+      --  "NA,N/A" is split).  Reuses Split_Indices/CSV_Unquote -- the same
+      --  quote-aware splitter a CSV row's own fields go through -- so a
+      --  token containing a literal comma can be expressed by quoting it,
+      --  e.g. MISSING="NA,""a,b""", with no separate quoting dialect to
+      --  document.  Missing_Tokens = "" (the default) yields zero tokens,
+      --  which is what makes "option omitted" and "option given as an
+      --  empty string" both behave exactly like today with no special case.
+      procedure Build_Missing_Token_List is
+         Idx_Fields : SData_Core.CSV.Field_Vectors.Vector;
+      begin
+         if Missing_Tokens'Length = 0 then
+            return;
+         end if;
+         Split_Indices (Missing_Tokens, ",", Idx_Fields);
+         for FP of Idx_Fields loop
+            declare
+               Raw : constant String := Missing_Tokens (FP.S .. FP.E);
+               Tok : constant String :=
+                  Trim (CSV_Unquote (Raw), Ada.Strings.Both);
+            begin
+               if Tok'Length > 0 then
+                  Missing_Token_List.Append (To_Unbounded_String (Tok));
+               end if;
+            end;
+         end loop;
+      end Build_Missing_Token_List;
+
       procedure Process_Line_Direct (Line : String) is
          DLen         : constant Positive :=
             (if Delimiter'Length > 0 then Delimiter'Length else 1);
@@ -235,6 +303,29 @@ package body SData_Core.File_IO.CSV is
 
                   if Field_Count <= N_Cols then
                      if F = "" or else F = "." then
+                        Val := (Kind => Val_Missing);
+                     elsif Col_Types (Field_Count) /= Col_String
+                        and then Is_Declared_Missing (F)
+                     then
+                        --  A declared MISSING= token is expected, not an
+                        --  anomaly -- no per-value warning (unlike the
+                        --  coercion-warning branches below), just a single
+                        --  summary count printed once at the end of the load
+                        --  (Load_Data_Rows, below).
+                        --
+                        --  NUMERIC COLUMNS ONLY (code review round 1, MAJOR-1,
+                        --  user ruling 2026-09-25).  A character column stores
+                        --  text as text: a declared token that also happens to
+                        --  be a legitimate string value there (the textbook
+                        --  case is "NA" as Nebraska's state code in a CODE$
+                        --  column) must NOT be silently discarded just because
+                        --  some *other*, numeric column in the same file needed
+                        --  the sentinel declared.  The scan-window loop in
+                        --  Infer_Column_Types still skips declared tokens
+                        --  unconditionally -- that is the cliff fix itself, and
+                        --  it only ever runs for a column whose type is still
+                        --  undetermined (i.e. a numeric candidate).
+                        Missing_Match_Count := Missing_Match_Count + 1;
                         Val := (Kind => Val_Missing);
                      elsif Col_Types (Field_Count) /= Col_String
                         and then Try_Fast_Float (F, Num)
@@ -391,7 +482,9 @@ package body SData_Core.File_IO.CSV is
                                  CSV_Unquote
                                     (D_Str (D_Fields (I).S .. D_Fields (I).E));
                            begin
-                              if F /= "" and then F /= "." then
+                              if F /= "" and then F /= "."
+                                 and then not Is_Declared_Missing (F)
+                              then
                                  if not Is_Numeric_Field (F) then
                                     Col_Types.Replace_Element (I, Col_String);
                                     Col_Determined (I) := True;
@@ -478,11 +571,24 @@ package body SData_Core.File_IO.CSV is
                 " shown," & Natural'Image (Coercion_Warn_Count) & " total)");
          end if;
 
+         --  sdata ADR-083 / sdata-core ADR-0026, architect §10.5: one summary
+         --  line if any value matched a declared MISSING= token -- not a
+         --  per-value warning (a declared token is expected, not an
+         --  anomaly), but not silent either, so a mistyped or colliding
+         --  token is still visible.
+         if Missing_Match_Count > 0 then
+            SData_Core.IO.Put_Line_Error
+               ("Note: """ & File_Name & """:" &
+                Natural'Image (Missing_Match_Count) &
+                " value(s) matched a declared MISSING token");
+         end if;
+
          for SA of Col_Names loop Free (SA); end loop;
          Col_Names.Clear;
       end Load_Data_Rows;
 
    begin
+      Build_Missing_Token_List;
       declare
          UC : constant String := To_Upper (Trim (Charset, Ada.Strings.Both));
       begin
@@ -604,6 +710,7 @@ package body SData_Core.File_IO.CSV is
                         Allow_Overwrite : Boolean := True;
                         Charset         : String  := "";
                         Decimals        : Integer := -1;
+                        Missing_Token   : String  := "";
                         View            : SData_Core.Table.Table_View :=
                            SData_Core.Table.Default_View) is
       use Ada.Directories;
@@ -756,6 +863,17 @@ package body SData_Core.File_IO.CSV is
                         Write_String (Trim (Val.Int_Val'Img, Ada.Strings.Both));
                      elsif Val.Kind = Val_String then
                         Write_String (CSV_Quote (SData_Core.Values.To_String (Val)));
+                     elsif Val.Kind = Val_Missing and then Missing_Token /= "" then
+                        --  sdata ADR-083 / sdata-core ADR-0026: SAVE's
+                        --  write-side MISSING= token, written verbatim (this
+                        --  parameter is never split -- see Parse_CSV's own
+                        --  comment on why the read side is a list and this
+                        --  side is a single string).  Routed through
+                        --  CSV_Quote like every other string-valued cell, so
+                        --  a token that itself needs escaping (contains the
+                        --  delimiter, a quote, or a newline) round-trips
+                        --  correctly instead of corrupting the row.
+                        Write_String (CSV_Quote (Missing_Token));
                      end if;
                   end;
                   if C /= N then

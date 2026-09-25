@@ -11,10 +11,11 @@ package SData_Core.File_IO.OOXML is
                           Skip_Rows  : Natural := 0;
                           Max_Rows   : Natural := 0);
 
-   procedure Write_OOXML (File_Name  : String;
-                          Sheet_Name : String := "Sheet1";
-                          Decimals   : Integer := -1;
-                          View       : SData_Core.Table.Table_View :=
+   procedure Write_OOXML (File_Name     : String;
+                          Sheet_Name    : String := "Sheet1";
+                          Decimals      : Integer := -1;
+                          Missing_Token : String  := "";
+                          View          : SData_Core.Table.Table_View :=
                              SData_Core.Table.Default_View);
 
 end SData_Core.File_IO.OOXML;

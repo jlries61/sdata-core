@@ -47,7 +47,8 @@ package SData_Core.Commands is
       Skip_Rows   : Natural := 0;
       Max_Rows    : Natural := 0;
       Nscan_Rows  : Natural := 0;
-      Is_Mock     : Boolean := False);
+      Is_Mock     : Boolean := False;
+      Missing_Tokens : String := "");
 
    ----------------------------------------------------------------
    --  Resolve_Use_Defaults — the single authority for the
@@ -96,7 +97,8 @@ package SData_Core.Commands is
       Delimiter   : String  := ",";
       Write_Header : Boolean := True;
       Charset     : String  := "";
-      Decimals    : Integer := -1);
+      Decimals    : Integer := -1;
+      Missing_Token : String := "");
 
    ----------------------------------------------------------------
    --  FPATH — set search directories per category.
