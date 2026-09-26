@@ -48,7 +48,8 @@ package SData_Core.Commands is
       Max_Rows    : Natural := 0;
       Nscan_Rows  : Natural := 0;
       Is_Mock     : Boolean := False;
-      Missing_Tokens : String := "");
+      Missing_Tokens : String := "";
+      Declared_Types : String := "");
 
    ----------------------------------------------------------------
    --  Resolve_Use_Defaults — the single authority for the

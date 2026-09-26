@@ -375,7 +375,8 @@ package body SData_Core.Commands is
       Max_Rows    : Natural := 0;
       Nscan_Rows  : Natural := 0;
       Is_Mock     : Boolean := False;
-      Missing_Tokens : String := "")
+      Missing_Tokens : String := "";
+      Declared_Types : String := "")
    is
    begin
       SData_Core.Config.Runtime.End_Repeat;
@@ -397,7 +398,8 @@ package body SData_Core.Commands is
             Skip_Rows,
             Max_Rows,
             Nscan_Rows,
-            Missing_Tokens);
+            Missing_Tokens,
+            Declared_Types);
       end;
 
       --  Final progress total for the load (per-row ticks are emitted inside

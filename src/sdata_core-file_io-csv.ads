@@ -13,7 +13,8 @@ package SData_Core.File_IO.CSV is
                         Skip_Rows      : Natural := 0;
                         Max_Rows       : Natural := 0;
                         Nscan_Rows     : Natural := 0;
-                        Missing_Tokens : String  := "");
+                        Missing_Tokens : String  := "";
+                        Declared_Types : String  := "");
 
    procedure Write_CSV (File_Name       : String;
                         Delimiter       : String  := ",";

@@ -70,6 +70,7 @@ directly, is common, not exceptional.
 | [ADR-0024](ADR-0024-use-time-array-detection-skips-scalar-collision.md) | USE-time subscripted-column auto-detection skips a base name that already exists as a scalar, instead of aborting | Accepted | 2026-09-05 |
 | [ADR-0025](ADR-0025-use-time-array-collision-auto-undefine.md) | USE/reshape-time column load auto-undefines a colliding pre-existing array registration, instead of silently shadowing it | Accepted | 2026-09-05 |
 | [ADR-0026](ADR-0026-missing-value-tokens.md) | CSV/ODF/OOXML I/O: user-declared MISSING-value tokens (read-side list, write-side single token) | Accepted | 2026-09-23 |
+| [ADR-0027](ADR-0027-declared-column-types.md) | Declared column types (USE /TYPES=): one shared applier, a lock in every reader, and warning parity across formats | Accepted | 2026-09-25 |
 
 ## Numbering
 

@@ -16,6 +16,12 @@ package SData_Core is
    Max_Charset_Len     : constant := 64;   -- max charset name (e.g. "UTF-8", "ISO-8859-1")
    Max_Options_Val_Len : constant := 256;  -- max OPTIONS command value string
    Max_Missing_Spec_Len : constant := 256; -- max USE/SAVE MISSING= option value
+   Max_Types_Spec_Len   : constant := 1024; -- max USE TYPES= option value.
+                                            -- Unlike the bounded-by-nature
+                                            -- limits above, this one scales
+                                            -- with column count, so exceeding
+                                            -- it is an ERROR, never a silent
+                                            -- truncation (ADR-084).
                                             -- (USE: comma-separated token list;
                                             --  SAVE: one verbatim write token)
 

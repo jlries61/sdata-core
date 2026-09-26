@@ -28,10 +28,11 @@ package body SData_Core.File_IO.OOXML is
    --  lookups use Get_Elements_By_Tag_Name / Get_Elements_By_Tag_Name_NS and
    --  attribute accessors from DOM.Core.Elements.
 
-   procedure Parse_OOXML (File_Name  : String;
-                          Sheet_Name : String  := "";
-                          Skip_Rows  : Natural := 0;
-                          Max_Rows   : Natural := 0) is
+   procedure Parse_OOXML (File_Name      : String;
+                          Sheet_Name     : String  := "";
+                          Skip_Rows      : Natural := 0;
+                          Max_Rows       : Natural := 0;
+                          Declared_Types : String  := "") is
       use DOM.Core;
       use DOM.Core.Nodes;
       use DOM.Core.Elements;
@@ -45,6 +46,16 @@ package body SData_Core.File_IO.OOXML is
          (Index_Type   => Natural,
           Element_Type => Unbounded_String);
       Shared_Strings : String_Vectors.Vector;
+
+      --  ADR-084 / ADR-0027: /TYPES= declarations, parsed once per call.
+      Declared_List : Declared_Vecs.Vector;
+
+      --  [B-2] ADR-0020 parity: same counter, same cap, same wording as the
+      --  CSV reader, so the documented rule is one rule across all three
+      --  formats rather than a CSV rule plus a spreadsheet carve-out.
+      Coercion_Warn_Count : Natural := 0;
+      Coercion_Warn_Cap   : constant := 10;
+      Q : constant Character := '"';
 
       function Find_Sheet_XML_Path (Zip_Info : Zip.Zip_Info) return String is
          WB_Reader : Secure_Reader;
@@ -209,10 +220,68 @@ package body SData_Core.File_IO.OOXML is
          Rows    : Node_List;
          Success : Boolean;
 
+         --  Col_Name/Row_No are supplied only by the DATA-LOADING call site,
+         --  so schema inference never warns (inference is not a coercion).
          function Get_Cell_Value
             (Cell_Node   : Node;
-             Target_Type : Column_Type := Col_Numeric) return Value
+             Target_Type : Column_Type := Col_Numeric;
+             Col_Name    : String      := "";
+             Row_No      : Natural     := 0;
+             --  Coercion is OPT-IN, and only the data-loading call site opts
+             --  in.  The schema-inference probe and (OOXML) the header
+             --  collector call this to ask what a cell NATURALLY is; if a
+             --  string cell were parsed as a number for them, inference would
+             --  never see Val_String and a text column would come out numeric.
+             --  Defaulting to False keeps every non-loading caller on exactly
+             --  its pre-existing behavior.
+             Coerce_To_Target : Boolean := False) return Value
          is
+            --  [B-1] ONE place decides what a string cell becomes, shared by
+            --  all three string-producing paths below (shared string, "str",
+            --  and inlineStr).  Writing the Target_Type check at each of the
+            --  three returns instead would rebuild, at triple width, exactly
+            --  the divergence ADR-0026 was created to stop.
+            function As_Typed (S : String) return Value is
+               Inf : constant Value := Detect_Inf (S);
+            begin
+               --  [MAJOR-2, round 1] Inf is resolved INSIDE this dispatch.
+               --  The callers used to test Detect_Inf and return before
+               --  reaching here, which ignored Target_Type: an "Inf" cell in
+               --  a column declared CHARACTER became numeric infinity in a
+               --  Col_String column, raised in Coerce_Value, and was dropped
+               --  by the generic handler with an uncapped legacy warning.
+               if Target_Type = Col_String then
+                  return (Kind => Val_String, Str_Val => To_Unbounded_String (S));
+               end if;
+               if Inf.Kind /= Val_Missing then return Inf; end if;
+               if Coerce_To_Target
+                  and then (Target_Type = Col_Numeric
+                            or else Target_Type = Col_Integer)
+               then
+                  begin
+                     return (Kind => Val_Numeric, Num_Val => Real'Value (S));
+                  exception
+                     when Constraint_Error =>
+                        if Col_Name /= "" then
+                           Coercion_Warn_Count := Coercion_Warn_Count + 1;
+                           if Coercion_Warn_Count <= Coercion_Warn_Cap then
+                              SData_Core.IO.Put_Line_Error
+                                 ("Warning: " & Q & File_Name & Q &
+                                  ", data row" & Natural'Image (Row_No) &
+                                  ", column " & Q & Col_Name & Q &
+                                  ": non-numeric value " & Q & S & Q &
+                                  " in " &
+                                  (if Target_Type = Col_Integer
+                                   then "integer" else "numeric") &
+                                  " column -- stored as missing");
+                           end if;
+                        end if;
+                        return (Kind => Val_Missing);
+                  end;
+               end if;
+               return (Kind => Val_String, Str_Val => To_Unbounded_String (S));
+            end As_Typed;
+
             T_Attr  : constant String :=
                Get_Attribute (DOM.Core.Element (Cell_Node), "t");
             V_List  : Node_List :=
@@ -234,19 +303,12 @@ package body SData_Core.File_IO.OOXML is
                               S : constant String :=
                                  To_String (Shared_Strings.Element (Idx));
                            begin
-                              return (Kind    => Val_String,
-                                      Str_Val => To_Unbounded_String (S));
+                              return As_Typed (S);
                            end;
                         end if;
                      end;
                   elsif T_Attr = "str" then
-                     declare
-                        Inf : constant Value := Detect_Inf (Val_Str);
-                     begin
-                        if Inf.Kind /= Val_Missing then return Inf; end if;
-                        return (Kind    => Val_String,
-                                Str_Val => To_Unbounded_String (Val_Str));
-                     end;
+                     return As_Typed (Val_Str);
                   elsif Target_Type = Col_String then
                      --  Numeric cell destined for a '$' (character) column:
                      --  store its raw text rather than dropping it.
@@ -268,13 +330,10 @@ package body SData_Core.File_IO.OOXML is
                begin
                   if Length (T_Nodes) > 0 then
                      declare
-                        S   : constant String := Get_Text (Item (T_Nodes, 0));
-                        Inf : constant Value  := Detect_Inf (S);
+                        S : constant String := Get_Text (Item (T_Nodes, 0));
                      begin
                         Free (T_Nodes); Free (V_List); Free (IS_List);
-                        if Inf.Kind /= Val_Missing then return Inf; end if;
-                        return (Kind    => Val_String,
-                                Str_Val => To_Unbounded_String (S));
+                        return As_Typed (S);
                      end;
                   end if;
                   Free (T_Nodes);
@@ -314,9 +373,13 @@ package body SData_Core.File_IO.OOXML is
              Final_Names  : out Name_Vecs.Vector) is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
+            --  [R-A] OOXML had no equivalent of CSV's Col_Determined.
+            Col_Locked : Lock_Array (1 .. N) := (others => False);
             Seen      : Name_Vecs.Vector;
          begin
             Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
+            Apply_Declared_Types
+               (Declared_List, Col_Name_Vec, Col_Types, Col_Locked, File_Name);
             if Row1_Present then
                declare
                   Data_Cells : DOM.Core.Node_List :=
@@ -326,7 +389,8 @@ package body SData_Core.File_IO.OOXML is
                   for J in 0 .. Length (Data_Cells) - 1 loop
                      Col_Idx := Col_Idx + 1;
                      exit when Col_Idx > N;
-                     if Col_Types (Col_Idx) /= Col_Integer
+                     if not Col_Locked (Col_Idx)
+                        and then Col_Types (Col_Idx) /= Col_Integer
                         and then Get_Cell_Value (Item (Data_Cells, J)).Kind
                                  = Val_String
                      then
@@ -339,12 +403,9 @@ package body SData_Core.File_IO.OOXML is
             for I in 1 .. N loop
                declare
                   Raw_Name   : constant String := To_String (Col_Name_Vec (I));
+                  --  ADR-084: the one shared naming rule (Final_Column_Name).
                   Final_Name : constant String :=
-                     (if Col_Types (I) = Col_String
-                         and then (Raw_Name'Length = 0
-                                   or else Raw_Name (Raw_Name'Last) /= '$')
-                      then Raw_Name & "$"
-                      else Raw_Name);
+                     Final_Column_Name (Raw_Name, Col_Types (I));
                begin
                   Warn_If_Duplicate_Name (File_Name, Final_Name, Seen);
                   Add_Column (Final_Name, Col_Types (I));
@@ -394,7 +455,10 @@ package body SData_Core.File_IO.OOXML is
                               V : constant Value :=
                                  Get_Cell_Value
                                     (Item (Cells, J),
-                                     Get_Column_Type (Col_Name));
+                                     Get_Column_Type (Col_Name),
+                                     Col_Name => Col_Name,
+                                     Row_No   => Rows_Written,
+                                     Coerce_To_Target => True);
                            begin
                               if V.Kind = Val_Numeric
                                  and then Get_Column_Type (Col_Name)
@@ -427,6 +491,15 @@ package body SData_Core.File_IO.OOXML is
                   end;
                end if;
             end loop;
+            --  [B-2] ADR-0020's suppression summary, in CSV's own words.
+            if Coercion_Warn_Count > Coercion_Warn_Cap then
+               SData_Core.IO.Put_Line_Error
+                  ("Warning: " & Q & File_Name & Q & ":" &
+                   Natural'Image (Coercion_Warn_Count - Coercion_Warn_Cap) &
+                   " additional non-numeric-value warning(s) suppressed (" &
+                   Trim (Natural'Image (Coercion_Warn_Cap), Ada.Strings.Left) &
+                   " shown," & Natural'Image (Coercion_Warn_Count) & " total)");
+            end if;
          end Load_OOXML_Data_Rows;
 
       begin
@@ -499,6 +572,7 @@ package body SData_Core.File_IO.OOXML is
 
       Zip_Info : Zip.Zip_Info;
    begin
+      Parse_Declared_Types (Declared_Types, Declared_List);
       Zip.Load (Zip_Info, File_Name);
       Load_Shared_Strings (Zip_Info);
       declare

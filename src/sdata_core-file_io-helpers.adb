@@ -14,6 +14,165 @@ with SData_Core.IO;
 
 package body SData_Core.File_IO.Helpers is
 
+   ---------------------------------------------------------------------------
+   --  ADR-084 / ADR-0027: USE /TYPES= support.
+   ---------------------------------------------------------------------------
+
+   function Strip_Type_Suffix (S : String) return String is
+   begin
+      if S'Length > 0
+         and then (S (S'Last) = '$' or else S (S'Last) = '%')
+      then
+         return S (S'First .. S'Last - 1);
+      end if;
+      return S;
+   end Strip_Type_Suffix;
+
+   function Final_Column_Name (Base_Name : String; Col_Typ : Column_Type)
+      return String
+   is
+      Bare : constant String := Strip_Type_Suffix (Base_Name);
+   begin
+      case Col_Typ is
+         when Col_String  => return Bare & "$";
+         when Col_Integer => return Bare & "%";
+         when Col_Numeric => return Bare;
+      end case;
+   end Final_Column_Name;
+
+   procedure Parse_Declared_Types
+      (Spec     : String;
+       Declared : out Declared_Vecs.Vector)
+   is
+      Start : Natural := Spec'First;
+
+      procedure Add_One (Raw : String) is
+         Trimmed : constant String := Trim (Raw, Ada.Strings.Both);
+         Kind    : Declared_Type   := Dec_Float;
+         Base    : Unbounded_String;
+      begin
+         if Trimmed'Length = 0 then
+            raise SData_Core.Script_Error with
+               "/TYPES= has an empty column entry";
+         end if;
+         if Trimmed (Trimmed'Last) = '$' then
+            Kind := Dec_Character;
+         elsif Trimmed (Trimmed'Last) = '%' then
+            Kind := Dec_Integer;
+         end if;
+         Base := To_Unbounded_String
+            (To_Upper (Strip_Type_Suffix (Trimmed)));
+         if Length (Base) = 0 then
+            raise SData_Core.Script_Error with
+               "/TYPES= has an entry that is only a type suffix";
+         end if;
+         --  One rule, no exceptions: a column may be declared at most once.
+         --  This rejects the contradictory "A$,A%" and the merely redundant
+         --  "A$,A$" alike, rather than reasoning about which duplicates are
+         --  harmless (ADR-084).
+         for E of Declared loop
+            if E.Name = Base then
+               raise SData_Core.Script_Error with
+                  "/TYPES= names column """ & To_String (Base) &
+                  """ more than once";
+            end if;
+         end loop;
+         Declared.Append ((Name => Base, Kind => Kind));
+      end Add_One;
+
+   begin
+      Declared.Clear;
+      if Spec'Length = 0 then
+         return;
+      end if;
+      for I in Spec'Range loop
+         if Spec (I) = ',' then
+            Add_One (Spec (Start .. I - 1));
+            Start := I + 1;
+         end if;
+      end loop;
+      Add_One (Spec (Start .. Spec'Last));
+   end Parse_Declared_Types;
+
+   procedure Apply_Declared_Types
+      (Declared     : Declared_Vecs.Vector;
+       Col_Name_Vec : Name_Vecs.Vector;
+       Col_Types    : in out Column_Type_Array;
+       Col_Locked   : out Lock_Array;
+       File_Name    : String)
+   is
+      N : constant Natural := Natural (Col_Name_Vec.Length);
+   begin
+      Col_Locked := (others => False);
+      if Declared.Is_Empty then
+         return;
+      end if;
+
+      for E of Declared loop
+         declare
+            Matched : Natural := 0;
+         begin
+            for I in 1 .. N loop
+               if To_Upper (Strip_Type_Suffix
+                              (To_String (Col_Name_Vec (I)))) =
+                  To_String (E.Name)
+               then
+                  Matched := I;
+                  exit;
+               end if;
+            end loop;
+
+            --  Validate before changing anything a caller can observe, and
+            --  hard-error rather than ignore: a typo'd declaration that were
+            --  silently dropped would leave the column on inference, i.e.
+            --  exactly the outcome /TYPES= exists to prevent (ADR-084; the
+            --  same reasoning that made KEEP/DROP reject unknown names).
+            if Matched = 0 then
+               raise SData_Core.Script_Error with
+                  """" & File_Name & """: /TYPES= names column """ &
+                  To_String (E.Name) & """, which the file does not have";
+            end if;
+
+            declare
+               New_Type : constant Column_Type :=
+                  (case E.Kind is
+                      when Dec_Float     => Col_Numeric,
+                      when Dec_Integer   => Col_Integer,
+                      when Dec_Character => Col_String);
+               Raw      : constant String :=
+                  To_String (Col_Name_Vec (Matched));
+               Implied  : constant Column_Type :=
+                  (if Raw'Length > 0 and then Raw (Raw'Last) = '$'
+                   then Col_String
+                   elsif Raw'Length > 0 and then Raw (Raw'Last) = '%'
+                   then Col_Integer
+                   else Col_Numeric);
+               function Type_Word (T : Column_Type) return String is
+                  (case T is
+                      when Col_String  => "character",
+                      when Col_Integer => "integer",
+                      when Col_Numeric => "float");
+            begin
+               --  The header carries its own type only when it is suffixed;
+               --  an unsuffixed header is "unspecified", not "declared
+               --  float", so overriding it is not a conflict worth noting.
+               if (Raw'Length > 0
+                   and then (Raw (Raw'Last) = '$' or else Raw (Raw'Last) = '%'))
+                  and then Implied /= New_Type
+               then
+                  SData_Core.IO.Put_Line_Error
+                     ("Note: """ & File_Name & """: column """ &
+                      Strip_Type_Suffix (Raw) & """ is declared " &
+                      Type_Word (Implied) & " by the file header; /TYPES= " &
+                      "overrides it to " & Type_Word (New_Type));
+               end if;
+               Col_Types (Matched)  := New_Type;
+               Col_Locked (Matched) := True;
+            end;
+         end;
+      end loop;
+   end Apply_Declared_Types;
+
    overriding function Resolve_Entity
       (Handler   : Secure_Reader;
        Public_Id : Unicode.CES.Byte_Sequence;
