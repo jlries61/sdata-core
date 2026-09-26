@@ -81,9 +81,11 @@ package body SData_Core.File_IO is
                        Skip_Rows, Max_Rows, Nscan_Rows, Missing_Tokens,
                        Declared_Types);
          when SData_Core.Config.ODF =>
-            Parse_ODF (File_Name, Sheet_Name, Skip_Rows, Max_Rows);
+            Parse_ODF (File_Name, Sheet_Name, Skip_Rows, Max_Rows,
+                       Declared_Types);
          when SData_Core.Config.OOXML =>
-            Parse_OOXML (File_Name, Sheet_Name, Skip_Rows, Max_Rows);
+            Parse_OOXML (File_Name, Sheet_Name, Skip_Rows, Max_Rows,
+                         Declared_Types);
       end case;
 
       Put_Line ("Dataset opened: " & File_Name);

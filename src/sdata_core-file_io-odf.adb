@@ -27,15 +27,30 @@ package body SData_Core.File_IO.ODF is
    --  lookups use Get_Elements_By_Tag_Name / Get_Elements_By_Tag_Name_NS and
    --  attribute accessors from DOM.Core.Elements.
 
-   procedure Parse_ODF (File_Name  : String;
-                        Sheet_Name : String  := "";
-                        Skip_Rows  : Natural := 0;
-                        Max_Rows   : Natural := 0) is
+   procedure Parse_ODF (File_Name      : String;
+                        Sheet_Name     : String  := "";
+                        Skip_Rows      : Natural := 0;
+                        Max_Rows       : Natural := 0;
+                        Declared_Types : String  := "") is
       use DOM.Core;
       use DOM.Core.Nodes;
       use DOM.Core.Elements;
 
       Temp_XML : constant String := File_Name & ".content.xml";
+
+      --  ADR-084 / ADR-0027: /TYPES= declarations, parsed once per call.
+      Declared_List : Declared_Vecs.Vector;
+
+      --  ADR-0020 parity (02-systems-designer.md B-2): a declared numeric
+      --  column over text cells coerces to missing, and those warnings are
+      --  capped exactly as CSV's are -- same counter shape, same cap, same
+      --  message wording -- so the user-visible rule really is one rule
+      --  across all three formats rather than a CSV rule and a spreadsheet
+      --  carve-out.  Before this, the spreadsheet path warned once per cell,
+      --  uncapped.
+      Coercion_Warn_Count : Natural := 0;
+      Coercion_Warn_Cap   : constant := 10;
+      Q : constant Character := '"';
 
       procedure Load_Content (Zip_Info : Zip.Zip_Info) is
          Reader : Secure_Reader;
@@ -44,9 +59,23 @@ package body SData_Core.File_IO.ODF is
          Tables, Rows : Node_List;
          Success : Boolean;
 
+         --  Col_Name/Row_No are supplied only by the DATA-LOADING call site,
+         --  so the schema-inference call never warns (inference is not a
+         --  coercion).  When present they let a failed string->number parse
+         --  report itself in exactly CSV's words, under ADR-0020's cap.
          function Get_Cell_Value
             (Cell_Node   : Node;
-             Target_Type : Column_Type := Col_Numeric) return Value
+             Target_Type : Column_Type := Col_Numeric;
+             Col_Name    : String      := "";
+             Row_No      : Natural     := 0;
+             --  Coercion is OPT-IN, and only the data-loading call site opts
+             --  in.  The schema-inference probe and (OOXML) the header
+             --  collector call this to ask what a cell NATURALLY is; if a
+             --  string cell were parsed as a number for them, inference would
+             --  never see Val_String and a text column would come out numeric.
+             --  Defaulting to False keeps every non-loading caller on exactly
+             --  its pre-existing behavior.
+             Coerce_To_Target : Boolean := False) return Value
          is
             Val_Type : constant String :=
                Get_Attribute (DOM.Core.Element (Cell_Node), "office:value-type");
@@ -88,6 +117,43 @@ package body SData_Core.File_IO.ODF is
                begin
                   Free (P_List);
                   if Inf.Kind /= Val_Missing then return Inf; end if;
+                  --  [B-1] A string cell destined for a NUMERIC column is
+                  --  parsed as a number, falling back to missing -- the same
+                  --  shape the numeric branch above already uses for the
+                  --  opposite direction.  Without this the cell would return
+                  --  Val_String into a Col_Numeric column and Coerce_Value
+                  --  would raise Type_Mismatch_Error, which /TYPES= would
+                  --  then surface as a per-cell "import skipped" warning
+                  --  instead of the documented coerce-to-missing.
+                  if Coerce_To_Target
+                     and then (Target_Type = Col_Numeric
+                               or else Target_Type = Col_Integer)
+                  then
+                     begin
+                        return (Kind => Val_Numeric, Num_Val => Real'Value (S));
+                     exception
+                        when Constraint_Error =>
+                           --  [B-2] Same counter, same cap, same wording as
+                           --  the CSV reader's coercion warning (ADR-0020),
+                           --  so one documented rule covers all three
+                           --  formats instead of a spreadsheet carve-out.
+                           if Col_Name /= "" then
+                              Coercion_Warn_Count := Coercion_Warn_Count + 1;
+                              if Coercion_Warn_Count <= Coercion_Warn_Cap then
+                                 SData_Core.IO.Put_Line_Error
+                                    ("Warning: " & Q & File_Name & Q &
+                                     ", data row" & Natural'Image (Row_No) &
+                                     ", column " & Q & Col_Name & Q &
+                                     ": non-numeric value " & Q & S & Q &
+                                     " in " &
+                                     (if Target_Type = Col_Integer
+                                      then "integer" else "numeric") &
+                                     " column -- stored as missing");
+                              end if;
+                           end if;
+                           return (Kind => Val_Missing);
+                     end;
+                  end if;
                   return (Kind => Val_String, Str_Val => To_Unbounded_String (S));
                end;
             end if;
@@ -168,9 +234,16 @@ package body SData_Core.File_IO.ODF is
              Final_Names  : out Name_Vecs.Vector) is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
+            --  [R-A] ODF had no equivalent of CSV's Col_Determined, so
+            --  without this a declared-float column would be silently
+            --  re-inferred to character by row 1 and the declaration would
+            --  appear to do nothing.
+            Col_Locked : Lock_Array (1 .. N) := (others => False);
             Seen      : Name_Vecs.Vector;
          begin
             Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
+            Apply_Declared_Types
+               (Declared_List, Col_Name_Vec, Col_Types, Col_Locked, File_Name);
             if Row1_Present then
                declare
                   Data_Cells : DOM.Core.Node_List :=
@@ -181,7 +254,8 @@ package body SData_Core.File_IO.ODF is
                   for J in 0 .. Length (Data_Cells) - 1 loop
                      Col_Idx := Col_Idx + 1;
                      exit when Col_Idx > N;
-                     if Col_Types (Col_Idx) /= Col_Integer
+                     if not Col_Locked (Col_Idx)
+                        and then Col_Types (Col_Idx) /= Col_Integer
                         and then Get_Cell_Value (Item (Data_Cells, J)).Kind
                                  = Val_String
                      then
@@ -194,12 +268,11 @@ package body SData_Core.File_IO.ODF is
             for I in 1 .. N loop
                declare
                   Raw_Name   : constant String := To_String (Col_Name_Vec (I));
+                  --  ADR-084: one shared naming rule (see Final_Column_Name).
+                  --  Behavior-identical for every pre-existing input; also
+                  --  handles the demoted case only /TYPES= can create.
                   Final_Name : constant String :=
-                     (if Col_Types (I) = Col_String
-                         and then (Raw_Name'Length = 0
-                                   or else Raw_Name (Raw_Name'Last) /= '$')
-                      then Raw_Name & "$"
-                      else Raw_Name);
+                     Final_Column_Name (Raw_Name, Col_Types (I));
                begin
                   Warn_If_Duplicate_Name (File_Name, Final_Name, Seen);
                   Add_Column (Final_Name, Col_Types (I));
@@ -263,7 +336,13 @@ package body SData_Core.File_IO.ODF is
                                         (if Col_Idx <= N_Cols
                                          then Get_Column_Type
                                                  (To_String (Col_Names (Col_Idx)))
-                                         else Col_Numeric));
+                                         else Col_Numeric),
+                                        Col_Name =>
+                                           (if Col_Idx <= N_Cols
+                                            then To_String (Col_Names (Col_Idx))
+                                            else ""),
+                                        Row_No   => Rows_Written,
+                                        Coerce_To_Target => True);
                               begin
                                  for K in 1 .. Repeat_Count loop
                                     pragma Warnings (Off, K);
@@ -312,6 +391,15 @@ package body SData_Core.File_IO.ODF is
                   end loop;
                end;
             end loop;
+            --  [B-2] ADR-0020's suppression summary, in CSV's own words.
+            if Coercion_Warn_Count > Coercion_Warn_Cap then
+               SData_Core.IO.Put_Line_Error
+                  ("Warning: " & Q & File_Name & Q & ":" &
+                   Natural'Image (Coercion_Warn_Count - Coercion_Warn_Cap) &
+                   " additional non-numeric-value warning(s) suppressed (" &
+                   Trim (Natural'Image (Coercion_Warn_Cap), Ada.Strings.Left) &
+                   " shown," & Natural'Image (Coercion_Warn_Count) & " total)");
+            end if;
          end Load_ODF_Data_Rows;
 
       begin
@@ -392,6 +480,7 @@ package body SData_Core.File_IO.ODF is
 
       Zip_Info : Zip.Zip_Info;
    begin
+      Parse_Declared_Types (Declared_Types, Declared_List);
       Zip.Load (Zip_Info, File_Name);
       Load_Content (Zip_Info);
    exception
