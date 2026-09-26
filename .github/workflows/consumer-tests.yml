@@ -94,7 +94,18 @@ jobs:
           # above, this bump was never load-bearing for the gate.  It is a
           # routine currency bump: keep the stability check validating a
           # current consumer rather than one four minors behind.
-          ref: v0.35.0
+          #
+          # v0.36.0 adds USE /TYPES= (sdata ADR-084 / this crate's ADR-0027):
+          # per-column type declarations that opt named columns out of NSCAN
+          # inference on CSV, ODF and OOXML alike.  Same shape as v0.35.0's
+          # note above -- every new parameter (Declared_Types on Parse_CSV/
+          # Parse_ODF/Parse_OOXML/Open_Input/Execute_USE, Coerce_To_Target on
+          # Get_Cell_Value) defaults to "" / False, so the PREVIOUS pin
+          # (v0.35.0) also built and passed against this crate's main while
+          # /TYPES= was in flight (confirmed: PR #147's "sdata make check"
+          # job ran against that exact pin and passed).  Not load-bearing;
+          # routine currency bump.
+          ref: v0.36.0
           path: sdata
 
       - name: Set up Alire
