@@ -116,7 +116,14 @@ package body SData_Core.File_IO.ODF is
                   Inf : constant Value  := Detect_Inf (S);
                begin
                   Free (P_List);
-                  if Inf.Kind /= Val_Missing then return Inf; end if;
+                  --  [MAJOR-2, round 1] The Inf check lives INSIDE the type
+                  --  dispatch below, not in front of it.  Returning Inf here
+                  --  ignored Target_Type, so an "Inf" cell in a column
+                  --  declared CHARACTER produced numeric infinity into a
+                  --  Col_String column, Coerce_Value raised, and the generic
+                  --  handler dropped the value with an uncapped legacy
+                  --  warning -- the exact defect B-1/B-2 exist to remove,
+                  --  surviving on the one path the fix did not sweep.
                   --  [B-1] A string cell destined for a NUMERIC column is
                   --  parsed as a number, falling back to missing -- the same
                   --  shape the numeric branch above already uses for the
@@ -125,6 +132,12 @@ package body SData_Core.File_IO.ODF is
                   --  would raise Type_Mismatch_Error, which /TYPES= would
                   --  then surface as a per-cell "import skipped" warning
                   --  instead of the documented coerce-to-missing.
+                  if Target_Type = Col_String then
+                     --  Character target: store the text, Inf included.
+                     return (Kind => Val_String,
+                             Str_Val => To_Unbounded_String (S));
+                  end if;
+                  if Inf.Kind /= Val_Missing then return Inf; end if;
                   if Coerce_To_Target
                      and then (Target_Type = Col_Numeric
                                or else Target_Type = Col_Integer)

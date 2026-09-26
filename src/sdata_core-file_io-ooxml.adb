@@ -242,7 +242,18 @@ package body SData_Core.File_IO.OOXML is
             --  three returns instead would rebuild, at triple width, exactly
             --  the divergence ADR-0026 was created to stop.
             function As_Typed (S : String) return Value is
+               Inf : constant Value := Detect_Inf (S);
             begin
+               --  [MAJOR-2, round 1] Inf is resolved INSIDE this dispatch.
+               --  The callers used to test Detect_Inf and return before
+               --  reaching here, which ignored Target_Type: an "Inf" cell in
+               --  a column declared CHARACTER became numeric infinity in a
+               --  Col_String column, raised in Coerce_Value, and was dropped
+               --  by the generic handler with an uncapped legacy warning.
+               if Target_Type = Col_String then
+                  return (Kind => Val_String, Str_Val => To_Unbounded_String (S));
+               end if;
+               if Inf.Kind /= Val_Missing then return Inf; end if;
                if Coerce_To_Target
                   and then (Target_Type = Col_Numeric
                             or else Target_Type = Col_Integer)
@@ -297,12 +308,7 @@ package body SData_Core.File_IO.OOXML is
                         end if;
                      end;
                   elsif T_Attr = "str" then
-                     declare
-                        Inf : constant Value := Detect_Inf (Val_Str);
-                     begin
-                        if Inf.Kind /= Val_Missing then return Inf; end if;
-                        return As_Typed (Val_Str);
-                     end;
+                     return As_Typed (Val_Str);
                   elsif Target_Type = Col_String then
                      --  Numeric cell destined for a '$' (character) column:
                      --  store its raw text rather than dropping it.
@@ -324,11 +330,9 @@ package body SData_Core.File_IO.OOXML is
                begin
                   if Length (T_Nodes) > 0 then
                      declare
-                        S   : constant String := Get_Text (Item (T_Nodes, 0));
-                        Inf : constant Value  := Detect_Inf (S);
+                        S : constant String := Get_Text (Item (T_Nodes, 0));
                      begin
                         Free (T_Nodes); Free (V_List); Free (IS_List);
-                        if Inf.Kind /= Val_Missing then return Inf; end if;
                         return As_Typed (S);
                      end;
                   end if;
