@@ -324,9 +324,9 @@ package body SData_Core.File_IO.Helpers is
          return False;
    end Has_Formulas_XML;
 
-   --  2026-08-13 re-audit PD-4: locates a `timeout`(1) utility to bound
-   --  Convert_Via_LibreOffice's soffice call, mirroring the PATH-preference
-   --  logic in sdata's SYSTEM/SHELL timeout (ADR-037): prefer GNU
+   --  Locates a `timeout`(1) utility to bound Convert_Via_LibreOffice's
+   --  soffice call, mirroring the PATH-preference logic in sdata's
+   --  SYSTEM/SHELL timeout (ADR-037): prefer GNU
    --  coreutils' `gtimeout` (the name it installs under on macOS/BSD, where
    --  the bare `timeout` may be a different, noisier utility), falling
    --  back to `timeout`. Returns null if neither is on PATH, so the caller
@@ -361,10 +361,10 @@ package body SData_Core.File_IO.Helpers is
       Converted  : constant String := Dir & Base_Stem & "." & Target_Ext;
 
       --  Fixed, non-configurable wall-clock bound (not an OPTIONS key --
-      --  see the architect note in
-      --  .ssd/features/audit-2026-08-13-tier1-remediation/01-architect.md
-      --  for why this stays internal rather than user-surfaced). Generous
-      --  enough that ordinary conversions never approach it; only exists to
+      --  this guards an internal implementation detail of the ODF/OOXML
+      --  conversion path, not a behavior a script has any reason to tune).
+      --  Generous enough that ordinary conversions never approach it; only
+      --  exists to
       --  turn a hang into a bounded failure.
       Timeout_Secs : constant String := "90";
 
@@ -374,11 +374,10 @@ package body SData_Core.File_IO.Helpers is
          return "";
       end if;
 
-      --  Resolved only once soffice is confirmed present -- code review
-      --  round 1 (MAJOR-1) caught that resolving this unconditionally in
-      --  the declarative part, alongside Soffice_Acc, leaked the resolved
-      --  String_Access on the early return above whenever a timeout
-      --  utility was on PATH but soffice was not.
+      --  Resolved only once soffice is confirmed present -- resolving this
+      --  unconditionally in the declarative part, alongside Soffice_Acc,
+      --  would leak the resolved String_Access on the early return above
+      --  whenever a timeout utility was on PATH but soffice was not.
       declare
          Timeout_Acc : GNAT.OS_Lib.String_Access := Locate_Timeout_Exec;
       begin
@@ -431,10 +430,10 @@ package body SData_Core.File_IO.Helpers is
             end;
          end if;
 
-         --  Code review round 1 (SUGGESTION-1): no null guard needed --
-         --  GNAT.OS_Lib.Free (an Ada.Unchecked_Deallocation instance) is a
-         --  documented no-op on a null access value, same as the
-         --  unconditional Free (Soffice_Acc) below.
+         --  No null guard needed -- GNAT.OS_Lib.Free (an
+         --  Ada.Unchecked_Deallocation instance) is a documented no-op on a
+         --  null access value, same as the unconditional Free (Soffice_Acc)
+         --  below.
          GNAT.OS_Lib.Free (Timeout_Acc);
       end;
 

@@ -149,12 +149,11 @@ package body SData_Core.Grouping is
       --  Pass 1: bucket physical rows by composite BY-key.  Bucket order
       --  (map iteration order) is irrelevant -- pass 2 sorts explicitly.
       --
-      --  Code review round 1 (MAJOR-1): appending via a copy-out
-      --  (Key_Maps.Element, a by-value return for this controlled
-      --  Vector element type) then Replace (a copy back in) made each
-      --  append O(current bucket size) -- O(k^2) total to build one
-      --  k-member bucket, not the O(n) this primitive was designed and
-      --  reviewed for. Buckets.Reference mutates the vector stored in
+      --  Appending via a copy-out (Key_Maps.Element, a by-value return for
+      --  this controlled Vector element type) then Replace (a copy back in)
+      --  would make each append O(current bucket size) -- O(k^2) total to
+      --  build one k-member bucket, not the O(n) this primitive is meant to
+      --  be. Buckets.Reference mutates the vector stored in
       --  the map in place instead -- O(1) amortized per append, same as
       --  the adjacency scan this replaces.
       for Row of Physical_Rows loop
@@ -209,10 +208,9 @@ package body SData_Core.Grouping is
                   --  Equal on this BY-var: fall through to the next one.
                end;
             end loop;
-            --  Code review round 1 (SUGGESTION-1): unreachable by
-            --  construction -- distinct hash-map buckets have distinct
-            --  composite keys, so two groups' representative rows can
-            --  never compare equal on every BY-var. Asserted rather than
+            --  Unreachable by construction -- distinct hash-map buckets have
+            --  distinct composite keys, so two groups' representative rows
+            --  can never compare equal on every BY-var. Asserted rather than
             --  silently returning False, so a future Key_Of regression
             --  that broke that invariant (e.g. reintroducing the exact
             --  collision this encoding exists to prevent) fails loudly
