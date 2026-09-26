@@ -50,9 +50,10 @@ package body SData_Core.File_IO.OOXML is
       --  ADR-084 / ADR-0027: /TYPES= declarations, parsed once per call.
       Declared_List : Declared_Vecs.Vector;
 
-      --  [B-2] ADR-0020 parity: same counter, same cap, same wording as the
-      --  CSV reader, so the documented rule is one rule across all three
-      --  formats rather than a CSV rule plus a spreadsheet carve-out.
+      --  ADR-0020 parity (ADR-0027, "Warning parity"): same counter, same
+      --  cap, same wording as the CSV reader, so the documented rule is one
+      --  rule across all three formats rather than a CSV rule plus a
+      --  spreadsheet carve-out.
       Coercion_Warn_Count : Natural := 0;
       Coercion_Warn_Cap   : constant := 10;
       Q : constant Character := '"';
@@ -236,20 +237,22 @@ package body SData_Core.File_IO.OOXML is
              --  its pre-existing behavior.
              Coerce_To_Target : Boolean := False) return Value
          is
-            --  [B-1] ONE place decides what a string cell becomes, shared by
-            --  all three string-producing paths below (shared string, "str",
-            --  and inlineStr).  Writing the Target_Type check at each of the
-            --  three returns instead would rebuild, at triple width, exactly
-            --  the divergence ADR-0026 was created to stop.
+            --  ADR-0027 ("Get_Cell_Value honors Target_Type on its
+            --  string-producing paths"): ONE place decides what a string
+            --  cell becomes, shared by all three string-producing paths
+            --  below (shared string, "str", and inlineStr).  Writing the
+            --  Target_Type check at each of the three returns instead would
+            --  rebuild, at triple width, exactly the divergence ADR-0026 was
+            --  created to stop.
             function As_Typed (S : String) return Value is
                Inf : constant Value := Detect_Inf (S);
             begin
-               --  [MAJOR-2, round 1] Inf is resolved INSIDE this dispatch.
-               --  The callers used to test Detect_Inf and return before
-               --  reaching here, which ignored Target_Type: an "Inf" cell in
-               --  a column declared CHARACTER became numeric infinity in a
-               --  Col_String column, raised in Coerce_Value, and was dropped
-               --  by the generic handler with an uncapped legacy warning.
+               --  Inf is resolved INSIDE this dispatch.  The callers used to
+               --  test Detect_Inf and return before reaching here, which
+               --  ignored Target_Type: an "Inf" cell in a column declared
+               --  CHARACTER became numeric infinity in a Col_String column,
+               --  raised in Coerce_Value, and was dropped by the generic
+               --  handler with an uncapped legacy warning.
                if Target_Type = Col_String then
                   return (Kind => Val_String, Str_Val => To_Unbounded_String (S));
                end if;
@@ -373,7 +376,8 @@ package body SData_Core.File_IO.OOXML is
              Final_Names  : out Name_Vecs.Vector) is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
-            --  [R-A] OOXML had no equivalent of CSV's Col_Determined.
+            --  ADR-0027 ("A lock array in ODF and OOXML"): OOXML had no
+            --  equivalent of CSV's Col_Determined.
             Col_Locked : Lock_Array (1 .. N) := (others => False);
             Seen      : Name_Vecs.Vector;
          begin
@@ -491,7 +495,8 @@ package body SData_Core.File_IO.OOXML is
                   end;
                end if;
             end loop;
-            --  [B-2] ADR-0020's suppression summary, in CSV's own words.
+            --  ADR-0020's suppression summary, in CSV's own words
+            --  (ADR-0027, "Warning parity").
             if Coercion_Warn_Count > Coercion_Warn_Cap then
                SData_Core.IO.Put_Line_Error
                   ("Warning: " & Q & File_Name & Q & ":" &

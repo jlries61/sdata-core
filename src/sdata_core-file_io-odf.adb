@@ -116,22 +116,25 @@ package body SData_Core.File_IO.ODF is
                   Inf : constant Value  := Detect_Inf (S);
                begin
                   Free (P_List);
-                  --  [MAJOR-2, round 1] The Inf check lives INSIDE the type
-                  --  dispatch below, not in front of it.  Returning Inf here
-                  --  ignored Target_Type, so an "Inf" cell in a column
-                  --  declared CHARACTER produced numeric infinity into a
-                  --  Col_String column, Coerce_Value raised, and the generic
-                  --  handler dropped the value with an uncapped legacy
-                  --  warning -- the exact defect B-1/B-2 exist to remove,
-                  --  surviving on the one path the fix did not sweep.
-                  --  [B-1] A string cell destined for a NUMERIC column is
-                  --  parsed as a number, falling back to missing -- the same
-                  --  shape the numeric branch above already uses for the
-                  --  opposite direction.  Without this the cell would return
-                  --  Val_String into a Col_Numeric column and Coerce_Value
-                  --  would raise Type_Mismatch_Error, which /TYPES= would
-                  --  then surface as a per-cell "import skipped" warning
-                  --  instead of the documented coerce-to-missing.
+                  --  ADR-0027 ("Get_Cell_Value honors Target_Type on its
+                  --  string-producing paths"): a string cell destined for a
+                  --  NUMERIC column is parsed as a number, falling back to
+                  --  missing -- the same shape the numeric branch above
+                  --  already uses for the opposite direction.  Without this
+                  --  the cell would return Val_String into a Col_Numeric
+                  --  column and Coerce_Value would raise
+                  --  Type_Mismatch_Error, which /TYPES= would then surface
+                  --  as a per-cell "import skipped" warning instead of the
+                  --  documented coerce-to-missing.
+                  --
+                  --  The Inf check therefore lives INSIDE this dispatch, not
+                  --  in front of it.  Returning Inf before it ignored
+                  --  Target_Type, so an "Inf" cell in a column declared
+                  --  CHARACTER produced numeric infinity into a Col_String
+                  --  column, Coerce_Value raised, and the generic handler
+                  --  dropped the value with an uncapped legacy warning --
+                  --  the very defect this section exists to remove,
+                  --  surviving on the one path the first fix did not sweep.
                   if Target_Type = Col_String then
                      --  Character target: store the text, Inf included.
                      return (Kind => Val_String,
@@ -146,10 +149,11 @@ package body SData_Core.File_IO.ODF is
                         return (Kind => Val_Numeric, Num_Val => Real'Value (S));
                      exception
                         when Constraint_Error =>
-                           --  [B-2] Same counter, same cap, same wording as
-                           --  the CSV reader's coercion warning (ADR-0020),
-                           --  so one documented rule covers all three
-                           --  formats instead of a spreadsheet carve-out.
+                           --  ADR-0027 ("Warning parity"): same counter, same
+                           --  cap, same wording as the CSV reader's coercion
+                           --  warning (ADR-0020), so one documented rule
+                           --  covers all three formats instead of a
+                           --  spreadsheet carve-out.
                            if Col_Name /= "" then
                               Coercion_Warn_Count := Coercion_Warn_Count + 1;
                               if Coercion_Warn_Count <= Coercion_Warn_Cap then
@@ -247,10 +251,11 @@ package body SData_Core.File_IO.ODF is
              Final_Names  : out Name_Vecs.Vector) is
             N         : constant Natural := Natural (Col_Name_Vec.Length);
             Col_Types : Column_Type_Array (1 .. N) := (others => Col_Numeric);
-            --  [R-A] ODF had no equivalent of CSV's Col_Determined, so
-            --  without this a declared-float column would be silently
-            --  re-inferred to character by row 1 and the declaration would
-            --  appear to do nothing.
+            --  ADR-0027 ("A lock array in ODF and OOXML"): ODF had no
+            --  equivalent of CSV's Col_Determined, so without this a
+            --  declared-float column would be silently re-inferred to
+            --  character by row 1 and the declaration would appear to do
+            --  nothing.
             Col_Locked : Lock_Array (1 .. N) := (others => False);
             Seen      : Name_Vecs.Vector;
          begin
@@ -404,7 +409,8 @@ package body SData_Core.File_IO.ODF is
                   end loop;
                end;
             end loop;
-            --  [B-2] ADR-0020's suppression summary, in CSV's own words.
+            --  ADR-0020's suppression summary, in CSV's own words
+            --  (ADR-0027, "Warning parity").
             if Coercion_Warn_Count > Coercion_Warn_Cap then
                SData_Core.IO.Put_Line_Error
                   ("Warning: " & Q & File_Name & Q & ":" &
