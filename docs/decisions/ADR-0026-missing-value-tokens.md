@@ -2,7 +2,7 @@
 id: ADR-0026
 title: "CSV/ODF/OOXML I/O: user-declared MISSING-value tokens (read-side list, write-side single token; amended: ODF/OOXML read-side support)"
 status: Accepted (amended — see Amendment below)
-date: 2026-09-23
+date: 2026-09-26
 related:
   - ADR-0019-scan-window-any-nonnumeric-forces-character.md
   - ADR-0020-coercion-warning-cap.md
