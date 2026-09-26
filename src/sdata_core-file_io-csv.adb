@@ -142,7 +142,8 @@ package body SData_Core.File_IO.CSV is
                         Skip_Rows      : Natural := 0;
                         Max_Rows       : Natural := 0;
                         Nscan_Rows     : Natural := 0;
-                        Missing_Tokens : String  := "") is
+                        Missing_Tokens : String  := "";
+                        Declared_Types : String  := "") is
       File : Ada.Text_IO.File_Type;
 
       All_Lines       : Line_Vecs.Vector;
@@ -216,6 +217,10 @@ package body SData_Core.File_IO.CSV is
          (Positive, Unbounded_String);
       Missing_Token_List  : Missing_Token_Vecs.Vector;
       Missing_Match_Count : Natural := 0;
+
+      --  ADR-084: /TYPES= declarations, parsed once per call (below, in the
+      --  main body) and applied in Infer_Column_Types before the scan loop.
+      Declared_List : Declared_Vecs.Vector;
 
       function Is_Declared_Missing (F : String) return Boolean is
       begin
@@ -465,6 +470,39 @@ package body SData_Core.File_IO.CSV is
                end loop;
             end if;
 
+            --  ADR-084: apply /TYPES= AFTER the header-suffix pass (so an
+            --  explicit declaration overrides the file's own suffix, with the
+            --  note Apply_Declared_Types emits) and BEFORE the scan loop (so a
+            --  declared column is locked out of inference entirely).  CSV
+            --  needs no new locking concept: Col_Determined is the same lock
+            --  the suffix pass above already sets, now fed from a second
+            --  source.
+            if not Declared_List.Is_Empty then
+               declare
+                  Hdr_Names : Name_Vecs.Vector;
+                  Types_Arr : Column_Type_Array (1 .. N_Hdr);
+                  Locked    : Lock_Array (1 .. N_Hdr);
+               begin
+                  for I in 1 .. N_Hdr loop
+                     Hdr_Names.Append
+                        (To_Unbounded_String
+                            (if Names_From_Header
+                             then Trim (H_Str (H_Fields (I).S .. H_Fields (I).E),
+                                        Ada.Strings.Both)
+                             else "COL" & Trim (I'Img, Ada.Strings.Both)));
+                     Types_Arr (I) := Col_Types (I);
+                  end loop;
+                  Apply_Declared_Types
+                     (Declared_List, Hdr_Names, Types_Arr, Locked, File_Name);
+                  for I in 1 .. N_Hdr loop
+                     Col_Types.Replace_Element (I, Types_Arr (I));
+                     if Locked (I) then
+                        Col_Determined (I) := True;
+                     end if;
+                  end loop;
+               end;
+            end if;
+
             declare
                D_Fields : Field_Vectors.Vector;
             begin
@@ -513,12 +551,17 @@ package body SData_Core.File_IO.CSV is
                               (CSV_Unquote (H_Str (H_Fields (I).S .. H_Fields (I).E)),
                                "COL" & Trim (I'Img, Ada.Strings.Both))
                       else "COL" & Trim (I'Img, Ada.Strings.Both));
+                  --  ADR-084: one shared naming rule -- the final name carries
+                  --  the suffix its TYPE implies.  Behavior-identical to the
+                  --  append-$-if-string logic this replaces for every input
+                  --  that existed before (a $-header is Col_String and keeps
+                  --  its $; a %-header is Col_Integer and keeps its %), but it
+                  --  also handles the case only /TYPES= can create: a DEMOTED
+                  --  column, where the header says CODE$ and the declaration
+                  --  says float, whose name must lose the suffix rather than
+                  --  leave a numeric column called CODE$.
                   Name : constant String :=
-                     (if Col_Types (I) = Col_String
-                         and then (Base_Name'Length = 0
-                                   or else Base_Name (Base_Name'Last) /= '$')
-                      then Base_Name & "$"
-                      else Base_Name);
+                     Final_Column_Name (Base_Name, Col_Types (I));
                begin
                   Warn_If_Duplicate_Name (File_Name, Name, Seen);
                   Col_Names.Append (new String'(Name));
@@ -589,6 +632,7 @@ package body SData_Core.File_IO.CSV is
 
    begin
       Build_Missing_Token_List;
+      Parse_Declared_Types (Declared_Types, Declared_List);
       declare
          UC : constant String := To_Upper (Trim (Charset, Ada.Strings.Both));
       begin

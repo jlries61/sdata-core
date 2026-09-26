@@ -22,7 +22,8 @@ package body SData_Core.File_IO is
                          Skip_Rows      : Natural := 0;
                          Max_Rows       : Natural := 0;
                          Nscan_Rows     : Natural := 0;
-                         Missing_Tokens : String  := "") is
+                         Missing_Tokens : String  := "";
+                         Declared_Types : String  := "") is
       Actual_Fmt : Format_Type := Fmt;
       Ext_Idx    : Natural := 0;
       U_Name     : constant String := To_Upper (File_Name);
@@ -77,7 +78,8 @@ package body SData_Core.File_IO is
       case Actual_Fmt is
          when SData_Core.Config.CSV =>
             Parse_CSV (File_Name, Delimiter, Read_Header, Charset,
-                       Skip_Rows, Max_Rows, Nscan_Rows, Missing_Tokens);
+                       Skip_Rows, Max_Rows, Nscan_Rows, Missing_Tokens,
+                       Declared_Types);
          when SData_Core.Config.ODF =>
             Parse_ODF (File_Name, Sheet_Name, Skip_Rows, Max_Rows);
          when SData_Core.Config.OOXML =>
