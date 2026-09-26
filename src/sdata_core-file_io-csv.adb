@@ -675,8 +675,8 @@ package body SData_Core.File_IO.CSV is
          if Read_Header then
             if not Ada.Text_IO.End_Of_File (File) then
                Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
-               --  ADR-0021 (PD-8) code review round 1, MAJOR-1: this header
-               --  read was the one call site that never routed through
+               --  ADR-0021 (PD-8): this header read was the one call site
+               --  that never routed through
                --  Validate_ASCII (the Skip_Rows and NSCAN loops below both
                --  already did) -- a non-ASCII byte confined to the header
                --  row silently succeeded even under CHARSET=ASCII.  Checked

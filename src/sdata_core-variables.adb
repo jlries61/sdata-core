@@ -1086,12 +1086,12 @@ package body SData_Core.Variables is
                --  syntax once Upper_Base isn't a registered array, so the
                --  notice says so.
                --
-               --  code-reviewer MINOR-1 (2026-09-05): Upper_Base may ALSO
-               --  already be a registered array (from an earlier ARRAY/DIM,
-               --  unrelated to this USE) -- distinct from, and not fixed
-               --  by, this guard. Reporting it as "a scalar variable"
-               --  unconditionally would misdescribe that case; branch on
-               --  Has_Array to say what Upper_Base actually is.
+               --  Upper_Base may ALSO already be a registered array (from an
+               --  earlier ARRAY/DIM, unrelated to this USE) -- distinct
+               --  from, and not fixed by, this guard. Reporting it as "a
+               --  scalar variable" unconditionally would misdescribe that
+               --  case; branch on Has_Array to say what Upper_Base actually
+               --  is.
                if Has_Array (Upper_Base) then
                   SData_Core.IO.Put_Line
                     ("USE: not registering """ & Upper_Base & """ as an array from "

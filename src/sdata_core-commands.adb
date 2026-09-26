@@ -901,13 +901,11 @@ package body SData_Core.Commands is
    --  for no behavioral gain -- "contort that design for no gain", per the R4
    --  refactor's own reasoning (commit c94a1c0, 2026-07-07) when it extracted
    --  those helpers for TRANSPOSE/STATS and explicitly left AGGREGATE alone.
-   --  Re-confirmed 2026-07-24 (milestone audit self-correction, M2-FOWLER-1):
-   --  a proposal to unify all three reshape commands under one generic
-   --  template was withdrawn after full inspection reached this same
-   --  conclusion independently, before finding this prior commit.  See
-   --  ADR-0008 and .ssd/milestones/2026-07-23-post-decomposition-baseline/
-   --  skeptic-before.md for the fuller analysis if this reasoning is ever
-   --  revisited.
+   --  Re-confirmed 2026-07-24: a proposal to unify all three reshape
+   --  commands under one generic template was withdrawn after full
+   --  inspection reached this same conclusion independently, before
+   --  finding this prior commit.  See ADR-0008 for the fuller analysis if
+   --  this reasoning is ever revisited.
    procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
 
       package Vars renames SData_Core.Variables;
