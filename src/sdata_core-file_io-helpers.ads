@@ -94,6 +94,33 @@ private package SData_Core.File_IO.Helpers is
    function Has_Formulas_XML (Temp_File : String; Is_ODF : Boolean) return Boolean;
    function Convert_Via_LibreOffice (File_Name : String; Fmt : Format_Type) return String;
 
+   --  ADR-0026 (amended): USE /MISSING=, the declared-missing-value token
+   --  list.  Lifted out of Parse_CSV (where it was private) so ODF/OOXML can
+   --  share the identical parse-and-match behavior rather than each growing
+   --  their own copy -- the same discipline /TYPES= already established
+   --  above for Declared_Vecs/Parse_Declared_Types/Apply_Declared_Types.
+   package Missing_Token_Vecs is new Ada.Containers.Vectors
+      (Positive, Unbounded_String);
+
+   --  Split Spec on "," -- deliberately hardcoded, independent of any
+   --  reader's own field delimiter: the MISSING= list's own separator is a
+   --  fixed part of its syntax, not inherited from the input file's format.
+   --  Reuses Split_Indices/CSV_Unquote -- the same quote-aware splitter a
+   --  CSV row's own fields already go through -- so a token containing a
+   --  literal comma can be expressed by quoting it (MISSING="NA,""a,b""").
+   --  Each token is then trimmed of surrounding whitespace, the same
+   --  treatment a header column name already gets.  Spec = "" (the default)
+   --  yields an empty Tokens vector.
+   procedure Parse_Missing_Tokens
+      (Spec   : String;
+       Tokens : out Missing_Token_Vecs.Vector);
+
+   --  Exact, untrimmed, case-sensitive match against F -- a field/cell's own
+   --  text is compared as-is; only the token list itself was trimmed above.
+   function Is_Declared_Missing
+      (Tokens : Missing_Token_Vecs.Vector;
+       F      : String) return Boolean;
+
    --  ADR-0018: warns once per duplicate column name (design.md sec4.2's
    --  documented "last occurrence wins, warning issued" -- the warning half
    --  was never implemented for any of CSV/ODF/OOXML). Final_Name must be

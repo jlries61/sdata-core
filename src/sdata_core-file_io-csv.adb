@@ -213,55 +213,16 @@ package body SData_Core.File_IO.CSV is
       --  loop runs only while a column's type is undetermined, and the per-row
       --  load guards the call with Col_Types (...) /= Col_String.  A character
       --  column stores text as text, declared token or not.
-      package Missing_Token_Vecs is new Ada.Containers.Vectors
-         (Positive, Unbounded_String);
+      --
+      --  ADR-0026 (amended): the token list and its match predicate now live
+      --  in File_IO.Helpers, shared with ODF/OOXML.  Missing_Token_List is
+      --  populated once, below in the main body, via Parse_Missing_Tokens.
       Missing_Token_List  : Missing_Token_Vecs.Vector;
       Missing_Match_Count : Natural := 0;
 
       --  ADR-084: /TYPES= declarations, parsed once per call (below, in the
       --  main body) and applied in Infer_Column_Types before the scan loop.
       Declared_List : Declared_Vecs.Vector;
-
-      function Is_Declared_Missing (F : String) return Boolean is
-      begin
-         for Tok of Missing_Token_List loop
-            if F = To_String (Tok) then
-               return True;
-            end if;
-         end loop;
-         return False;
-      end Is_Declared_Missing;
-
-      --  Split Missing_Tokens on "," -- deliberately hardcoded, independent
-      --  of Delimiter: the MISSING= list's own separator is a fixed part of
-      --  its syntax, not inherited from the input file's field delimiter
-      --  (a pipe-delimited file's /DLM="|" must not change how /MISSING=
-      --  "NA,N/A" is split).  Reuses Split_Indices/CSV_Unquote -- the same
-      --  quote-aware splitter a CSV row's own fields go through -- so a
-      --  token containing a literal comma can be expressed by quoting it,
-      --  e.g. MISSING="NA,""a,b""", with no separate quoting dialect to
-      --  document.  Missing_Tokens = "" (the default) yields zero tokens,
-      --  which is what makes "option omitted" and "option given as an
-      --  empty string" both behave exactly like today with no special case.
-      procedure Build_Missing_Token_List is
-         Idx_Fields : SData_Core.CSV.Field_Vectors.Vector;
-      begin
-         if Missing_Tokens'Length = 0 then
-            return;
-         end if;
-         Split_Indices (Missing_Tokens, ",", Idx_Fields);
-         for FP of Idx_Fields loop
-            declare
-               Raw : constant String := Missing_Tokens (FP.S .. FP.E);
-               Tok : constant String :=
-                  Trim (CSV_Unquote (Raw), Ada.Strings.Both);
-            begin
-               if Tok'Length > 0 then
-                  Missing_Token_List.Append (To_Unbounded_String (Tok));
-               end if;
-            end;
-         end loop;
-      end Build_Missing_Token_List;
 
       procedure Process_Line_Direct (Line : String) is
          DLen         : constant Positive :=
@@ -310,7 +271,7 @@ package body SData_Core.File_IO.CSV is
                      if F = "" or else F = "." then
                         Val := (Kind => Val_Missing);
                      elsif Col_Types (Field_Count) /= Col_String
-                        and then Is_Declared_Missing (F)
+                        and then Is_Declared_Missing (Missing_Token_List, F)
                      then
                         --  A declared MISSING= token is expected, not an
                         --  anomaly -- no per-value warning (unlike the
@@ -521,7 +482,7 @@ package body SData_Core.File_IO.CSV is
                                     (D_Str (D_Fields (I).S .. D_Fields (I).E));
                            begin
                               if F /= "" and then F /= "."
-                                 and then not Is_Declared_Missing (F)
+                                 and then not Is_Declared_Missing (Missing_Token_List, F)
                               then
                                  if not Is_Numeric_Field (F) then
                                     Col_Types.Replace_Element (I, Col_String);
@@ -631,7 +592,7 @@ package body SData_Core.File_IO.CSV is
       end Load_Data_Rows;
 
    begin
-      Build_Missing_Token_List;
+      Parse_Missing_Tokens (Missing_Tokens, Missing_Token_List);
       Parse_Declared_Types (Declared_Types, Declared_List);
       declare
          UC : constant String := To_Upper (Trim (Charset, Ada.Strings.Both));

@@ -10,7 +10,8 @@ package SData_Core.File_IO.OOXML is
                           Sheet_Name     : String  := "";
                           Skip_Rows      : Natural := 0;
                           Max_Rows       : Natural := 0;
-                          Declared_Types : String  := "");
+                          Declared_Types : String  := "";
+                          Missing_Tokens : String  := "");
 
    procedure Write_OOXML (File_Name     : String;
                           Sheet_Name    : String := "Sheet1";

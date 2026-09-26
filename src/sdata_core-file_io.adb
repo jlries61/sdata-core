@@ -82,10 +82,10 @@ package body SData_Core.File_IO is
                        Declared_Types);
          when SData_Core.Config.ODF =>
             Parse_ODF (File_Name, Sheet_Name, Skip_Rows, Max_Rows,
-                       Declared_Types);
+                       Declared_Types, Missing_Tokens);
          when SData_Core.Config.OOXML =>
             Parse_OOXML (File_Name, Sheet_Name, Skip_Rows, Max_Rows,
-                         Declared_Types);
+                         Declared_Types, Missing_Tokens);
       end case;
 
       Put_Line ("Dataset opened: " & File_Name);

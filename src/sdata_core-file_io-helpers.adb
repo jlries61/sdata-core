@@ -11,8 +11,51 @@ with DOM.Core.Nodes;
 with Input_Sources.Strings;
 with Unicode.CES.Utf8;
 with SData_Core.IO;
+with SData_Core.CSV; use SData_Core.CSV;
 
 package body SData_Core.File_IO.Helpers is
+
+   ---------------------------------------------------------------------------
+   --  ADR-0026 (amended): USE /MISSING= support, shared across all three
+   --  readers.  Moved out of Parse_CSV, where this was private, unchanged in
+   --  substance.
+   ---------------------------------------------------------------------------
+
+   procedure Parse_Missing_Tokens
+      (Spec   : String;
+       Tokens : out Missing_Token_Vecs.Vector)
+   is
+      Idx_Fields : SData_Core.CSV.Field_Vectors.Vector;
+   begin
+      if Spec'Length = 0 then
+         return;
+      end if;
+      Split_Indices (Spec, ",", Idx_Fields);
+      for FP of Idx_Fields loop
+         declare
+            Raw : constant String := Spec (FP.S .. FP.E);
+            Tok : constant String :=
+               Trim (CSV_Unquote (Raw), Ada.Strings.Both);
+         begin
+            if Tok'Length > 0 then
+               Tokens.Append (To_Unbounded_String (Tok));
+            end if;
+         end;
+      end loop;
+   end Parse_Missing_Tokens;
+
+   function Is_Declared_Missing
+      (Tokens : Missing_Token_Vecs.Vector;
+       F      : String) return Boolean
+   is
+   begin
+      for Tok of Tokens loop
+         if F = To_String (Tok) then
+            return True;
+         end if;
+      end loop;
+      return False;
+   end Is_Declared_Missing;
 
    ---------------------------------------------------------------------------
    --  ADR-084 / ADR-0027: USE /TYPES= support.
