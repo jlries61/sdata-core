@@ -70,8 +70,6 @@ Writes `tests/spill_schema_benchmark_results.csv`.
 
 ## Rationale
 
-Per audit Finding Beck B1 from
-`.ssd/milestones/2026-05-22-post-extraction-baseline/skeptic-before.md`,
 sdata-core has testable pure seams that previously relied on the consumer
 suites for verification. A full `alr build` of sdata-core takes minutes
 on a cold cache; bouncing through both consumer suites for a one-line

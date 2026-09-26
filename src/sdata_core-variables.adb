@@ -60,7 +60,7 @@ package body SData_Core.Variables is
            & "temporary variable";
       end if;
 
-      --  2026-08-13 re-audit PC-2 / ADR-0012: extends the storage-class hard
+      --  ADR-0012: extends the storage-class hard
       --  error above to the scalar/array boundary. Array_Symbols is a wholly
       --  separate namespace from Temp_Symbols/PDV, so without this check
       --  SET on an existing array name silently created a same-named
@@ -108,7 +108,7 @@ package body SData_Core.Variables is
            & "convert it to a permanent variable";
       end if;
 
-      --  2026-08-13 re-audit PC-2 / ADR-0012: see the matching check in
+      --  ADR-0012: see the matching check in
       --  Set_Temporary above for the full rationale.
       if Array_Symbols.Contains (Upper_Name) then
          raise Script_Error with
@@ -657,7 +657,7 @@ package body SData_Core.Variables is
          raise Program_Error with "DIM array lower bound " & Integer'Image (Start_Idx) & " cannot be greater than upper bound " & Integer'Image (End_Idx);
       end if;
 
-      --  2026-08-13 re-audit PC-2 / ADR-0012: symmetric check to the ones in
+      --  ADR-0012: symmetric check to the ones in
       --  Set_Temporary/Set_Permanent above -- DIM on a name that already
       --  exists as a scalar (permanent column or genuine temporary) must
       --  reject rather than silently create a shadow array coexisting with

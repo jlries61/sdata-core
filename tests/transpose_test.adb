@@ -9,10 +9,8 @@
 --    3. Validation errors (#4 unknown /KEEP variable, #5 unknown /ID
 --       column) raise Script_Error and abort before mutating the table.
 --
---  Plain inline assertions; no framework. Fills the gap noted at
---  .ssd/milestones/2026-07-23-post-decomposition-baseline/skeptic-before.md
---  (M2-BECK-1): TRANSPOSE is a direct sibling of AGGREGATE/STATS but,
---  unlike them, had no in-crate driver.
+--  Plain inline assertions; no framework. TRANSPOSE is a direct sibling
+--  of AGGREGATE/STATS but, unlike them, had no in-crate driver.
 
 with Ada.Text_IO;              use Ada.Text_IO;
 with Ada.Exceptions;
