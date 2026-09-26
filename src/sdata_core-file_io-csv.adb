@@ -207,8 +207,8 @@ package body SData_Core.File_IO.CSV is
       --  whitespace sensitivity to data comparison, only to how the token
       --  list itself is written.
       --
-      --  SCOPE: numeric columns only (user ruling 2026-09-25 on code review
-      --  round 1, MAJOR-1).  Both call sites are therefore reached only for a
+      --  SCOPE: numeric columns only (ADR-0026, "Numeric columns only",
+      --  amended 2026-09-25).  Both call sites are therefore reached only for a
       --  column that is numeric or still a numeric candidate: the scan-window
       --  loop runs only while a column's type is undetermined, and the per-row
       --  load guards the call with Col_Types (...) /= Col_String.  A character
@@ -318,8 +318,8 @@ package body SData_Core.File_IO.CSV is
                         --  summary count printed once at the end of the load
                         --  (Load_Data_Rows, below).
                         --
-                        --  NUMERIC COLUMNS ONLY (code review round 1, MAJOR-1,
-                        --  user ruling 2026-09-25).  A character column stores
+                        --  NUMERIC COLUMNS ONLY (ADR-0026, "Numeric columns
+                        --  only", amended 2026-09-25).  A character column stores
                         --  text as text: a declared token that also happens to
                         --  be a legitimate string value there (the textbook
                         --  case is "NA" as Nebraska's state code in a CODE$
