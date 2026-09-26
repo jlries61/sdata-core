@@ -1,14 +1,18 @@
 ---
 id: ADR-0026
-title: "CSV/ODF/OOXML I/O: user-declared MISSING-value tokens (read-side list, write-side single token)"
-status: Accepted
+title: "CSV/ODF/OOXML I/O: user-declared MISSING-value tokens (read-side list, write-side single token; amended: ODF/OOXML read-side support)"
+status: Accepted (amended — see Amendment below)
 date: 2026-09-23
 related:
   - ADR-0019-scan-window-any-nonnumeric-forces-character.md
   - ADR-0020-coercion-warning-cap.md
+  - ADR-0027-declared-column-types.md
   - ../../../sdata/doc/adrs.md (sdata ADR-083 -- the language-surface decision this implements)
   - ../../../sdata/.ssd/features/missing-value-tokens/01-architect.md
   - ../../../sdata/.ssd/features/missing-value-tokens/02-systems-designer.md
+  - ../../../sdata/.ssd/features/missing-spreadsheet-read/00-brief.md
+  - ../../../sdata/.ssd/features/missing-spreadsheet-read/01-architect.md
+  - ../../../sdata/.ssd/features/missing-spreadsheet-read/02-systems-designer.md
 ---
 
 # ADR-0026: CSV/ODF/OOXML I/O gains user-declared MISSING-value tokens
@@ -153,3 +157,45 @@ concept, treating any declared-token match on read as missing regardless of row 
 not rejected outright; flagged as a candidate follow-up once their own type-inference gap (row-1-only,
 distinct from CSV's NSCAN-window rule) is itself scoped and audited, per ADR-0019's own unresolved
 "Alternatives Rejected" item.
+
+## Amendment (2026-09-26): ODF/OOXML read-side support
+
+The precondition this ADR's original Context named — "a reader whose inference story hasn't been
+scoped" — is closed. ADR-0027 (`/TYPES=`) subsequently gave both spreadsheet readers exactly the
+machinery this deferral was waiting on: `Col_Locked` (a lock equivalent to CSV's `Col_Determined`) and
+a `Target_Type`-aware `Get_Cell_Value`. `Parse_ODF` and `Parse_OOXML` now accept `Missing_Tokens`,
+closing the "Harder / disclosed limitation" above: `/MISSING=` has an effect on spreadsheet input.
+
+**Decision (amendment):** the read-side token-list parser and match predicate, previously private to
+`Parse_CSV`, move into `File_IO.Helpers` as `Missing_Token_Vecs` / `Parse_Missing_Tokens` /
+`Is_Declared_Missing` — unchanged in substance, shared by all three readers, mirroring the exact
+discipline ADR-0027 already established for `Declared_Vecs`/`Parse_Declared_Types`. Both spreadsheet
+readers' `Get_Cell_Value` gain a `Check_Missing : Boolean := False` parameter: the declared-missing
+check sits immediately after the existing `Inf` resolution and before the `Real'Value` coercion
+attempt, so a match never emits a coercion warning, and — being unconditional on `Coerce_To_Target` —
+applies equally to the row-1 schema probe, which is what makes a declared token never force the column
+to character there, the direct spreadsheet analogue of the CSV scan-window rule this ADR already
+established. The one-summary-line counter is incremented only when `Col_Name /= ""`, the exact
+convention `Coercion_Warn_Count` already uses to tell the schema probe apart from the real per-cell
+load, so a row visited by both (row 1, on both readers) is not double-counted.
+
+**Finding surfaced during design review, fixed before implementation:** `Get_Cell_Value`'s original
+proposed check was unconditional across every caller. OOXML's `Collect_OOXML_Headers` reuses
+`Get_Cell_Value` to read the **header** row — a caller neither this ADR's original scope nor ADR-0027's
+own work had reason to consider, since neither touched header-name collection. An unconditional check
+would have let a header cell whose text equals a declared token (`NA`, this ADR's own running example)
+be silently replaced with a synthetic `COLn` name. `Check_Missing` defaults to `False` specifically so
+`Collect_OOXML_Headers` is unaffected; every other call site in both readers passes `True` explicitly.
+ODF's own header reader never calls `Get_Cell_Value` at all and was never at risk, but gained the same
+parameter anyway so the two readers' `Get_Cell_Value` signatures stay identical in shape — a future
+caller, in either reader, inherits the safe default automatically rather than needing to rediscover this
+finding. Regression test: a column literally named `NA`, `/MISSING="NA"` declared for a different,
+numeric column in the same file; verified as a genuine catch by temporarily reintroducing the
+unconditional check and confirming the OOXML case fails (renames the column `COL1`) before reverting.
+
+**Consequences (amendment):** the "Harder / disclosed limitation" bullet above is closed for the
+declared-token-recognition half; the "no per-value warning" and "one-summary-line visibility" properties
+now hold identically across all three formats. Scope is otherwise unchanged: numeric columns only,
+same wording, same non-per-value-warning behavior, same composition rule with `/TYPES=` (a column
+declared character via either mechanism stores a declared token as ordinary text, symmetric with the
+numeric case, since `Target_Type = Col_String` returns before `Check_Missing` is ever consulted).
