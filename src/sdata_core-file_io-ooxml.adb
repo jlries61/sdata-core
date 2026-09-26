@@ -32,7 +32,8 @@ package body SData_Core.File_IO.OOXML is
                           Sheet_Name     : String  := "";
                           Skip_Rows      : Natural := 0;
                           Max_Rows       : Natural := 0;
-                          Declared_Types : String  := "") is
+                          Declared_Types : String  := "";
+                          Missing_Tokens : String  := "") is
       use DOM.Core;
       use DOM.Core.Nodes;
       use DOM.Core.Elements;
@@ -49,6 +50,13 @@ package body SData_Core.File_IO.OOXML is
 
       --  ADR-084 / ADR-0027: /TYPES= declarations, parsed once per call.
       Declared_List : Declared_Vecs.Vector;
+
+      --  ADR-0026 (amended): /MISSING= declared tokens, parsed once per
+      --  call.  Missing_Match_Count is incremented only at the real
+      --  per-cell load site (Col_Name /= ""), mirroring Coercion_Warn_Count
+      --  below -- see Get_Cell_Value's Check_Missing parameter.
+      Missing_Tokens_Vec  : Missing_Token_Vecs.Vector;
+      Missing_Match_Count : Natural := 0;
 
       --  ADR-0020 parity (ADR-0027, "Warning parity"): same counter, same
       --  cap, same wording as the CSV reader, so the documented rule is one
@@ -235,7 +243,19 @@ package body SData_Core.File_IO.OOXML is
              --  never see Val_String and a text column would come out numeric.
              --  Defaulting to False keeps every non-loading caller on exactly
              --  its pre-existing behavior.
-             Coerce_To_Target : Boolean := False) return Value
+             Coerce_To_Target : Boolean := False;
+             --  ADR-0026 (amended): a declared-missing check is a DIFFERENT
+             --  opt-in from Coerce_To_Target -- the row-1 schema probe wants
+             --  it (so a declared token never forces a column to character)
+             --  even though it does NOT want coercion. Collect_OOXML_Headers
+             --  (the header-name collector, below) is the one caller in
+             --  either reader that MUST NOT see this: it reads the HEADER
+             --  row, and a header cell whose text happens to equal a
+             --  declared token would otherwise be silently replaced with a
+             --  synthetic "COLn" name (systems-designer finding B-1). It is
+             --  therefore left on this False default; every other caller in
+             --  both readers passes True.
+             Check_Missing    : Boolean := False) return Value
          is
             --  ADR-0027 ("Get_Cell_Value honors Target_Type on its
             --  string-producing paths"): ONE place decides what a string
@@ -257,6 +277,21 @@ package body SData_Core.File_IO.OOXML is
                   return (Kind => Val_String, Str_Val => To_Unbounded_String (S));
                end if;
                if Inf.Kind /= Val_Missing then return Inf; end if;
+               --  ADR-0026 (amended): a declared MISSING= token is expected,
+               --  not an anomaly -- checked before the Real'Value attempt
+               --  below, so a match never emits a coercion warning, exactly
+               --  like CSV's own per-row load. Check_Missing is False only
+               --  for Collect_OOXML_Headers (see the parameter comment
+               --  above) and True everywhere else, per systems-designer
+               --  finding B-1.
+               if Check_Missing
+                  and then Is_Declared_Missing (Missing_Tokens_Vec, S)
+               then
+                  if Col_Name /= "" then
+                     Missing_Match_Count := Missing_Match_Count + 1;
+                  end if;
+                  return (Kind => Val_Missing);
+               end if;
                if Coerce_To_Target
                   and then (Target_Type = Col_Numeric
                             or else Target_Type = Col_Integer)
@@ -395,7 +430,9 @@ package body SData_Core.File_IO.OOXML is
                      exit when Col_Idx > N;
                      if not Col_Locked (Col_Idx)
                         and then Col_Types (Col_Idx) /= Col_Integer
-                        and then Get_Cell_Value (Item (Data_Cells, J)).Kind
+                        and then Get_Cell_Value
+                                    (Item (Data_Cells, J),
+                                     Check_Missing => True).Kind
                                  = Val_String
                      then
                         Col_Types (Col_Idx) := Col_String;
@@ -462,7 +499,8 @@ package body SData_Core.File_IO.OOXML is
                                      Get_Column_Type (Col_Name),
                                      Col_Name => Col_Name,
                                      Row_No   => Rows_Written,
-                                     Coerce_To_Target => True);
+                                     Coerce_To_Target => True,
+                                     Check_Missing    => True);
                            begin
                               if V.Kind = Val_Numeric
                                  and then Get_Column_Type (Col_Name)
@@ -504,6 +542,16 @@ package body SData_Core.File_IO.OOXML is
                    " additional non-numeric-value warning(s) suppressed (" &
                    Trim (Natural'Image (Coercion_Warn_Cap), Ada.Strings.Left) &
                    " shown," & Natural'Image (Coercion_Warn_Count) & " total)");
+            end if;
+            --  ADR-0026 (amended): one summary line if any value matched a
+            --  declared MISSING= token, in CSV's own words -- not a
+            --  per-value warning (a declared token is expected, not an
+            --  anomaly), but not silent either.
+            if Missing_Match_Count > 0 then
+               SData_Core.IO.Put_Line_Error
+                  ("Note: " & Q & File_Name & Q & ":" &
+                   Natural'Image (Missing_Match_Count) &
+                   " value(s) matched a declared MISSING token");
             end if;
          end Load_OOXML_Data_Rows;
 
@@ -578,6 +626,7 @@ package body SData_Core.File_IO.OOXML is
       Zip_Info : Zip.Zip_Info;
    begin
       Parse_Declared_Types (Declared_Types, Declared_List);
+      Parse_Missing_Tokens (Missing_Tokens, Missing_Tokens_Vec);
       Zip.Load (Zip_Info, File_Name);
       Load_Shared_Strings (Zip_Info);
       declare
