@@ -14,9 +14,7 @@
 --  command seam (schema building, group scanning, error handling), not
 --  re-verifying aggregate-function math.
 --
---  Plain inline assertions; no framework. Fills the gap noted at
---  .ssd/milestones/2026-07-23-post-decomposition-baseline/skeptic-before.md
---  (M2-BECK-1, corrected mid-remediation): Execute_STATS is a direct
+--  Plain inline assertions; no framework. Execute_STATS is a direct
 --  sibling of Execute_AGGREGATE/Execute_TRANSPOSE but, unlike AGGREGATE,
 --  had no in-crate driver -- statistics_tests.adb covers the underlying
 --  math, not the command procedure itself.

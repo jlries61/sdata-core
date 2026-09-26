@@ -599,9 +599,9 @@ package body SData_Core.Commands is
    is
       Keep : Name_Sets.Set;
    begin
-      --  2026-08-13 re-audit PC-4: expand any array base name into its
-      --  actual member column names before building Keep, so an array
-      --  mentioned by name (e.g. "KEEP Q" for array Q) retains all of
+      --  Expand any array base name into its actual member column names
+      --  before building Keep, so an array mentioned by name (e.g. "KEEP
+      --  Q" for array Q) retains all of
       --  Q's elements per design.md §3.4 ("If virtual array mentioned in
       --  KEEP, all constituent variables are retained" -- the same
       --  member-level treatment applies to real arrays, which have no
@@ -634,7 +634,7 @@ package body SData_Core.Commands is
       --  nothing ever checked whether the requested names existed at all.
       --  Checked before the drop loop so the statement is atomic: either
       --  every name is valid and KEEP proceeds, or nothing is dropped.
-      --  2026-08-13 re-audit PC-4: validated against the *expanded* Keep
+      --  Validated against the *expanded* Keep
       --  set now, since an array base name (e.g. "Q") is never itself a
       --  table column -- Has_Column("Q") would spuriously fail even though
       --  "KEEP Q" is entirely valid for a registered array Q.
@@ -673,9 +673,9 @@ package body SData_Core.Commands is
    procedure Execute_DROP
      (Names : SData_Core.Table.Name_Vectors.Vector)
    is
-      --  2026-08-13 re-audit PC-4: expand any array base name into its
-      --  actual member column names, matching Execute_KEEP above. Unlike
-      --  KEEP, a *temporary* array's elements live in Temp_Symbols, not
+      --  Expand any array base name into its actual member column names,
+      --  matching Execute_KEEP above. Unlike KEEP, a *temporary* array's
+      --  elements live in Temp_Symbols, not
       --  Table columns (Dim_Array never creates a Table column for a
       --  Is_Temporary real array; see the Existing_Def.Is_Temporary branch
       --  in Dim_Array's own resize logic) -- Expand_Array_Names still
