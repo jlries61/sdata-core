@@ -41,7 +41,7 @@ package body SData_Core.File_IO.ODF is
       --  ADR-084 / ADR-0027: /TYPES= declarations, parsed once per call.
       Declared_List : Declared_Vecs.Vector;
 
-      --  ADR-0020 parity (02-systems-designer.md B-2): a declared numeric
+      --  ADR-0020 parity (ADR-0027, "Warning parity"): a declared numeric
       --  column over text cells coerces to missing, and those warnings are
       --  capped exactly as CSV's are -- same counter shape, same cap, same
       --  message wording -- so the user-visible rule really is one rule
