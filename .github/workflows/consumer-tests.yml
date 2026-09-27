@@ -105,7 +105,19 @@ jobs:
           # /TYPES= was in flight (confirmed: PR #147's "sdata make check"
           # job ran against that exact pin and passed).  Not load-bearing;
           # routine currency bump.
-          ref: v0.36.0
+          #
+          # v0.37.0 adds no new syntax -- USE /MISSING= already existed --
+          # but its behavior changes: ODF/OOXML input now actually honors
+          # declared tokens instead of silently ignoring them (sdata-core
+          # ADR-0026, amended; PR #153).  Same shape as v0.35.0/v0.36.0's
+          # notes above: Parse_ODF/Parse_OOXML's new Missing_Tokens parameter
+          # defaults to "", so the PREVIOUS pin (v0.36.0) also built and
+          # passed against this crate's main while the change was in flight
+          # (confirmed: PR #153's own "sdata make check" job ran against that
+          # exact pin and passed). Get_Cell_Value's new Check_Missing
+          # parameter is private to this crate, not part of the consumer-
+          # visible surface at all. Not load-bearing; routine currency bump.
+          ref: v0.37.0
           path: sdata
 
       - name: Set up Alire
