@@ -40,7 +40,14 @@ package body SData_Core.IO is
          begin
             Ada.Text_IO.Get_Line (Dummy, Last);
          exception
-            when others => null;
+            --  End_Error is the one expected condition here: the operator
+            --  sends EOF (Ctrl-D) at the prompt instead of pressing Enter.
+            --  Treated the same as Enter -- continue paging -- matching the
+            --  prior behavior for this specific case. Anything else
+            --  (Storage_Error, Program_Error, Device_Error, ...) propagates
+            --  rather than being silently swallowed; a bare `others => null`
+            --  here previously masked those too (audit finding, 2026-09-26).
+            when Ada.Text_IO.End_Error => null;
          end;
          Lines_Printed := 0;
       end if;
