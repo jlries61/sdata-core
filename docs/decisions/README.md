@@ -71,6 +71,8 @@ directly, is common, not exceptional.
 | [ADR-0025](ADR-0025-use-time-array-collision-auto-undefine.md) | USE/reshape-time column load auto-undefines a colliding pre-existing array registration, instead of silently shadowing it | Accepted | 2026-09-05 |
 | [ADR-0026](ADR-0026-missing-value-tokens.md) | CSV/ODF/OOXML I/O: user-declared MISSING-value tokens (read-side list, write-side single token; amended: ODF/OOXML read-side support) | Accepted (amended) | 2026-09-26 |
 | [ADR-0027](ADR-0027-declared-column-types.md) | Declared column types (USE /TYPES=): one shared applier, a lock in every reader, and warning parity across formats | Accepted | 2026-09-25 |
+| [ADR-0028](ADR-0028-hashed-set-duplicate-column-check.md) | Hashed-set membership instead of linear scan for duplicate-column-name detection (fixes O(n^2) header pass, sdata-core#156) | Accepted | 2026-10-08 |
+| [ADR-0029](ADR-0029-amortized-column-cursor-cache-append.md) | Amortize Add_Column's cursor-cache maintenance instead of a full rebuild on every insert (second, independent O(n^2) found verifying ADR-0028, sdata-core#156) | Accepted | 2026-10-08 |
 
 ## Numbering
 

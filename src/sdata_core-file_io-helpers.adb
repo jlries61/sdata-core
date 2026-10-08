@@ -500,19 +500,20 @@ package body SData_Core.File_IO.Helpers is
    procedure Warn_If_Duplicate_Name
       (File_Name  : String;
        Final_Name : String;
-       Seen       : in out Name_Vecs.Vector)
+       Seen       : in out Name_Sets.Set)
    is
       Upper_Name : constant String := To_Upper (Final_Name);
    begin
-      for Prior of Seen loop
-         if To_Upper (To_String (Prior)) = Upper_Name then
-            SData_Core.IO.Put_Line_Error
-               ("Warning: """ & File_Name & """, duplicate column name """ &
-                Final_Name & """ -- last occurrence wins");
-            exit;
-         end if;
-      end loop;
-      Seen.Append (To_Unbounded_String (Final_Name));
+      if Seen.Contains (Upper_Name) then
+         SData_Core.IO.Put_Line_Error
+            ("Warning: """ & File_Name & """, duplicate column name """ &
+             Final_Name & """ -- last occurrence wins");
+      else
+         --  ADR-0028: Insert only when genuinely new -- Set.Insert on an
+         --  already-present element raises Constraint_Error, unlike the
+         --  old Vector.Append, which silently duplicated harmlessly.
+         Seen.Insert (Upper_Name);
+      end if;
    end Warn_If_Duplicate_Name;
 
 end SData_Core.File_IO.Helpers;

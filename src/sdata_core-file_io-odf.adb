@@ -293,7 +293,7 @@ package body SData_Core.File_IO.ODF is
             --  character by row 1 and the declaration would appear to do
             --  nothing.
             Col_Locked : Lock_Array (1 .. N) := (others => False);
-            Seen      : Name_Vecs.Vector;
+            Seen      : Name_Sets.Set;
          begin
             Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
             Apply_Declared_Types
