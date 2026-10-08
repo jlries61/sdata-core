@@ -414,7 +414,7 @@ package body SData_Core.File_IO.OOXML is
             --  ADR-0027 ("A lock array in ODF and OOXML"): OOXML had no
             --  equivalent of CSV's Col_Determined.
             Col_Locked : Lock_Array (1 .. N) := (others => False);
-            Seen      : Name_Vecs.Vector;
+            Seen      : Name_Sets.Set;
          begin
             Apply_Name_Suffix_Types (Col_Name_Vec, Col_Types);
             Apply_Declared_Types

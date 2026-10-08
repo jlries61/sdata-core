@@ -3,6 +3,8 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with Ada.Containers.Vectors;
+with Ada.Containers.Indefinite_Hashed_Sets;
+with Ada.Strings.Hash;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with DOM.Core;
 with DOM.Readers;
@@ -15,6 +17,15 @@ private package SData_Core.File_IO.Helpers is
 
    package Name_Vecs is new Ada.Containers.Vectors (Positive, Unbounded_String);
    type Column_Type_Array is array (Positive range <>) of Column_Type;
+
+   --  ADR-0028: O(1)-amortized duplicate-name membership test for
+   --  Warn_If_Duplicate_Name, replacing an O(n) linear scan. Names are
+   --  stored upper-cased at insertion (once), not re-uppercased on every
+   --  comparison.
+   package Name_Sets is new Ada.Containers.Indefinite_Hashed_Sets
+      (Element_Type        => String,
+       Hash                => Ada.Strings.Hash,
+       Equivalent_Elements => "=");
 
    --  XML reader hardened against XXE (external-entity injection).  XML/Ada
    --  opens external entities -- e.g. <!ENTITY x SYSTEM "file:///etc/passwd">
@@ -134,6 +145,6 @@ private package SData_Core.File_IO.Helpers is
    procedure Warn_If_Duplicate_Name
       (File_Name  : String;
        Final_Name : String;
-       Seen       : in out Name_Vecs.Vector);
+       Seen       : in out Name_Sets.Set);
 
 end SData_Core.File_IO.Helpers;

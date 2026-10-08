@@ -66,6 +66,7 @@ package body SData_Core.Table is
    procedure Add_Column (Name : String; Col_Type : Column_Type) is
       Key : constant Columns.Column_Name := To_Column_Name (Name);
       New_Col : Column;
+      Capacity_Before : constant Ada.Containers.Count_Type := Data_Table.Capacity;
    begin
       if Data_Table.Contains (Key) then
          return;
@@ -82,10 +83,28 @@ package body SData_Core.Table is
       Data_Table.Insert (Key, New_Col);
       Column_Order.Append (Key);
 
-      --  Schema changed: invalidate segment cache and rebuild cursor cache.
-      --  Insert may have triggered a rehash, invalidating all prior cursors.
+      --  Schema changed: invalidate segment cache.
       Store.Clear_Cache;
-      Rebuild_Column_Cache;
+
+      --  ADR-0029: Insert only invalidates every prior cursor in
+      --  Column_Cursor_Cache when it actually rehashes (grows the map's
+      --  bucket array) -- Capacity changing is exactly that signal, and
+      --  Indefinite_Hashed_Maps.Capacity never shrinks on its own, so a
+      --  changed Capacity can only mean "grew." Loading N columns one at a
+      --  time otherwise paid an unconditional O(current size)
+      --  Rebuild_Column_Cache on every single call -- O(n^2) total for a
+      --  file with n columns, invisible below a few hundred but the
+      --  dominant cost on wide files (sdata-core#156). Appending just the
+      --  new cursor in the common (no-rehash) case makes bulk column
+      --  loading O(n) amortized: at most O(log n) rehashes occur across n
+      --  inserts (geometric bucket-array growth), each costing O(current
+      --  size) to rebuild, summing to O(n) total -- the same amortized
+      --  argument that makes a growable array's Append O(1).
+      if Data_Table.Capacity /= Capacity_Before then
+         Rebuild_Column_Cache;
+      else
+         Column_Cursor_Cache.Append (Data_Table.Find (Key));
+      end if;
    end Add_Column;
 
    ----------------
@@ -623,6 +642,8 @@ package body SData_Core.Table is
      (Name : String; Col_Type : Column_Type; From_Missing : Boolean := False) is
       Key : constant Columns.Column_Name := To_Column_Name (Name);
       New_Col : Column;
+      Capacity_Before : constant Ada.Containers.Count_Type :=
+         Output_Data_Table.Capacity;
    begin
       if Output_Data_Table.Contains (Key) then return; end if;
       New_Col.Name := Key;
@@ -635,8 +656,26 @@ package body SData_Core.Table is
 
       Output_Data_Table.Insert (Key, New_Col);
       Output_Column_Order.Append (Key);
-      --  Insert may have triggered a rehash; rebuild output cursor cache.
-      Rebuild_Output_Cache;
+
+      --  ADR-0029 (amendment): same fix as Add_Column, and for the same
+      --  reason it turned out to matter here too -- Flush_PDV_To_Output
+      --  calls Add_Output_Column once per PDV variable on every record
+      --  flush during RUN, which is every input column by default (not
+      --  just TABLES/SAVE's narrow output sets, the case ADR-0029
+      --  originally scoped this to). An unconditional full
+      --  Rebuild_Output_Cache per call made a single RUN over a wide file
+      --  O(n^2) in column count on top of the Execute_USE-time cost ADR-
+      --  0028/ADR-0029 already fixed -- confirmed by instrumented timing
+      --  showing Execute_USE itself at ~0.1s for 16,000 columns while the
+      --  whole USE+RUN program took 27.9s; only Rebuild_Output_Cache's
+      --  call site matched that remaining cost. Only rebuild when Insert
+      --  actually rehashed (Capacity changed); otherwise append just the
+      --  new cursor.
+      if Output_Data_Table.Capacity /= Capacity_Before then
+         Rebuild_Output_Cache;
+      else
+         Output_Cursor_Cache.Append (Output_Data_Table.Find (Key));
+      end if;
    end Add_Output_Column;
 
    procedure Add_Output_Row is

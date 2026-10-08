@@ -411,7 +411,7 @@ package body SData_Core.File_IO.CSV is
 
          declare
             Col_Determined : array (1 .. N_Hdr) of Boolean := (others => False);
-            Seen           : Name_Vecs.Vector;
+            Seen           : Name_Sets.Set;
          begin
             if Names_From_Header then
                for I in 1 .. N_Hdr loop
