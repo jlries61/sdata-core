@@ -2,14 +2,12 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
-with Ada.Text_IO;
 with Ada.Streams.Stream_IO;
 with Ada.Streams;
 with Ada.Directories;
 with Ada.Strings.UTF_Encoding;             use Ada.Strings.UTF_Encoding;
 with Ada.Strings.UTF_Encoding.Conversions;
 with SData_Core.Config.Runtime;
-with Ada.Unchecked_Deallocation;
 with SData_Core.IO;                use SData_Core.IO;
 with Ada.Characters.Handling; use Ada.Characters.Handling;
 with Ada.Strings.Fixed;       use Ada.Strings.Fixed;
@@ -28,35 +26,177 @@ package body SData_Core.File_IO.CSV is
       (Positive, GNAT.Strings.String_Access);
    package Col_Type_Vecs is new Ada.Containers.Vectors (Positive, Column_Type);
 
-   procedure Split_Into_Lines (S : String; All_Lines : in out Line_Vecs.Vector) is
-      Start : Natural := S'First;
-      I     : Natural := S'First;
+   --  Record reader (F01/F02/F24, 2026-10-19 stress test).  Replaces
+   --  Ada.Text_IO.Get_Line, which split only on LF (leaving the CR of CRLF
+   --  files in the last field, and reading a bare-CR file as one giant line),
+   --  split quoted fields containing newlines into several records, and cut
+   --  any line at a fixed 1 MiB buffer.  A record ends at LF, CRLF or a bare
+   --  CR that is outside a double-quoted field; line breaks inside a quoted
+   --  field are kept verbatim.  There is no length limit.  A quote opens a
+   --  quoted field only at the start of a field (as CSV_Field_End parses it),
+   --  so a stray quote in mid-field (5" pipe) does not swallow later lines.
+   type Record_Reader is limited record
+      File    : Ada.Streams.Stream_IO.File_Type;
+      Is_File : Boolean := False;
+      Chunk   : GNAT.Strings.String_Access := null;
+      Pos     : Natural := 1;
+      Last    : Natural := 0;
+      Recbuf  : GNAT.Strings.String_Access := null;
+      Rec_Len : Natural := 0;
+   end record;
+
+   Chunk_Size : constant := 65_536;
+
+   procedure Open_File (R : in out Record_Reader; Name : String) is
    begin
-      while I <= S'Last loop
-         if S (I) = ASCII.LF then
-            declare
-               E : Natural := I - 1;
-            begin
-               if E >= Start and then S (E) = ASCII.CR then
-                  E := E - 1;
-               end if;
-               All_Lines.Append (To_Unbounded_String
-                  (if E >= Start then S (Start .. E) else ""));
-            end;
-            Start := I + 1;
-         end if;
-         I := I + 1;
-      end loop;
-      if Start <= S'Last then
-         All_Lines.Append (To_Unbounded_String (S (Start .. S'Last)));
+      Ada.Streams.Stream_IO.Open
+         (R.File, Ada.Streams.Stream_IO.In_File, Name);
+      R.Is_File := True;
+      R.Chunk   := new String (1 .. Chunk_Size);
+      R.Pos     := 1;
+      R.Last    := 0;
+   end Open_File;
+
+   procedure Open_Memory (R : in out Record_Reader; S : String) is
+   begin
+      R.Is_File := False;
+      R.Chunk   := new String'(S);
+      R.Pos     := 1;
+      R.Last    := S'Length;
+   end Open_Memory;
+
+   procedure Close (R : in out Record_Reader) is
+   begin
+      if R.Is_File and then Ada.Streams.Stream_IO.Is_Open (R.File) then
+         Ada.Streams.Stream_IO.Close (R.File);
       end if;
+      GNAT.Strings.Free (R.Chunk);
+      GNAT.Strings.Free (R.Recbuf);
+      R.Rec_Len := 0;
+   end Close;
+
+   --  True when at least one more byte is available.
+   function More (R : in out Record_Reader) return Boolean is
+      use Ada.Streams;
+   begin
+      if R.Pos <= R.Last then
+         return True;
+      end if;
+      if R.Is_File and then Ada.Streams.Stream_IO.Is_Open (R.File)
+         and then not Ada.Streams.Stream_IO.End_Of_File (R.File)
+      then
+         declare
+            Buf : Stream_Element_Array (1 .. Stream_Element_Offset (Chunk_Size));
+            Got : Stream_Element_Offset;
+         begin
+            Ada.Streams.Stream_IO.Read (R.File, Buf, Got);
+            for I in 1 .. Got loop
+               R.Chunk (Integer (I)) := Character'Val (Buf (I));
+            end loop;
+            R.Pos  := 1;
+            R.Last := Integer (Got);
+         end;
+      end if;
+      return R.Pos <= R.Last;
+   end More;
+
+   --  Reads the next record into R.Recbuf (1 .. R.Rec_Len).
+   procedure Read_Record (R : in out Record_Reader; Delimiter : String) is
+      Delim  : constant String :=
+         (if Delimiter'Length > 0 then Delimiter else ",");
+      DLen   : constant Positive := Delim'Length;
+      In_Q   : Boolean := False;
+      Q_Pend : Boolean := False;   --  saw a quote while inside quotes
+
+      procedure Append (C : Character) is
+      begin
+         if R.Recbuf = null then
+            R.Recbuf := new String (1 .. 4096);
+         elsif R.Rec_Len = R.Recbuf'Last then
+            declare
+               Bigger : constant GNAT.Strings.String_Access :=
+                  new String (1 .. R.Recbuf'Last * 2);
+            begin
+               Bigger (1 .. R.Rec_Len) := R.Recbuf (1 .. R.Rec_Len);
+               GNAT.Strings.Free (R.Recbuf);
+               R.Recbuf := Bigger;
+            end;
+         end if;
+         R.Rec_Len := R.Rec_Len + 1;
+         R.Recbuf (R.Rec_Len) := C;
+      end Append;
+
+      function At_Field_Start return Boolean is
+        (R.Rec_Len = 0
+         or else (R.Rec_Len >= DLen
+                  and then R.Recbuf (R.Rec_Len - DLen + 1 .. R.Rec_Len)
+                           = Delim));
+   begin
+      R.Rec_Len := 0;
+      while More (R) loop
+         declare
+            C    : constant Character := R.Chunk (R.Pos);
+            Done : Boolean := False;   --  C already consumed by quote logic
+         begin
+            R.Pos := R.Pos + 1;
+            if In_Q and then Q_Pend then
+               Q_Pend := False;
+               if C = '"' then
+                  Append (C);          --  doubled quote: literal
+                  Done := True;
+               else
+                  In_Q := False;       --  the pending quote closed the field
+               end if;
+            elsif In_Q then
+               Append (C);
+               Q_Pend := (C = '"');
+               Done := True;
+            end if;
+            if not Done then
+               if C = ASCII.LF then
+                  return;
+               elsif C = ASCII.CR then
+                  if More (R) and then R.Chunk (R.Pos) = ASCII.LF then
+                     R.Pos := R.Pos + 1;
+                  end if;
+                  return;
+               else
+                  if C = '"' and then At_Field_Start then
+                     In_Q   := True;
+                     Q_Pend := False;
+                  end if;
+                  Append (C);
+               end if;
+            end if;
+         end;
+      end loop;
+   end Read_Record;
+
+   procedure Split_Into_Lines
+      (S          : String;
+       All_Lines  : in out Line_Vecs.Vector;
+       Delimiter  : String := ",")
+   is
+      R : Record_Reader;
+   begin
+      Open_Memory (R, S);
+      while More (R) loop
+         Read_Record (R, Delimiter);
+         All_Lines.Append (To_Unbounded_String (R.Recbuf (1 .. R.Rec_Len)));
+      end loop;
+      Close (R);
+   exception
+      when others =>
+         Close (R);
+         raise;
    end Split_Into_Lines;
 
    procedure Load_As_UTF16
       (File_Name   : String;
        Scheme      : Ada.Strings.UTF_Encoding.Encoding_Scheme;
        All_Lines   : in out Line_Vecs.Vector;
-       Is_Buffered : out Boolean)
+       Is_Buffered : out Boolean;
+       Delimiter   : String := ",")
    is
       F    : Ada.Streams.Stream_IO.File_Type;
       Sz   : constant Ada.Directories.File_Size :=
@@ -87,7 +227,7 @@ package body SData_Core.File_IO.CSV is
          then
             Start_At := UTF8'First + 3;
          end if;
-         Split_Into_Lines (UTF8 (Start_At .. UTF8'Last), All_Lines);
+         Split_Into_Lines (UTF8 (Start_At .. UTF8'Last), All_Lines, Delimiter);
          Is_Buffered := True;
       end;
    exception
@@ -101,7 +241,8 @@ package body SData_Core.File_IO.CSV is
    procedure Detect_And_Load
       (File_Name   : String;
        All_Lines   : in out Line_Vecs.Vector;
-       Is_Buffered : out Boolean)
+       Is_Buffered : out Boolean;
+       Delimiter   : String := ",")
    is
       use Ada.Streams;
       F      : Ada.Streams.Stream_IO.File_Type;
@@ -117,12 +258,12 @@ package body SData_Core.File_IO.CSV is
          and then Detect (1) = 16#FF# and then Detect (2) = 16#FE#
       then
          Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16LE,
-                        All_Lines, Is_Buffered);
+                        All_Lines, Is_Buffered, Delimiter);
       elsif Last >= 2
          and then Detect (1) = 16#FE# and then Detect (2) = 16#FF#
       then
          Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16BE,
-                        All_Lines, Is_Buffered);
+                        All_Lines, Is_Buffered, Delimiter);
       end if;
    exception
       when others =>
@@ -144,7 +285,7 @@ package body SData_Core.File_IO.CSV is
                         Nscan_Rows     : Natural := 0;
                         Missing_Tokens : String  := "";
                         Declared_Types : String  := "") is
-      File : Ada.Text_IO.File_Type;
+      Rdr : Record_Reader;
 
       All_Lines       : Line_Vecs.Vector;
       All_Lines_Idx   : Natural := 0;
@@ -179,15 +320,6 @@ package body SData_Core.File_IO.CSV is
             end if;
          end loop;
       end Validate_ASCII;
-
-      Max_Line : constant := 1_048_576;
-      subtype Line_Buf_T is String (1 .. Max_Line);
-      type    Line_Buf_Access is access Line_Buf_T;
-      procedure Free_Buf is new
-         Ada.Unchecked_Deallocation (Line_Buf_T, Line_Buf_Access);
-
-      Line_Buf  : Line_Buf_Access := new Line_Buf_T;
-      Line_Last : Natural := 0;
 
       Col_Names : Col_Name_Vecs.Vector;
       Col_Types : Col_Type_Vecs.Vector;
@@ -224,6 +356,36 @@ package body SData_Core.File_IO.CSV is
       --  main body) and applied in Infer_Column_Types before the scan loop.
       Declared_List : Declared_Vecs.Vector;
 
+      --  F42 (2026-10-19 stress test): an integer (%) column used to be
+      --  parsed through Real, so ids above 2**53 silently lost digits and
+      --  values near the int64 limits overflowed on conversion.  A plain
+      --  [+-]digits field is parsed exactly; anything else (decimals, E
+      --  notation, out-of-range) falls through to the existing paths.
+      function Try_Exact_Int (F : String; Result : out Int) return Boolean is
+         T : constant String := Ada.Strings.Fixed.Trim (F, Ada.Strings.Both);
+         B : Integer := T'First;
+      begin
+         Result := 0;
+         if T'Length = 0 then
+            return False;
+         end if;
+         if T (B) = '-' or else T (B) = '+' then
+            B := B + 1;
+         end if;
+         if B > T'Last then
+            return False;
+         end if;
+         for K in B .. T'Last loop
+            if T (K) not in '0' .. '9' then
+               return False;
+            end if;
+         end loop;
+         Result := Int'Value (if T (T'First) = '+' then T (T'First + 1 .. T'Last) else T);
+         return True;
+      exception
+         when Constraint_Error => return False;
+      end Try_Exact_Int;
+
       procedure Process_Line_Direct (Line : String) is
          DLen         : constant Positive :=
             (if Delimiter'Length > 0 then Delimiter'Length else 1);
@@ -244,6 +406,7 @@ package body SData_Core.File_IO.CSV is
                   CSV_Field_End (Line, Start, Delimiter);
                Val : Value;
                Num : Real;
+               Exact : Int;
             begin
                declare
                   Raw : constant String :=
@@ -293,6 +456,10 @@ package body SData_Core.File_IO.CSV is
                         --  undetermined (i.e. a numeric candidate).
                         Missing_Match_Count := Missing_Match_Count + 1;
                         Val := (Kind => Val_Missing);
+                     elsif Col_Types (Field_Count) = Col_Integer
+                        and then Try_Exact_Int (F, Exact)
+                     then
+                        Val := (Kind => Val_Integer, Int_Val => Exact);
                      elsif Col_Types (Field_Count) /= Col_String
                         and then Try_Fast_Float (F, Num)
                      then
@@ -556,13 +723,13 @@ package body SData_Core.File_IO.CSV is
                Process_Line_Direct (To_String (All_Lines (All_Lines_Idx)));
             end loop;
          else
-            while not Ada.Text_IO.End_Of_File (File) loop
+            while More (Rdr) loop
                exit when Max_Rows > 0 and then Rows_Written >= Max_Rows;
-               Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
+               Read_Record (Rdr, Delimiter);
                if Needs_ASCII_Chk then
-                  Validate_ASCII (Line_Buf (1 .. Line_Last));
+                  Validate_ASCII (Rdr.Recbuf (1 .. Rdr.Rec_Len));
                end if;
-               Process_Line_Direct (Line_Buf (1 .. Line_Last));
+               Process_Line_Direct (Rdr.Recbuf (1 .. Rdr.Rec_Len));
             end loop;
          end if;
 
@@ -599,19 +766,19 @@ package body SData_Core.File_IO.CSV is
       begin
          if UC = "UTF-16" or else UC = "UTF-16LE" then
             Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16LE,
-                           All_Lines, Is_Buffered);
+                           All_Lines, Is_Buffered, Delimiter);
          elsif UC = "UTF-16BE" then
             Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16BE,
-                           All_Lines, Is_Buffered);
+                           All_Lines, Is_Buffered, Delimiter);
          elsif UC = "" or else UC = "AUTO" then
-            Detect_And_Load (File_Name, All_Lines, Is_Buffered);
+            Detect_And_Load (File_Name, All_Lines, Is_Buffered, Delimiter);
          elsif UC = "ASCII" then
             Needs_ASCII_Chk := True;
          end if;
       end;
 
       if not Is_Buffered then
-         Ada.Text_IO.Open (File, Ada.Text_IO.In_File, File_Name);
+         Open_File (Rdr, File_Name);
       end if;
 
       if Is_Buffered then
@@ -634,8 +801,8 @@ package body SData_Core.File_IO.CSV is
          end loop;
       else
          if Read_Header then
-            if not Ada.Text_IO.End_Of_File (File) then
-               Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
+            if More (Rdr) then
+               Read_Record (Rdr, Delimiter);
                --  ADR-0021 (PD-8): this header read was the one call site
                --  that never routed through
                --  Validate_ASCII (the Skip_Rows and NSCAN loops below both
@@ -645,10 +812,10 @@ package body SData_Core.File_IO.CSV is
                --  two sites' own idiom of validating immediately after
                --  Get_Line.
                if Needs_ASCII_Chk then
-                  Validate_ASCII (Line_Buf (1 .. Line_Last));
+                  Validate_ASCII (Rdr.Recbuf (1 .. Rdr.Rec_Len));
                end if;
                declare
-                  L : constant String := Line_Buf (1 .. Line_Last);
+                  L : constant String := Rdr.Recbuf (1 .. Rdr.Rec_Len);
                begin
                   if L'Length >= 3
                      and then L (L'First .. L'First + 2) = BOM_8
@@ -664,24 +831,24 @@ package body SData_Core.File_IO.CSV is
          end if;
 
          for I in 1 .. Skip_Rows loop
-            exit when Ada.Text_IO.End_Of_File (File);
-            Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
+            exit when not More (Rdr);
+            Read_Record (Rdr, Delimiter);
             if Needs_ASCII_Chk then
-               Validate_ASCII (Line_Buf (1 .. Line_Last));
+               Validate_ASCII (Rdr.Recbuf (1 .. Rdr.Rec_Len));
             end if;
          end loop;
 
-         while not Ada.Text_IO.End_Of_File (File)
+         while More (Rdr)
             and then Scan_Count < NSCAN
             and then (Max_Rows = 0 or else Scan_Count < Max_Rows)
          loop
-            Ada.Text_IO.Get_Line (File, Line_Buf.all, Line_Last);
+            Read_Record (Rdr, Delimiter);
             if Needs_ASCII_Chk then
-               Validate_ASCII (Line_Buf (1 .. Line_Last));
+               Validate_ASCII (Rdr.Recbuf (1 .. Rdr.Rec_Len));
             end if;
             Scan_Count := Scan_Count + 1;
             Scan_Lines (Scan_Count) :=
-               To_Unbounded_String (Line_Buf (1 .. Line_Last));
+               To_Unbounded_String (Rdr.Recbuf (1 .. Rdr.Rec_Len));
          end loop;
       end if;
 
@@ -693,16 +860,10 @@ package body SData_Core.File_IO.CSV is
          Load_Data_Rows;
       end if;
 
-      Free_Buf (Line_Buf);
-      if Ada.Text_IO.Is_Open (File) then
-         Ada.Text_IO.Close (File);
-      end if;
+      Close (Rdr);
    exception
       when others =>
-         Free_Buf (Line_Buf);
-         if Ada.Text_IO.Is_Open (File) then
-            Ada.Text_IO.Close (File);
-         end if;
+         Close (Rdr);
          raise;
    end Parse_CSV;
 
