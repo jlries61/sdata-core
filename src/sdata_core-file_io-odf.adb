@@ -347,6 +347,7 @@ package body SData_Core.File_IO.ODF is
             --  included) -- see Load_OOXML_Data_Rows's matching comment for
             --  why this replaces the physical (deduplicated) column count.
             N_Cols       : constant Natural := Natural (Col_Names.Length);
+            Skipped_Blank_Rows : Natural := 0;
          begin
             for I in 1 .. Length (Rows) - 1 loop
                declare
@@ -357,8 +358,45 @@ package body SData_Core.File_IO.ODF is
                   Row_Repeat_Count : constant Positive :=
                      (if Row_Repeat_Attr = "" then 1
                       else Positive'Value (Row_Repeat_Attr));
+                  --  F34 (2026-10-19 stress test): a huge repeat count is
+                  --  usually trailing empty padding (LibreOffice writes
+                  --  1048576), but LibreOffice also run-length-encodes
+                  --  identical *data* rows this way.  Only a row with no
+                  --  typed cell at all is padding.
+                  Blank_Run        : Boolean := False;
                begin
-                  exit when Row_Repeat_Count > 1000;
+                  if Row_Repeat_Count > 1000 then
+                     declare
+                        Cells : DOM.Core.Node_List :=
+                           Get_Elements_By_Tag_Name
+                              (DOM.Core.Element (Row_Node),
+                               "table:table-cell");
+                     begin
+                        Blank_Run := True;
+                        for J in 0 .. Length (Cells) - 1 loop
+                           if Get_Attribute (DOM.Core.Element (Item (Cells, J)),
+                                             "office:value-type") /= ""
+                           then
+                              Blank_Run := False;
+                              exit;
+                           end if;
+                        end loop;
+                        Free (Cells);
+                     end;
+                  end if;
+                  if Blank_Run then
+                     --  Skipped, not an exit: data may follow the run.
+                     Skipped_Blank_Rows := Skipped_Blank_Rows + 1;
+                     goto Next_Row;
+                  end if;
+                  if Skipped_Blank_Rows > 0 then
+                     Put_Line_Error
+                        ("Warning: ODF import: skipped" &
+                         Natural'Image (Skipped_Blank_Rows) &
+                         " run(s) of more than 1000 blank rows before row" &
+                         Natural'Image (Rows_Written + 1));
+                     Skipped_Blank_Rows := 0;
+                  end if;
                   exit when Max_Rows > 0 and then Rows_Written >= Max_Rows;
                   for R_Count in 1 .. Row_Repeat_Count loop
                      pragma Warnings (Off, R_Count);
@@ -446,6 +484,7 @@ package body SData_Core.File_IO.ODF is
                         end;
                      end if;
                   end loop;
+                  <<Next_Row>> null;
                end;
             end loop;
             --  ADR-0020's suppression summary, in CSV's own words
