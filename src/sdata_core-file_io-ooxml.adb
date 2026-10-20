@@ -381,24 +381,72 @@ package body SData_Core.File_IO.OOXML is
             return (Kind => Val_Missing);
          end Get_Cell_Value;
 
+         --  F37 (2026-10-19 stress test): OOXML omits blank cells, so a
+         --  cell's position is given by its r="B3" reference, not by its
+         --  ordinal among the row's <c> elements.  Returns the 1-based
+         --  column from the reference, or Prev + 1 when r is absent or
+         --  malformed (hand-rolled writers that omit r).
+         function Cell_Col_Index
+            (Cell : DOM.Core.Node;
+             Prev : Natural) return Positive is
+            Ref     : constant String :=
+               Get_Attribute (DOM.Core.Element (Cell), "r");
+            Col     : Natural := 0;
+            Letters : Natural := 0;
+         begin
+            for Ch of Ref loop
+               exit when Ch not in 'A' .. 'Z' and then Ch not in 'a' .. 'z';
+               Letters := Letters + 1;
+               exit when Letters > 3;
+               Col := Col * 26
+                  + (if Ch in 'a' .. 'z'
+                     then Character'Pos (Ch) - Character'Pos ('a') + 1
+                     else Character'Pos (Ch) - Character'Pos ('A') + 1);
+            end loop;
+            if Letters = 0 or else Letters > 3 then
+               return Prev + 1;
+            end if;
+            return Col;
+         end Cell_Col_Index;
+
          procedure Collect_OOXML_Headers
             (Row0         : DOM.Core.Node;
              Col_Name_Vec : in out Name_Vecs.Vector) is
             Cells : DOM.Core.Node_List :=
                Get_Elements_By_Tag_Name (DOM.Core.Element (Row0), "c");
+            Prev_Col : Natural := 0;
          begin
             for I in 0 .. Length (Cells) - 1 loop
                declare
-                  V   : constant Value  := Get_Cell_Value (Item (Cells, I));
-                  Idx : constant String :=
-                     Trim (Integer (I + 1)'Img, Ada.Strings.Both);
-                  Nam : constant String :=
-                     (if V.Kind = Val_String
-                      then SData_Core.Values.To_String (V)
-                      else "COL" & Idx);
+                  C   : constant Positive :=
+                     Cell_Col_Index (Item (Cells, I), Prev_Col);
                begin
-                  Col_Name_Vec.Append
-                     (To_Unbounded_String (Safe_Name (Nam, "COL" & Idx)));
+                  --  Blank header cells keep their position: pad with COLn.
+                  while Natural (Col_Name_Vec.Length) < C - 1 loop
+                     declare
+                        Pad : constant String := "COL" & Trim
+                           (Integer (Natural (Col_Name_Vec.Length) + 1)'Img,
+                            Ada.Strings.Both);
+                     begin
+                        Col_Name_Vec.Append (To_Unbounded_String (Pad));
+                     end;
+                  end loop;
+                  if C > Natural (Col_Name_Vec.Length) then
+                     declare
+                        V   : constant Value  :=
+                           Get_Cell_Value (Item (Cells, I));
+                        Idx : constant String :=
+                           Trim (Integer (C)'Img, Ada.Strings.Both);
+                        Nam : constant String :=
+                           (if V.Kind = Val_String
+                            then SData_Core.Values.To_String (V)
+                            else "COL" & Idx);
+                     begin
+                        Col_Name_Vec.Append
+                           (To_Unbounded_String (Safe_Name (Nam, "COL" & Idx)));
+                     end;
+                  end if;
+                  Prev_Col := C;
                end;
             end loop;
             Free (Cells);
@@ -426,7 +474,7 @@ package body SData_Core.File_IO.OOXML is
                   Col_Idx : Natural := 0;
                begin
                   for J in 0 .. Length (Data_Cells) - 1 loop
-                     Col_Idx := Col_Idx + 1;
+                     Col_Idx := Cell_Col_Index (Item (Data_Cells, J), Col_Idx);
                      exit when Col_Idx > N;
                      if not Col_Locked (Col_Idx)
                         and then Col_Types (Col_Idx) /= Col_Integer
@@ -474,9 +522,11 @@ package body SData_Core.File_IO.OOXML is
                      Cells : DOM.Core.Node_List :=
                         Get_Elements_By_Tag_Name
                            (DOM.Core.Element (Item (Rows, I)), "c");
+                     Prev_Col : Natural := 0;
                   begin
                      for J in 0 .. Length (Cells) - 1 loop
-                        if J < N_Cols then
+                        Prev_Col := Cell_Col_Index (Item (Cells, J), Prev_Col);
+                        if Prev_Col <= N_Cols then
                            declare
                               --  ADR-0018 amendment: look up by the
                               --  RAW per-cell-position decorated name
@@ -492,7 +542,7 @@ package body SData_Core.File_IO.OOXML is
                               --  silently dropped just because an earlier
                               --  duplicate shrank the physical column count.
                               Col_Name : constant String :=
-                                 To_String (Col_Names (J + 1));
+                                 To_String (Col_Names (Prev_Col));
                               V : constant Value :=
                                  Get_Cell_Value
                                     (Item (Cells, J),
