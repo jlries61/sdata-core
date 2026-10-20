@@ -117,7 +117,16 @@ jobs:
           # exact pin and passed). Get_Cell_Value's new Check_Missing
           # parameter is private to this crate, not part of the consumer-
           # visible surface at all. Not load-bearing; routine currency bump.
-          ref: v0.37.0
+          #
+          # TEMPORARY SHA PIN (PR #162): the CSV record reader changes the
+          # documented unclosed-quote behavior (RFC 4180: runs to EOF rather
+          # than recovering at the next line), so v0.37.0's unit test PC-26
+          # fails against this crate by design, and sdata cannot be re-tagged
+          # until this change is on sdata-core main (sdata's own CI clones
+          # sdata-core@main).  5153285 is sdata PR #98's tip: PC-26/27
+          # updated plus the new CSV regression tests.  Re-pin to the next
+          # sdata release tag (a follow-up PR) once #98 is merged and tagged.
+          ref: 515328512710f7f31f37bafbf793cc217a9c1ee5
           path: sdata
 
       - name: Set up Alire
