@@ -49,6 +49,7 @@ package body SData_Core.Config.Runtime is
    function Save_DLM         return String  is (Save_DLM_Value);
    function Save_DLM_Len     return Natural is (Save_DLM_Len_Value);
    function Save_Header      return Boolean is (Save_Header_Value);
+   function Save_Fmt_Explicit return Boolean is (Save_Fmt_Explicit_Value);
    function Save_Charset     return String  is (Save_Charset_Value);
    function Save_Charset_Len return Natural is (Save_Charset_Len_Value);
    function Save_Decimals    return Integer is (Save_Decimals_Value);
@@ -99,6 +100,7 @@ package body SData_Core.Config.Runtime is
       Save_DLM_Value (1)        := ',';
       Save_DLM_Len_Value        := 1;
       Save_Header_Value         := True;
+      Save_Fmt_Explicit_Value   := False;
       Save_Charset_Value        := (others => ' ');
       Save_Charset_Len_Value    := 0;
       Save_Decimals_Value       := -1;

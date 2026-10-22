@@ -46,6 +46,11 @@ package body SData_Core.Config.Runtime.Internal is
       end if;
    end Set_Save_DLM;
 
+   procedure Set_Save_Fmt_Explicit (Value : Boolean) is
+   begin
+      Save_Fmt_Explicit_Value := Value;
+   end Set_Save_Fmt_Explicit;
+
    procedure Set_Save_Header (Value : Boolean) is
    begin
       Save_Header_Value := Value;

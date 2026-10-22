@@ -29,6 +29,7 @@ package SData_Core.Config.Runtime.Internal is
    --  Effective SAVE format captured at SAVE time.
    procedure Set_Save_DLM     (Value : String);
    procedure Set_Save_Header  (Value : Boolean);
+   procedure Set_Save_Fmt_Explicit (Value : Boolean);
    procedure Set_Save_Charset (Value : String);
    procedure Set_Save_Decimals (Value : Integer);
    procedure Set_Save_Missing_Token (Value : String);
