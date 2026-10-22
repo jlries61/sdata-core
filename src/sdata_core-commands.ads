@@ -387,10 +387,11 @@ package SData_Core.Commands is
    ----------------------------------------------------------------
 
    ----------------------------------------------------------------
-   --  REPEAT — set or clear the deferred-program repeat state.
+   --  REPEAT — set the deferred-program repeat state.
    --
-   --  Count > 0  sets Repeat_Active := True and Repeat_Count := Count.
-   --  Count = 0  clears Repeat_Active and Repeat_Count.
+   --  Sets Repeat_Active := True and Repeat_Count := Count.  Count = 0 is a
+   --  valid request for zero records; to leave REPEAT mode, call
+   --  SData_Core.Config.Runtime.End_Repeat.
    procedure Execute_REPEAT (Count : Natural);
 
    ----------------------------------------------------------------
