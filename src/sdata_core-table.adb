@@ -330,7 +330,9 @@ package body SData_Core.Table is
                   SData_Core.IO.Put_Line_Error
                     ("Warning: String truncated to "
                      & SData_Core.Config.Max_String_Len'Image & " characters.");
-                  Res.Str_Val := To_Unbounded_String (S (S'First .. S'First + SData_Core.Config.Max_String_Len - 1));
+                  Res.Str_Val := To_Unbounded_String
+                     (S (S'First .. S'First + SData_Core.Values.UTF8_Prefix_Length
+                                      (S, SData_Core.Config.Max_String_Len) - 1));
                   return Res;
                end;
             end if;

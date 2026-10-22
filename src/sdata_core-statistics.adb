@@ -830,15 +830,17 @@ package body SData_Core.Statistics is
    ----------------
    -- Weibull_IDF --
    ----------------
-   --  Bisection over [0, 10·λ].  For shape k ≥ 1, the 99.99th percentile
-   --  is at most a few multiples of the scale λ; 10λ is a safe upper bound.
+   --  Closed form: x = Scale * (-ln(1 - P))**(1 / Shape).  (Was a bisection
+   --  over [0, 10·Scale], which assumed Shape >= 1 and returned the bracket
+   --  end for heavier tails.)
    function Weibull_IDF (P, Shape, Scale : Real) return Real is
-      function CDF (X : Real) return Real is (Weibull_CDF (X, Scale, Shape));
-      function Bisect is new Bisect_IDF (CDF);
    begin
+      if Scale <= 0.0 or else Shape <= 0.0 then
+         raise Constraint_Error with "Scale and Shape must be positive";
+      end if;
       if P <= 0.0 then return 0.0; end if;
       if P >= 1.0 then return Real'Last; end if;
-      return Bisect (P, 0.0, Scale * 10.0);
+      return Scale * Real ((-Log (1.0 - Long_Float (P))) ** (1.0 / Long_Float (Shape)));
    end Weibull_IDF;
 
    ----------------------

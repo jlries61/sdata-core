@@ -690,10 +690,22 @@ package body SData_Core.Evaluator is
                               if LL + RL > Limit then
                                  Put_Line_Error ("Warning: String truncated to " &
                                                 Natural'Image (Limit) & " characters.");
+                                 --  UTF8_Prefix_Length: never cut a
+                                 --  multi-byte character in half.
                                  if LL >= Limit then
-                                    V.Str_Val := To_Unbounded_String (Slice (L.Str_Val, 1, Limit));
+                                    declare
+                                       LS : constant String := To_String (L.Str_Val);
+                                    begin
+                                       V.Str_Val := To_Unbounded_String
+                                          (LS (1 .. SData_Core.Values.UTF8_Prefix_Length (LS, Limit)));
+                                    end;
                                  else
-                                    V.Str_Val := L.Str_Val & Slice (R.Str_Val, 1, Limit - LL);
+                                    declare
+                                       RS : constant String := To_String (R.Str_Val);
+                                    begin
+                                       V.Str_Val := L.Str_Val
+                                          & RS (1 .. SData_Core.Values.UTF8_Prefix_Length (RS, Limit - LL));
+                                    end;
                                  end if;
                               else
                                  V.Str_Val := L.Str_Val & R.Str_Val;

@@ -6,6 +6,7 @@ with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Characters.Handling; use Ada.Characters.Handling;
 with SData_Core.Values; use SData_Core.Values;
+with SData_Core.Evaluator.UTF8; use SData_Core.Evaluator.UTF8;
 
 package body SData_Core.Evaluator.String_Fns is
 
@@ -39,7 +40,8 @@ package body SData_Core.Evaluator.String_Fns is
       declare V : constant Value := Vals.Element (1);
       begin
          if V.Kind = Val_String then
-            return (Kind => Val_Integer, Int_Val => Int (Length (V.Str_Val)));
+            return (Kind => Val_Integer,
+                    Int_Val => Int (Count_Chars (To_String (V.Str_Val))));
          else
             return (Kind => Val_Missing);
          end if;
@@ -57,8 +59,8 @@ package body SData_Core.Evaluator.String_Fns is
       begin
          if V.Kind /= Val_String then return (Kind => Val_Missing); end if;
          if N <= 0 then R.Str_Val := Null_Unbounded_String;
-         elsif N >= Length (V.Str_Val) then R.Str_Val := V.Str_Val;
-         else R.Str_Val := To_Unbounded_String (Slice (V.Str_Val, 1, N));
+         else R.Str_Val := To_Unbounded_String
+                 (Slice_Chars (To_String (V.Str_Val), 1, N));
          end if;
          return R;
       end;
@@ -76,10 +78,14 @@ package body SData_Core.Evaluator.String_Fns is
       begin
          if V.Kind /= Val_String then return (Kind => Val_Missing); end if;
          if N <= 0 then R.Str_Val := Null_Unbounded_String;
-         elsif N >= Length (V.Str_Val) then R.Str_Val := V.Str_Val;
          else
-            Start := Length (V.Str_Val) - N + 1;
-            R.Str_Val := To_Unbounded_String (Slice (V.Str_Val, Start, Length (V.Str_Val)));
+            declare
+               Str : constant String := To_String (V.Str_Val);
+            begin
+               Start := Count_Chars (Str) - N + 1;
+               R.Str_Val := To_Unbounded_String
+                  (Slice_Chars (Str, Start, Count_Chars (Str)));
+            end;
          end if;
          return R;
       end;
@@ -94,16 +100,15 @@ package body SData_Core.Evaluator.String_Fns is
          Start : constant Integer := Integer (Convert_To_Real (Vals.Element (2)));
          Len   : constant Integer :=
             (if Has_Args (Vals, 3) then Integer (Convert_To_Real (Vals.Element (3)))
-             else Length (V.Str_Val));
+             else Integer'Last);
          R     : Value (Val_String);
          S, E  : Integer;
       begin
          if V.Kind /= Val_String or else Start < 1 then return (Kind => Val_Missing); end if;
          S := Start;
-         E := Integer'Min (S + Len - 1, Length (V.Str_Val));
-         if S > Length (V.Str_Val) then R.Str_Val := Null_Unbounded_String;
-         else R.Str_Val := To_Unbounded_String (Slice (V.Str_Val, S, E));
-         end if;
+         E := (if Len > Integer'Last - S then Integer'Last else S + Len - 1);
+         R.Str_Val := To_Unbounded_String
+            (Slice_Chars (To_String (V.Str_Val), S, E));
          return R;
       end;
    end Handle_Mid;
@@ -122,10 +127,9 @@ package body SData_Core.Evaluator.String_Fns is
          if V.Kind /= Val_String or else Len <= 0 then return (Kind => Val_Missing); end if;
          if Start <= 0 then Start := 1; end if;
          S := Start;
-         E := Integer'Min (S + Len - 1, Length (V.Str_Val));
-         if S > Length (V.Str_Val) then R.Str_Val := Null_Unbounded_String;
-         else R.Str_Val := To_Unbounded_String (Slice (V.Str_Val, S, E));
-         end if;
+         E := (if Len > Integer'Last - S then Integer'Last else S + Len - 1);
+         R.Str_Val := To_Unbounded_String
+            (Slice_Chars (To_String (V.Str_Val), S, E));
          return R;
       end;
    end Handle_Seg;
@@ -190,7 +194,7 @@ package body SData_Core.Evaluator.String_Fns is
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       V := Vals.Element (1);
       if V.Kind /= Val_String then return (Kind => Val_Missing); end if;
-      R.Str_Val := To_Unbounded_String (To_Upper (SData_Core.Values.To_String (V)));
+      R.Str_Val := To_Unbounded_String (Map_Case (SData_Core.Values.To_String (V), Upper => True));
       return R;
    end Handle_Upper;
 
@@ -202,7 +206,7 @@ package body SData_Core.Evaluator.String_Fns is
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
       V := Vals.Element (1);
       if V.Kind /= Val_String then return (Kind => Val_Missing); end if;
-      R.Str_Val := To_Unbounded_String (To_Lower (SData_Core.Values.To_String (V)));
+      R.Str_Val := To_Unbounded_String (Map_Case (SData_Core.Values.To_String (V), Upper => False));
       return R;
    end Handle_Lower;
 
@@ -220,9 +224,18 @@ package body SData_Core.Evaluator.String_Fns is
             return (Kind => Val_Missing);
          end if;
          if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => Int (From)); end if;
-         if From > Length (Haystack.Str_Val) then return (Kind => Val_Integer, Int_Val => 0); end if;
-         return (Kind    => Val_Integer,
-                 Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle), From)));
+         declare
+            Hay : constant String := To_String (Haystack.Str_Val);
+         begin
+            if From > Count_Chars (Hay) then
+               return (Kind => Val_Integer, Int_Val => 0);
+            end if;
+            return (Kind    => Val_Integer,
+                    Int_Val => Int (Char_Of_Byte
+                       (Hay, Index (Haystack.Str_Val,
+                                    SData_Core.Values.To_String (Needle),
+                                    Byte_Of_Char (Hay, From)))));
+         end;
       end;
    end Handle_Pos;
 
@@ -248,9 +261,18 @@ package body SData_Core.Evaluator.String_Fns is
                return (Kind => Val_Missing);
             end if;
             if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => Int (Start_Pos)); end if;
-            if Start_Pos > Length (Haystack.Str_Val) then return (Kind => Val_Integer, Int_Val => 0); end if;
-            return (Kind    => Val_Integer,
-                    Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle), Start_Pos)));
+            declare
+               Hay : constant String := To_String (Haystack.Str_Val);
+            begin
+               if Start_Pos > Count_Chars (Hay) then
+                  return (Kind => Val_Integer, Int_Val => 0);
+               end if;
+               return (Kind    => Val_Integer,
+                       Int_Val => Int (Char_Of_Byte
+                          (Hay, Index (Haystack.Str_Val,
+                                       SData_Core.Values.To_String (Needle),
+                                       Byte_Of_Char (Hay, Start_Pos)))));
+            end;
          end;
       end;
    end Handle_Instr;
