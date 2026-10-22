@@ -12,6 +12,46 @@ package body SData_Core.Values is
    --------------
    -- Is_Inf --
    --------------
+   function UTF8_Prefix_Length (S : String; Max : Natural) return Natural is
+      N   : constant Natural := S'Length;
+      Cut : constant Natural := Natural'Min (Max, N);
+      J   : Integer;
+      B0  : Natural;
+      Seq : Natural;
+      function Is_Cont (K : Integer) return Boolean is
+        (K in S'Range and then Character'Pos (S (K)) in 16#80# .. 16#BF#);
+   begin
+      if Cut = N or else Cut = 0 then
+         return Cut;
+      end if;
+      --  The cut falls between S'First + Cut - 1 and S'First + Cut.  If the next
+      --  byte is a continuation byte, back up to the lead byte of that
+      --  character and drop it when its sequence is well-formed and spans the cut.
+      if not Is_Cont (S'First + Cut) then
+         return Cut;
+      end if;
+      J := S'First + Cut - 1;
+      while J > S'First and then Is_Cont (J) and then S'First + Cut - 1 - J < 3 loop
+         J := J - 1;
+      end loop;
+      B0 := Character'Pos (S (J));
+      Seq := (if B0 in 16#C2# .. 16#DF# then 2
+              elsif B0 in 16#E0# .. 16#EF# then 3
+              elsif B0 in 16#F0# .. 16#F4# then 4
+              else 1);
+      if Seq > 1 and then J + Seq - 1 > S'First + Cut - 1 then
+         for K in J + 1 .. Integer'Min (J + Seq - 1, S'Last) loop
+            if not Is_Cont (K) then
+               return Cut;
+            end if;
+         end loop;
+         if J + Seq - 1 <= S'Last then
+            return J - S'First;
+         end if;
+      end if;
+      return Cut;
+   end UTF8_Prefix_Length;
+
    function Is_Inf (F : Real) return Boolean is
    begin
       return F > Real'Last or else F < Real'First;

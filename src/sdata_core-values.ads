@@ -41,6 +41,13 @@ package SData_Core.Values is
    --  Integers are formatted without decimals or scientific notation.
    function To_String (V : Value) return String;
 
+   --  Length in bytes of the longest prefix of S (1-based) that is at most Max
+   --  bytes and does not end in the middle of a well-formed UTF-8 sequence.
+   --  Used where a string is cut to a byte limit (--clen), so truncation never
+   --  leaves half a character.  Bytes that are not part of a well-formed
+   --  sequence (e.g. Latin-1 data) may be cut anywhere.
+   function UTF8_Prefix_Length (S : String; Max : Natural) return Natural;
+
    --  Returns True for IEEE 754 positive or negative infinity.
    --  Returns False for finite values, Missing, and NaN.
    function Is_Inf (F : Real) return Boolean;

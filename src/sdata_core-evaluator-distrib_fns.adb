@@ -375,9 +375,12 @@ package body SData_Core.Evaluator.Distrib_Fns is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 3) then return (Kind => Val_Missing); end if;
+      --  F19 (2026-10-19 stress test): WIF(p, scale, shape) per design.md and
+      --  HELP, like WCF/WDF/WRN, but Statistics.Weibull_IDF takes (P, Shape,
+      --  Scale) -- pass the last two swapped.
       return Num_Result (SData_Core.Statistics.Weibull_IDF (Convert_To_Real (Vals.Element (1)),
-                                                       Convert_To_Real (Vals.Element (2)),
-                                                       Convert_To_Real (Vals.Element (3))));
+                                                       Convert_To_Real (Vals.Element (3)),
+                                                       Convert_To_Real (Vals.Element (2))));
    end Handle_WIF;
 
    function Handle_MIF (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -409,12 +412,15 @@ package body SData_Core.Evaluator.Distrib_Fns is
       end if;
    end Handle_ZRN;
 
+   --  NRN(n, p): binomial random variate (design.md; MRN is its synonym).
+   --  F22 (2026-10-19 stress test): this was a copy of Handle_ZRN and
+   --  returned a normal variate N(n, p).
    function Handle_NRN (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
    begin
       if not Has_Args (Vals, 2) then return (Kind => Val_Missing); end if;
-      return Num_Result (SData_Core.Statistics.Normal_RN (Convert_To_Real (Vals.Element (1)),
-                                                      Convert_To_Real (Vals.Element (2))));
+      return Num_Result (SData_Core.Statistics.Binomial_RN (Convert_To_Real (Vals.Element (1)),
+                                                       Convert_To_Real (Vals.Element (2))));
    end Handle_NRN;
 
    function Handle_URN (Name : String; Vals : Value_Vectors.Vector) return Value is

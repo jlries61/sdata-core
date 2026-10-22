@@ -8,6 +8,7 @@ with Ada.Calendar;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with SData_Core.Variables; use SData_Core.Variables;
+with SData_Core.Evaluator.UTF8; use SData_Core.Evaluator.UTF8;
 with SData_Core.Config;
 with SData_Core.Config.Runtime;
 with SData_Core.System;
@@ -231,7 +232,9 @@ package body SData_Core.Evaluator.Misc_Fns is
          end if;
          if Length (Needle.Str_Val) = 0 then return (Kind => Val_Integer, Int_Val => 1); end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Int (Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle))));
+                 Int_Val => Int (Char_Of_Byte
+                    (SData_Core.Values.To_String (Haystack),
+                     Index (Haystack.Str_Val, SData_Core.Values.To_String (Needle)))));
       end;
    end Handle_Index_Str;
 
@@ -250,11 +253,13 @@ package body SData_Core.Evaluator.Misc_Fns is
          if Haystack.Kind /= Val_String or else Needle.Kind /= Val_String then
             return (Kind => Val_Missing);
          end if;
-         if From > H_Str'Length or else N_Str'Length = 0 then
+         if From > Count_Chars (H_Str) or else N_Str'Length = 0 then
             return (Kind => Val_Integer, Int_Val => (if N_Str'Length = 0 then Int (From) else 0));
          end if;
          return (Kind    => Val_Integer,
-                 Int_Val => Int (Ada.Strings.Fixed.Index (H_Str, N_Str, From)));
+                 Int_Val => Int (Char_Of_Byte
+                    (H_Str, Ada.Strings.Fixed.Index
+                       (H_Str, N_Str, Byte_Of_Char (H_Str, From)))));
       end;
    end Handle_Match;
 
