@@ -42,8 +42,10 @@ begin
    Assert (Rt.Repeat_Active, "REPEAT(5) sets Repeat_Active");
    Assert (Rt.Repeat_Count = 5, "REPEAT(5) sets Repeat_Count");
    Cmd.Execute_REPEAT (0);
-   Assert (not Rt.Repeat_Active, "REPEAT(0) clears Repeat_Active");
-   Assert (Rt.Repeat_Count = 0, "REPEAT(0) clears Repeat_Count");
+   Assert (Rt.Repeat_Active, "REPEAT(0) keeps Repeat_Active (zero records)");
+   Assert (Rt.Repeat_Count = 0, "REPEAT(0) sets Repeat_Count to 0");
+   Rt.End_Repeat;
+   Assert (not Rt.Repeat_Active, "End_Repeat clears Repeat_Active");
 
    ---------------------------------------------------------------------
    --  OPTIONS CSVDLM: valid set, empty rejected, too-long rejected.

@@ -1193,11 +1193,7 @@ package body SData_Core.Commands is
    --------------------------------------------------------------------
    procedure Execute_REPEAT (Count : Natural) is
    begin
-      if Count = 0 then
-         SData_Core.Config.Runtime.End_Repeat;
-      else
-         SData_Core.Config.Runtime.Internal.Set_Repeat (Count);
-      end if;
+      SData_Core.Config.Runtime.Internal.Set_Repeat (Count);
    end Execute_REPEAT;
 
    --------------------------------------------------------------------
