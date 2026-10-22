@@ -13,7 +13,14 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       N_Count     : Natural    := 0;
       NMISS_Count : Natural    := 0;
       Sum         : Long_Float := 0.0;
-      Sum_Sq      : Long_Float := 0.0;
+      --  F14 (2026-10-19 stress test): variance is accumulated with
+      --  Welford's update (running mean + sum of squared deviations M2)
+      --  rather than as the textbook sum-of-squares difference, which
+      --  cancels catastrophically (negative variances, a Sqrt domain error
+      --  on constant columns, and overflow of the squares for values around
+      --  1e155).  M2 >= 0 by construction.
+      Mean_W      : Long_Float := 0.0;
+      M2          : Long_Float := 0.0;
       Min_V       : Long_Float := 0.0;
       Max_V       : Long_Float := 0.0;
       Has_Values  : Boolean    := False;
@@ -30,7 +37,12 @@ package body SData_Core.Evaluator.Aggregate_Fns is
             begin
                R.N_Count := R.N_Count + 1;
                R.Sum     := R.Sum + FV;
-               R.Sum_Sq  := R.Sum_Sq + FV ** 2;
+               declare
+                  Dev : constant Long_Float := FV - R.Mean_W;
+               begin
+                  R.Mean_W := R.Mean_W + Dev / Long_Float (R.N_Count);
+                  R.M2     := R.M2 + Dev * (FV - R.Mean_W);
+               end;
                if not R.Has_Values then
                   R.Min_V := FV; R.Max_V := FV; R.Has_Values := True;
                else
@@ -66,8 +78,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
    begin
       if R.N_Count < 2 then return (Kind => Val_Missing); end if;
       NF := Long_Float (R.N_Count);
-      return Numeric_Result_Checked
-         (Real ((R.Sum_Sq - (R.Sum ** 2 / NF)) / (NF - 1.0)));
+      return Numeric_Result_Checked (Real (R.M2 / (NF - 1.0)));
    end Handle_Var_Fn;
 
    function Handle_Std_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -77,8 +88,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
    begin
       if R.N_Count < 2 then return (Kind => Val_Missing); end if;
       NF := Long_Float (R.N_Count);
-      return Numeric_Result_Checked
-         (Sqrt (Real ((R.Sum_Sq - (R.Sum ** 2 / NF)) / (NF - 1.0))));
+      return Numeric_Result_Checked (Sqrt (Real (R.M2 / (NF - 1.0))));
    end Handle_Std_Fn;
 
    function Handle_Min_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
