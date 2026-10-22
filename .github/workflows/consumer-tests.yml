@@ -123,7 +123,7 @@ jobs:
           # and its PC-26/27 reflect the RFC unclosed-quote rule that made
           # the v0.37.0 pin incompatible (PR #162 used a temporary SHA pin
           # until this tag existed).  Routine currency bump.
-          ref: f5be51d470c5e200e33a14119caca722fe926e5e
+          ref: d688d5d12c77c2e8e847ee666b095b057edb78d3
           path: sdata
 
       - name: Set up Alire
