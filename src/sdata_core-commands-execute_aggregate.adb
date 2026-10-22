@@ -325,20 +325,27 @@ procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
                when Src_Fn =>
                   --  ADR-075/sdata#93: PCTL(<invar>, <p>) appends its
                   --  percentile as the TRAILING element of a fresh copy
-                  --  of Group_Values's result (non-destructive `&`
-                  --  concatenation -- Fn_Handler's shared (Name, Vals)
+                  --  of Gather_Group_Values's result (heap copy;
+                  --  non-destructive -- Fn_Handler's shared (Name, Vals)
                   --  signature is unchanged). Every other function's
                   --  call is unaffected.
-                  Tbl.Set_Output_Value_By_Col
-                    (R, J, Eval.Call_Function
-                             (To_String (D.Fn),
-                              (if D.Has_Pctl_Value
-                               then Eval."&"
-                                      (Group_Values (Rows, To_String (D.Col)),
-                                       Value'(Kind    => Val_Integer,
-                                              Int_Val => Int (D.Pctl_Value)))
-                               else Group_Values
-                                      (Rows, To_String (D.Col)))));
+                  declare
+                     Base : Group_Vals;
+                     Full : Group_Vals;
+                  begin
+                     Gather_Group_Values (Base, Rows, To_String (D.Col));
+                     if D.Has_Pctl_Value then
+                        Gather_With_Trailing
+                          (Full, Base.Ptr.all,
+                           Value'(Kind    => Val_Integer,
+                                  Int_Val => Int (D.Pctl_Value)));
+                     end if;
+                     Tbl.Set_Output_Value_By_Col
+                       (R, J, Eval.Call_Function
+                                (To_String (D.Fn),
+                                 (if D.Has_Pctl_Value then Full.Ptr.all
+                                  else Base.Ptr.all)));
+                  end;
             end case;
          end;
       end loop;

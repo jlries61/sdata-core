@@ -7,6 +7,8 @@ with Ada.Containers.Indefinite_Hashed_Maps;
 with Ada.Containers.Indefinite_Hashed_Sets;
 with Ada.Directories;
 with Ada.Exceptions;
+with Ada.Finalization;
+with Ada.Unchecked_Deallocation;
 with Ada.IO_Exceptions;
 with Ada.Strings;
 with Ada.Strings.Fixed;
@@ -823,18 +825,55 @@ package body SData_Core.Commands is
    end Group_Boundaries;
 
    --  Gather one column's values across a group's physical rows.
-   function Group_Values (Rows : Row_Index_Vectors.Vector; Col : String)
-      return Eval.Value_Array
+   --
+   --  F50 (2026-10-19 stress test): the group's values used to be returned
+   --  as an unconstrained Value_Array, i.e. on the stack (secondary stack),
+   --  and copied again by the caller's constant and by the PCTL
+   --  concatenation.  At ~24 bytes per Value that exhausted the 8 MB default
+   --  stack at ~350,000 rows and aborted STATS/AGGREGATE with a Storage_Error.
+   --  The array now lives on the heap, owned by a Group_Vals holder that
+   --  frees it when it goes out of scope (including on an exception).
+   type Value_Array_Ptr is access Eval.Value_Array;
+   procedure Free_VA is new Ada.Unchecked_Deallocation
+      (Eval.Value_Array, Value_Array_Ptr);
+
+   type Group_Vals is new Ada.Finalization.Limited_Controlled with record
+      Ptr : Value_Array_Ptr := null;
+   end record;
+   overriding procedure Finalize (G : in out Group_Vals);
+
+   overriding procedure Finalize (G : in out Group_Vals) is
+   begin
+      Free_VA (G.Ptr);
+   end Finalize;
+
+   procedure Gather_Group_Values
+      (G    : in out Group_Vals;
+       Rows : Row_Index_Vectors.Vector;
+       Col  : String)
    is
-      A : Eval.Value_Array (1 .. Integer (Rows.Length));
       I : Positive := 1;
    begin
+      Free_VA (G.Ptr);
+      G.Ptr := new Eval.Value_Array (1 .. Integer (Rows.Length));
       for P of Rows loop
-         A (I) := Tbl.Get_Value (P, Col);
+         G.Ptr (I) := Tbl.Get_Value (P, Col);
          I := I + 1;
       end loop;
-      return A;
-   end Group_Values;
+   end Gather_Group_Values;
+
+   --  Copy of Src's values with Extra appended (the PCTL percentile
+   --  argument, ADR-075/sdata#93), also on the heap.
+   procedure Gather_With_Trailing
+      (G     : in out Group_Vals;
+       Src   : Eval.Value_Array;
+       Extra : Value) is
+   begin
+      Free_VA (G.Ptr);
+      G.Ptr := new Eval.Value_Array (1 .. Src'Length + 1);
+      G.Ptr (1 .. Src'Length) := Src;
+      G.Ptr (Src'Length + 1)  := Extra;
+   end Gather_With_Trailing;
 
    --  Emit the active BY variables as the leading output columns (same name and
    --  column type as the source).  Shared schema prologue for the reshape
@@ -1079,9 +1118,10 @@ package body SData_Core.Commands is
                   Col : Positive := 1;
                   --  Materialize the group's column values ONCE; every
                   --  statistic reads the same vector (was rebuilt per statistic).
-                  Vals : constant Eval.Value_Array :=
-                    Group_Values (G, To_String (V.Name));
+                  Vals : Group_Vals;
+                  Tmp  : Group_Vals;
                begin
+                  Gather_Group_Values (Vals, G, To_String (V.Name));
                   Set_By_Output_Values (R, First_Phys);
                   Col := Tbl.By_Var_Count + 1;
                   Tbl.Set_Output_Value_By_Col
@@ -1095,16 +1135,18 @@ package body SData_Core.Commands is
                      --  -- the shared Vals above, reused by every OTHER
                      --  entry in this same loop, is never mutated). Every
                      --  other statistic's Call_Function call is unchanged.
+                     if S.Has_Pctl_Value then
+                        Gather_With_Trailing
+                          (Tmp, Vals.Ptr.all,
+                           Value'(Kind    => Val_Integer,
+                                  Int_Val => Int (S.Pctl_Value)));
+                     end if;
                      Tbl.Set_Output_Value_By_Col
                        (R, Col,
                         Eval.Call_Function
                           (To_String (S.Name),
-                           (if S.Has_Pctl_Value
-                            then Eval."&"
-                                   (Vals,
-                                    Value'(Kind    => Val_Integer,
-                                           Int_Val => Int (S.Pctl_Value)))
-                            else Vals)));
+                           (if S.Has_Pctl_Value then Tmp.Ptr.all
+                            else Vals.Ptr.all)));
                      Col := Col + 1;
                   end loop;
                end;
