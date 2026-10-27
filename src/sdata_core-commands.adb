@@ -346,7 +346,8 @@ package body SData_Core.Commands is
                 (1 .. SData_Core.Config.Runtime.Save_Charset_Len),
              SData_Core.Config.Runtime.Save_Decimals,
              SData_Core.Config.Runtime.Save_Missing_Token
-                (1 .. SData_Core.Config.Runtime.Save_Missing_Token_Len));
+                (1 .. SData_Core.Config.Runtime.Save_Missing_Token_Len),
+             Honor_Extension => not SData_Core.Config.Runtime.Save_Fmt_Explicit);
          SData_Core.IO.Put_Line
            ("Dataset saved: " &
             SData_Core.Config.Runtime.Save_File_Path
@@ -465,8 +466,28 @@ package body SData_Core.Commands is
       Write_Header : Boolean := True;
       Charset      : String  := "";
       Decimals     : Integer := -1;
-      Missing_Token : String := "")
+      Missing_Token : String := "";
+      Fmt_Specified : Boolean := False)
    is
+      function Has_Ext (S : String) return Boolean is
+      begin
+         for I in reverse S'Range loop
+            if S (I) = '.' then
+               return True;
+            elsif S (I) = '/' or else S (I) = '\' then
+               return False;
+            end if;
+         end loop;
+         return False;
+      end Has_Ext;
+
+      --  An explicit /FMT= also picks the default extension for a bare name.
+      Default_Ext : constant String :=
+         (if not Fmt_Specified or else Has_Ext (File_Name) then ""
+          else (case Fmt is
+                   when SData_Core.Config.CSV   => "",
+                   when SData_Core.Config.ODF   => ".ODS",
+                   when SData_Core.Config.OOXML => ".XLSX"));
    begin
       if File_Name'Length = 0 then
          SData_Core.Config.Runtime.Clear_Pending_Save;
@@ -475,11 +496,12 @@ package body SData_Core.Commands is
       end if;
 
       declare
-         Full : constant String := Full_Path (File_Name, "SAVE");
+         Full : constant String := Full_Path (File_Name & Default_Ext, "SAVE");
       begin
          Validate_Output_Dir (Full, "SAVE");
          SData_Core.Config.Runtime.Internal.Set_Save_File_Path (Full);
          SData_Core.Config.Runtime.Internal.Set_Save_File_Fmt (Fmt);
+         SData_Core.Config.Runtime.Internal.Set_Save_Fmt_Explicit (Fmt_Specified);
          SData_Core.Config.Runtime.Internal.Set_Save_Sheet_Name (Sheet_Name);
          SData_Core.Config.Runtime.Internal.Set_Save_File_Active (True);
          SData_Core.Config.Runtime.Internal.Set_Save_DLM (Delimiter);

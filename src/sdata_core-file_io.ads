@@ -53,6 +53,9 @@ package SData_Core.File_IO is
    --  Missing_Token (CSV/ODF/OOXML -- ADR-0026): a single literal string
    --  written for a missing cell instead of leaving it blank (CSV) / empty
    --  (ODF/OOXML). "" (the default) is today's unchanged blank/empty output.
+   --  Honor_Extension (default True): a recognised file extension overrides
+   --  Fmt.  False makes Fmt authoritative -- used when the caller has
+   --  already resolved the format, e.g. after an explicit SAVE /FMT=.
    procedure Open_Output (File_Name       : String;
                           Fmt             : Format_Type;
                           Sheet_Name      : String  := "";
@@ -63,6 +66,7 @@ package SData_Core.File_IO is
                           Decimals        : Integer := -1;
                           Missing_Token   : String  := "";
                           View            : SData_Core.Table.Table_View :=
-                             SData_Core.Table.Default_View);
+                             SData_Core.Table.Default_View;
+                          Honor_Extension : Boolean := True);
 
 end SData_Core.File_IO;

@@ -104,7 +104,8 @@ package body SData_Core.File_IO is
                           Decimals        : Integer := -1;
                           Missing_Token   : String  := "";
                           View            : SData_Core.Table.Table_View :=
-                             SData_Core.Table.Default_View) is
+                             SData_Core.Table.Default_View;
+                          Honor_Extension : Boolean := True) is
       Actual_Fmt : Format_Type := Fmt;
       Ext_Idx    : Natural := 0;
       Sname      : constant String :=
@@ -117,7 +118,7 @@ package body SData_Core.File_IO is
          end if;
       end loop;
 
-      if Ext_Idx > 0 then
+      if Honor_Extension and then Ext_Idx > 0 then
          declare
             Ext : constant String := File_Name (Ext_Idx + 1 .. File_Name'Last);
          begin

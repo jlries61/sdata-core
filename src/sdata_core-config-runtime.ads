@@ -92,6 +92,7 @@ package SData_Core.Config.Runtime is
    function Save_DLM         return String;
    function Save_DLM_Len     return Natural;
    function Save_Header      return Boolean;
+   function Save_Fmt_Explicit return Boolean;
    function Save_Charset     return String;
    function Save_Charset_Len return Natural;
    function Save_Decimals    return Integer;
@@ -178,6 +179,7 @@ private
                               (',', others => ' ');
    Save_DLM_Len_Value     : Natural := 1;
    Save_Header_Value      : Boolean := True;
+   Save_Fmt_Explicit_Value : Boolean := False;
    Save_Charset_Value     : String (1 .. SData_Core.Max_Charset_Len) :=
                               (others => ' ');
    Save_Charset_Len_Value : Natural := 0;

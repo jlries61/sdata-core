@@ -99,7 +99,11 @@ package SData_Core.Commands is
       Write_Header : Boolean := True;
       Charset     : String  := "";
       Decimals    : Integer := -1;
-      Missing_Token : String := "");
+      Missing_Token : String := "";
+      Fmt_Specified : Boolean := False);
+   --  Fmt_Specified: Fmt came from an explicit /FMT= option, so it overrides
+   --  the file-name extension (design.md section 4.4) and, when the name has
+   --  no extension, selects the default one (.ODS / .XLSX / .CSV).
 
    ----------------------------------------------------------------
    --  FPATH — set search directories per category.

@@ -136,7 +136,8 @@ friendlier than the bare Constraint_Error a slice assignment raises.</div>
       Write_Header : Boolean := True;
       Charset     : String  := &quot;&quot;;
       Decimals    : Integer := -1;
-      Missing_Token : String := &quot;&quot;);</pre>
+      Missing_Token : String := &quot;&quot;;
+      Fmt_Specified : Boolean := False);</pre>
 <div class='doc'>--------------------------------------------------------------
 SAVE — register a pending output dataset.
 
@@ -152,7 +153,10 @@ write occurs at the end of the next RUN.</div>
       Save_Flag   : Boolean := False;
       Submit_Flag : Boolean := False;
       Output_Flag : Boolean := False);</pre>
-<div class='doc'>--------------------------------------------------------------
+<div class='doc'>Fmt_Specified: Fmt came from an explicit /FMT= option, so it overrides
+the file-name extension (design.md section 4.4) and, when the name has
+no extension, selects the default one (.ODS / .XLSX / .CSV).
+--------------------------------------------------------------
 FPATH — set search directories per category.
 
 When all four flags are False the procedure resets every FPath_*
@@ -803,6 +807,10 @@ code continues to compile unchanged.</div>
 <div class='decl'>
 <div class='kind'>routine</div>
 <pre>   function Save_Header      return Boolean;</pre>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
+<pre>   function Save_Fmt_Explicit return Boolean;</pre>
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
