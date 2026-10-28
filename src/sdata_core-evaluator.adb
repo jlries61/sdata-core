@@ -11,6 +11,9 @@ with SData_Core.IO;        use SData_Core.IO;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
 with Interfaces;
+with Ada.Numerics;
+with Ada.Exceptions;
+with Ada.Strings.Fixed;
 use type Interfaces.Integer_64;
 --  The six child packages below are withed solely for their elaboration side
 --  effects: each body's "begin Register;" block calls Dispatch_Table.Insert to
@@ -117,6 +120,36 @@ package body SData_Core.Evaluator is
       Nav_Fns.Set_Boundary (BOG, EOG);
    end Set_Group_Boundary;
 
+   --  Invoke_Handler -- run a built-in function's handler.  A runtime check
+   --  failing inside it (overflow, range, Argument_Error from the math
+   --  library) is the argument being outside the function's domain; report
+   --  that as a domain error naming the function, not as Ada runtime text
+   --  such as "string_fns.adb:55 overflow check failed" (F04, F52).
+   function Invoke_Handler
+     (Cursor : Fn_Maps.Cursor;
+      Name   : String;
+      Vals   : Value_Vectors.Vector) return Value is
+   begin
+      return Fn_Maps.Element (Cursor).all (Name, Vals);
+   exception
+      when E : Constraint_Error | Ada.Numerics.Argument_Error | Program_Error =>
+         --  A message the function wrote itself is kept; the compiler's own
+         --  text is replaced.
+         declare
+            Msg : constant String := Ada.Exceptions.Exception_Message (E);
+         begin
+            if Msg'Length > 0
+               and then Ada.Strings.Fixed.Index (Msg, ".adb:") = 0
+               and then Ada.Strings.Fixed.Index (Msg, "bad input for") = 0
+               and then Ada.Strings.Fixed.Index (Msg, "explicit raise") = 0
+            then
+               raise SData_Core.Script_Error with Name & ": " & Msg;
+            end if;
+         end;
+         raise SData_Core.Script_Error with
+            Name & ": argument out of range";
+   end Invoke_Handler;
+
    function Call_Function (Name : String; Args : Value_Array) return Value is
       UC     : constant String := To_Upper (Name);
       Vals   : Value_Vectors.Vector;
@@ -128,7 +161,7 @@ package body SData_Core.Evaluator is
       if not Fn_Maps.Has_Element (Cursor) then
          raise SData_Core.Script_Error with "Call_Function: unknown function '" & Name & "'";
       end if;
-      return Fn_Maps.Element (Cursor).all (UC, Vals);
+      return Invoke_Handler (Cursor, UC, Vals);
    end Call_Function;
 
    function Is_Known_Function (Name : String) return Boolean is
@@ -479,7 +512,7 @@ package body SData_Core.Evaluator is
          Cursor : constant Fn_Maps.Cursor := Dispatch_Table.Find (Name);
       begin
          if Fn_Maps.Has_Element (Cursor) then
-            return Fn_Maps.Element (Cursor).all (Name, All_Vals);
+            return Invoke_Handler (Cursor, Name, All_Vals);
          end if;
       end;
 
