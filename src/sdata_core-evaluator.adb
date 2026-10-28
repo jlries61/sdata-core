@@ -130,7 +130,19 @@ package body SData_Core.Evaluator is
       Name   : String;
       Vals   : Value_Vectors.Vector) return Value is
    begin
-      return Fn_Maps.Element (Cursor).all (Name, Vals);
+      declare
+         Result : constant Value := Fn_Maps.Element (Cursor).all (Name, Vals);
+      begin
+         --  Design.md section 2.4: NaN is never exposed as a value.  A
+         --  function whose arguments push it out of its domain (huge
+         --  parameters, a degenerate shape) reports that instead of handing
+         --  back NaN (F52).
+         if Result.Kind = Val_Numeric and then Result.Num_Val /= Result.Num_Val then
+            raise SData_Core.Script_Error with
+               Name & ": result is not a number (argument out of range)";
+         end if;
+         return Result;
+      end;
    exception
       when E : Constraint_Error | Ada.Numerics.Argument_Error | Program_Error =>
          --  A message the function wrote itself is kept; the compiler's own

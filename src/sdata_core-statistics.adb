@@ -325,6 +325,9 @@ package body SData_Core.Statistics is
    --------------
    function Beta_CDF (X, Alpha, Beta : Real) return Real is
    begin
+      if Alpha <= 0.0 or else Beta <= 0.0 then
+         raise Constraint_Error with "Beta distribution: shape parameters must be positive";
+      end if;
       if X <= 0.0 then return 0.0; elsif X >= 1.0 then return 1.0; end if;
       return Real (Long_Beta.Regularized_Beta (Long_Float (X), Long_Float (Alpha), Long_Float (Beta)));
    end Beta_CDF;
@@ -334,6 +337,9 @@ package body SData_Core.Statistics is
    --------------
    function Beta_IDF (P, Alpha, Beta : Real) return Real is
    begin
+      if Alpha <= 0.0 or else Beta <= 0.0 then
+         raise Constraint_Error with "Beta distribution: shape parameters must be positive";
+      end if;
       return Real (Long_Beta.Inverse_Regularized_Beta (Long_Float (P), Long_Float (Alpha), Long_Float (Beta)));
    end Beta_IDF;
 
@@ -475,6 +481,9 @@ package body SData_Core.Statistics is
       V : constant Long_Float := Long_Float (DF);
       X : constant Long_Float := Long_Float (T);
    begin
+      if DF <= 0.0 then
+         raise Constraint_Error with "Student t distribution: degrees of freedom must be positive";
+      end if;
       return Real (Exp (Long_Gamma.Log_Gamma ((V + 1.0) / 2.0) - Long_Gamma.Log_Gamma (V / 2.0)) / (Sqrt (V * Ada.Numerics.Pi) * (1.0 + (X**2) / V)**((V + 1.0) / 2.0)));
    end Student_T_PDF;
 
@@ -489,6 +498,9 @@ package body SData_Core.Statistics is
       X : constant Long_Float := Long_Float (T);
       W : Long_Float;
    begin
+      if DF <= 0.0 then
+         raise Constraint_Error with "Student t distribution: degrees of freedom must be positive";
+      end if;
       W := V / (V + X**2);
       if X > 0.0 then
          return 1.0 - 0.5 * Real (Long_Beta.Regularized_Beta (W, V / 2.0, 0.5));
@@ -505,6 +517,9 @@ package body SData_Core.Statistics is
       V2 : constant Long_Float := Long_Float (DF2);
       XV : constant Long_Float := Long_Float (X);
    begin
+      if DF1 <= 0.0 or else DF2 <= 0.0 then
+         raise Constraint_Error with "F distribution: degrees of freedom must be positive";
+      end if;
       if XV <= 0.0 then return 0.0; end if;
       return Real (Sqrt (((V1 * XV)**V1 * V2**V2) / (V1 * XV + V2)**(V1 + V2)) / (XV * Long_Beta.Beta (V1 / 2.0, V2 / 2.0)));
    end F_PDF;
@@ -520,6 +535,9 @@ package body SData_Core.Statistics is
       XV : constant Long_Float := Long_Float (X);
       W : Long_Float;
    begin
+      if DF1 <= 0.0 or else DF2 <= 0.0 then
+         raise Constraint_Error with "F distribution: degrees of freedom must be positive";
+      end if;
       if XV <= 0.0 then return 0.0; end if;
       W := (V1 * XV) / (V1 * XV + V2);
       return Real (Long_Beta.Regularized_Beta (W, V1 / 2.0, V2 / 2.0));
@@ -795,6 +813,9 @@ package body SData_Core.Statistics is
       function CDF (X : Real) return Real is (Student_T_CDF (X, DF));
       function Bisect is new Bisect_IDF (CDF);
    begin
+      if DF <= 0.0 then
+         raise Constraint_Error with "Student t distribution: degrees of freedom must be positive";
+      end if;
       if P <= 0.0 then return Real'First; end if;
       if P >= 1.0 then return Real'Last; end if;
       return Bisect (P, -1000.0, 1000.0);
@@ -808,6 +829,9 @@ package body SData_Core.Statistics is
       function CDF (X : Real) return Real is (F_CDF (X, DF1, DF2));
       function Bisect is new Bisect_IDF (CDF);
    begin
+      if DF1 <= 0.0 or else DF2 <= 0.0 then
+         raise Constraint_Error with "F distribution: degrees of freedom must be positive";
+      end if;
       if P <= 0.0 then return 0.0; end if;
       if P >= 1.0 then return Real'Last; end if;
       return Bisect (P, 0.0, 1000.0);
