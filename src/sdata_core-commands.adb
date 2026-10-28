@@ -558,18 +558,25 @@ package body SData_Core.Commands is
       if SData_Core.IO.Is_Redirected then
          SData_Core.IO.Close_Output;
       end if;
-      if File_Name'Length > 0 then
-         SData_Core.IO.Open_Output (Full_Path (File_Name, "OUTPUT"));
-      end if;
       --  Route OPTIONS-field writes through the OPTIONS executors so the
       --  same length validation applies regardless of which door
       --  (OUTPUT or OPTIONS) sets the field — one validating path, no
       --  raw Internal.Set_* bypass (see ADR-0005; closes Fowler R3).
+      --  Done before the file is opened so that the new file picks the
+      --  values up (design.md section 6.1, F51).
       if TXTFMT'Length > 0 then
          Execute_OPTIONS_TXTFMT (TXTFMT);
       end if;
       if Charset'Length > 0 then
          Execute_OPTIONS_CHARSET (Charset);
+      end if;
+      if File_Name'Length > 0 then
+         SData_Core.IO.Open_Output
+           (Full_Path (File_Name, "OUTPUT"),
+            TXTFMT  => SData_Core.Config.Runtime.Options_TXTFMT
+                          (1 .. SData_Core.Config.Runtime.Options_TXTFMT_Len),
+            Charset => SData_Core.Config.Runtime.Options_CHARSET
+                          (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
       end if;
    end Execute_OUTPUT;
 
