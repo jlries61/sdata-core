@@ -701,8 +701,22 @@ package body SData_Core.Evaluator is
          when Expr_Binary_Op =>
             declare
                L : constant Value := Evaluate (Expr.Left);
-               R : constant Value := Evaluate (Expr.Right);
+               --  AND / OR evaluate the right operand only when it can matter:
+               --  a definite false on the left of AND, or a definite true on
+               --  the left of OR, decides the result (so "X <> 0 AND 1/X > 1"
+               --  does not divide by zero).  A missing left operand still
+               --  propagates as before.  Design.md section 3.3 (F45).
+               Decided : constant Boolean :=
+                  (L.Kind = Val_Integer or else L.Kind = Val_Numeric)
+                  and then ((Expr.Op = Op_And and then not Is_True (L))
+                            or else (Expr.Op = Op_Or and then Is_True (L)));
+               R : constant Value :=
+                  (if Decided then L else Evaluate (Expr.Right));
             begin
+               if Decided then
+                  return (Kind => Val_Integer,
+                          Int_Val => (if Expr.Op = Op_Or then 1 else 0));
+               end if;
                if L.Kind = Val_Missing or else R.Kind = Val_Missing then
                   return (Kind => Val_Missing);
                end if;
