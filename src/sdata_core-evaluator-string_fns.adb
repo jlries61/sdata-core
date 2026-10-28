@@ -324,14 +324,38 @@ package body SData_Core.Evaluator.String_Fns is
       return Result;
    end Handle_Num_Str;
 
+   --  Radix_String -- HEX$/OCT$/BIN$ (X[, Y]): the digits of X in RADIX,
+   --  left-padded with zeros to at least Y digits when Y is given
+   --  (design.md: 0 <= Y <= 255; F26).
+   function Radix_String (Name  : String;
+                          Vals  : Value_Vectors.Vector;
+                          Radix : Positive) return Value is
+      R      : Value (Val_String);
+      Digits_Str : constant String :=
+         To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), Radix);
+      Width  : Natural := 0;
+   begin
+      if Natural (Vals.Length) >= 2 then
+         declare
+            W : constant Real := Convert_To_Real (Vals.Element (2));
+         begin
+            if W < 0.0 or else W > 255.0 then
+               raise SData_Core.Script_Error with
+                  Name & ": width must be between 0 and 255";
+            end if;
+            Width := Natural (Real'Floor (W));
+         end;
+      end if;
+      R.Str_Val := To_Unbounded_String
+         ((if Digits_Str'Length >= Width then Digits_Str
+           else (1 .. Width - Digits_Str'Length => '0') & Digits_Str));
+      return R;
+   end Radix_String;
+
    function Handle_Hex (Name : String; Vals : Value_Vectors.Vector) return Value is
-      pragma Unreferenced (Name);
-      R : Value (Val_String);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      R.Str_Val := To_Unbounded_String
-         (To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), 16));
-      return R;
+      return Radix_String (Name, Vals, 16);
    end Handle_Hex;
 
    function Handle_Hex_From_Str (Name : String; Vals : Value_Vectors.Vector) return Value is
@@ -350,23 +374,15 @@ package body SData_Core.Evaluator.String_Fns is
    end Handle_Hex_From_Str;
 
    function Handle_Oct (Name : String; Vals : Value_Vectors.Vector) return Value is
-      pragma Unreferenced (Name);
-      R : Value (Val_String);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      R.Str_Val := To_Unbounded_String
-         (To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), 8));
-      return R;
+      return Radix_String (Name, Vals, 8);
    end Handle_Oct;
 
    function Handle_Bin (Name : String; Vals : Value_Vectors.Vector) return Value is
-      pragma Unreferenced (Name);
-      R : Value (Val_String);
    begin
       if not Has_Args (Vals, 1) then return (Kind => Val_Missing); end if;
-      R.Str_Val := To_Unbounded_String
-         (To_Base_String (Integer (Convert_To_Real (Vals.Element (1))), 2));
-      return R;
+      return Radix_String (Name, Vals, 2);
    end Handle_Bin;
 
    ---------------------------------------------------------------------------
@@ -418,10 +434,10 @@ package body SData_Core.Evaluator.String_Fns is
       Register_Arity ("CHR$",   1, 1);
       Register_Arity ("STR$",   1, 1);
       Register_Arity ("VAL",    1, 1);
-      Register_Arity ("HEX$",   1, 1);
+      Register_Arity ("HEX$",   1, 2);
       Register_Arity ("HEX",    1, 1);
-      Register_Arity ("OCT$",   1, 1);
-      Register_Arity ("BIN$",   1, 1);
+      Register_Arity ("OCT$",   1, 2);
+      Register_Arity ("BIN$",   1, 2);
       Register_Arity ("NUM$",   1, 1);
    end Register;
 
