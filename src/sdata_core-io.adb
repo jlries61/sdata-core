@@ -3,13 +3,26 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with Ada.Text_IO;
+with Ada.Streams.Stream_IO;
+with Ada.Strings.Fixed;
+with Ada.Strings.Maps.Constants;
+with Ada.Strings.UTF_Encoding;
+with Ada.Strings.UTF_Encoding.Conversions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with GNAT.OS_Lib; use GNAT.OS_Lib;
 with SData_Core.Config;
 
 package body SData_Core.IO is
 
-   Redirect_File    : Ada.Text_IO.File_Type;
+   --  OUTPUT redirection (design.md section 6.1): the target is written as a
+   --  byte stream so that the line ending (OPTIONS TXTFMT / OUTPUT /FMT=) and
+   --  the character set (OPTIONS CHARSET / OUTPUT /CHARSET=) chosen when the
+   --  file was opened apply to everything written to it.
+   type Redirect_Charset is (Charset_Raw, Charset_ASCII, Charset_UTF16LE, Charset_UTF16BE);
+
+   Redirect_File    : Ada.Streams.Stream_IO.File_Type;
+   Redirect_EOL     : Unbounded_String := To_Unbounded_String ("" & ASCII.LF);
+   Redirect_Mode    : Redirect_Charset := Charset_Raw;
    Redirected       : Boolean := False;
    Local_Echo       : Boolean := True;
    Interactive_Mode : Boolean := False;
@@ -27,6 +40,47 @@ package body SData_Core.IO is
    ---------------------------------------------------------------------------
    --  Internal helpers
    ---------------------------------------------------------------------------
+
+   --  Write_Redirect -- S (UTF-8, LF line ends) to the OUTPUT file with its
+   --  line ending and character set applied.  Strict => False is for the
+   --  error-message path, which must not itself raise: an unrepresentable
+   --  byte becomes '?' under CHARSET=ASCII instead of failing.
+   procedure Write_Redirect (S : String; Strict : Boolean := True) is
+      EOL   : constant String := To_String (Redirect_EOL);
+      Buf   : Unbounded_String;
+      Strm  : constant Ada.Streams.Stream_IO.Stream_Access :=
+         Ada.Streams.Stream_IO.Stream (Redirect_File);
+   begin
+      for C of S loop
+         if C = ASCII.LF then
+            Append (Buf, EOL);
+         elsif Redirect_Mode = Charset_ASCII and then Character'Pos (C) > 127 then
+            if Strict then
+               raise SData_Core.Script_Error with
+                  "OUTPUT: non-ASCII byte (value" & Integer'Image (Character'Pos (C))
+                  & ") in output -- rejected (CHARSET=ASCII)";
+            end if;
+            Append (Buf, '?');
+         else
+            Append (Buf, C);
+         end if;
+      end loop;
+      case Redirect_Mode is
+         when Charset_UTF16LE =>
+            String'Write (Strm,
+               Ada.Strings.UTF_Encoding.Conversions.Convert
+                  (To_String (Buf), Ada.Strings.UTF_Encoding.UTF_8,
+                   Ada.Strings.UTF_Encoding.UTF_16LE));
+         when Charset_UTF16BE =>
+            String'Write (Strm,
+               Ada.Strings.UTF_Encoding.Conversions.Convert
+                  (To_String (Buf), Ada.Strings.UTF_Encoding.UTF_8,
+                   Ada.Strings.UTF_Encoding.UTF_16BE));
+         when Charset_Raw | Charset_ASCII =>
+            String'Write (Strm, To_String (Buf));
+      end case;
+      Ada.Streams.Stream_IO.Flush (Redirect_File);
+   end Write_Redirect;
 
    procedure Check_Internal_Pager is
       Dummy : String (1 .. 10);
@@ -200,8 +254,7 @@ package body SData_Core.IO is
    procedure Put (Item : String) is
    begin
       if Redirected then
-         Ada.Text_IO.Put (Redirect_File, Item);
-         Ada.Text_IO.Flush (Redirect_File);
+         Write_Redirect (Item);
       end if;
 
       if Local_Echo then
@@ -226,8 +279,7 @@ package body SData_Core.IO is
    procedure Put_Line (Item : String) is
    begin
       if Redirected then
-         Ada.Text_IO.Put_Line (Redirect_File, Item);
-         Ada.Text_IO.Flush (Redirect_File);
+         Write_Redirect (Item & ASCII.LF);
       end if;
 
       if Local_Echo then
@@ -244,8 +296,7 @@ package body SData_Core.IO is
    procedure New_Line is
    begin
       if Redirected then
-         Ada.Text_IO.New_Line (Redirect_File);
-         Ada.Text_IO.Flush (Redirect_File);
+         Write_Redirect ("" & ASCII.LF);
       end if;
 
       if Local_Echo then
@@ -262,8 +313,7 @@ package body SData_Core.IO is
    procedure Put_Error (Item : String) is
    begin
       if Redirected then
-         Ada.Text_IO.Put (Redirect_File, Item);
-         Ada.Text_IO.Flush (Redirect_File);
+         Write_Redirect (Item, Strict => False);
       end if;
       Ada.Text_IO.Put (Ada.Text_IO.Standard_Error, Item);
       Ada.Text_IO.Flush (Ada.Text_IO.Standard_Error);
@@ -272,8 +322,7 @@ package body SData_Core.IO is
    procedure Put_Line_Error (Item : String) is
    begin
       if Redirected then
-         Ada.Text_IO.Put_Line (Redirect_File, Item);
-         Ada.Text_IO.Flush (Redirect_File);
+         Write_Redirect (Item & ASCII.LF, Strict => False);
       end if;
       Ada.Text_IO.Put_Line (Ada.Text_IO.Standard_Error, Item);
    end Put_Line_Error;
@@ -301,26 +350,57 @@ package body SData_Core.IO is
       end if;
    end Show_Progress;
 
-   procedure Open_Output (Filename : String) is
+   procedure Open_Output (Filename : String;
+                          TXTFMT   : String := "";
+                          Charset  : String := "") is
+      UF : constant String :=
+         Ada.Strings.Fixed.Translate
+           (Ada.Strings.Fixed.Trim (TXTFMT, Ada.Strings.Both),
+            Ada.Strings.Maps.Constants.Upper_Case_Map);
+      UC : constant String :=
+         Ada.Strings.Fixed.Translate
+           (Ada.Strings.Fixed.Trim (Charset, Ada.Strings.Both),
+            Ada.Strings.Maps.Constants.Upper_Case_Map);
    begin
       if Redirected then
          Close_Output;
       end if;
       begin
-         Ada.Text_IO.Create (Redirect_File, Ada.Text_IO.Out_File, Filename);
+         Ada.Streams.Stream_IO.Create
+           (Redirect_File, Ada.Streams.Stream_IO.Out_File, Filename);
       exception
-         when Ada.Text_IO.Name_Error =>
+         when Ada.Streams.Stream_IO.Name_Error =>
             raise SData_Core.Script_Error with "OUTPUT: invalid file name """ & Filename & """";
-         when Ada.Text_IO.Use_Error =>
+         when Ada.Streams.Stream_IO.Use_Error =>
             raise SData_Core.Script_Error with "OUTPUT: cannot create """ & Filename & """: permission denied";
       end;
+      Redirect_EOL :=
+        To_Unbounded_String
+          (if    UF = "CRLF" then "" & ASCII.CR & ASCII.LF
+           elsif UF = "CR"   then "" & ASCII.CR
+           else                   "" & ASCII.LF);
+      Redirect_Mode :=
+        (if    UC = "ASCII"                        then Charset_ASCII
+         elsif UC = "UTF-16" or else UC = "UTF-16LE" then Charset_UTF16LE
+         elsif UC = "UTF-16BE"                     then Charset_UTF16BE
+         else                                           Charset_Raw);
       Redirected := True;
+      --  UTF-16 output starts with a byte-order mark, as SAVE's does.
+      case Redirect_Mode is
+         when Charset_UTF16LE =>
+            String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
+                          "" & Character'Val (16#FF#) & Character'Val (16#FE#));
+         when Charset_UTF16BE =>
+            String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
+                          "" & Character'Val (16#FE#) & Character'Val (16#FF#));
+         when others => null;
+      end case;
    end Open_Output;
 
    procedure Close_Output is
    begin
       if Redirected then
-         Ada.Text_IO.Close (Redirect_File);
+         Ada.Streams.Stream_IO.Close (Redirect_File);
          Redirected := False;
       end if;
    end Close_Output;

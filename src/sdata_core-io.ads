@@ -20,7 +20,13 @@ package SData_Core.IO is
    procedure Show_Progress
      (Phase : String; Count : Natural; Final : Boolean := False);
 
-   procedure Open_Output (Filename : String);
+   --  Redirect console output to Filename.  TXTFMT ("", AUTO, LF, CRLF, CR)
+   --  and Charset ("", AUTO, UTF-8, ASCII, UTF-16, UTF-16LE, UTF-16BE) fix the
+   --  line ending and encoding for this file; "" means LF and UTF-8.  Under
+   --  ASCII a non-ASCII byte in ordinary output raises Script_Error.
+   procedure Open_Output (Filename : String;
+                          TXTFMT   : String := "";
+                          Charset  : String := "");
    procedure Close_Output;
    function Is_Redirected return Boolean;
 
