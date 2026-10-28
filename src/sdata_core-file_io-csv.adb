@@ -397,6 +397,12 @@ package body SData_Core.File_IO.CSV is
          if Max_Rows > 0 and then Rows_Written >= Max_Rows then
             return;
          end if;
+         --  A blank line (nothing before the line end) is not a record
+         --  (F16): pandas, R and SAS skip it too.  A line of delimiters only
+         --  is still a record with every field missing.
+         if Line'Length = 0 then
+            return;
+         end if;
          Rows_Written := Rows_Written + 1;
          Add_Row;
          SData_Core.IO.Show_Progress ("USE", Rows_Written);

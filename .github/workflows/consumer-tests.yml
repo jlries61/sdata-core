@@ -127,7 +127,7 @@ jobs:
           # v0.37.4 is the first release to include F38/F28 (REPEAT 0 means
           # zero records); the temporary SHA pins used by PRs #166/#167 are
           # replaced by this tag.
-          ref: v0.37.9
+          ref: v0.37.10
           path: sdata
 
       - name: Set up Alire
