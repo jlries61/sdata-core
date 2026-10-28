@@ -307,6 +307,13 @@ package body SData_Core.File_IO.Helpers is
    begin
       if T = "" then return Default; end if;
       if T'Length > Max_Name_Len then
+         --  F29: a longer name is cut to the limit; say so, because two long
+         --  names that differ only after the cut then collide and one column
+         --  is lost.
+         SData_Core.IO.Put_Line_Error
+            ("Warning: column name """ & T (T'First .. T'First + 19)
+             & "..."" is" & Natural'Image (T'Length)
+             & " characters long; truncated to" & Natural'Image (Max_Name_Len));
          return T (T'First .. T'First + Max_Name_Len - 1);
       end if;
       return T;
