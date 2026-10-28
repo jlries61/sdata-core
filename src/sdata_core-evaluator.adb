@@ -326,6 +326,69 @@ package body SData_Core.Evaluator is
             begin
                All_Vals.Append ((Kind => Val_String, Str_Val => To_Unbounded_String (VName)));
             end;
+         elsif Current.Is_Range
+            and then Current.Expr.Kind = Expr_Variable
+            and then Current.Expr_End /= null
+            and then Current.Expr_End.Kind = Expr_Variable
+         then
+            --  SUM(X1:X3), MEAN(X1:X3), ...: a colon range of numbered
+            --  variables contributes every variable X1..X3 (design.md 3.6).
+            declare
+               Lo_Name : constant String :=
+                  To_Upper (Current.Expr.Var_Name (1 .. Current.Expr.Var_Len));
+               Hi_Name : constant String :=
+                  To_Upper (Current.Expr_End.Var_Name (1 .. Current.Expr_End.Var_Len));
+
+               --  Split NAME into its prefix and trailing number.
+               function Split (Name : String; Prefix_Last : out Natural;
+                               Num : out Natural) return Boolean is
+                  I : Natural := Name'Last;
+               begin
+                  while I >= Name'First and then Name (I) in '0' .. '9' loop
+                     I := I - 1;
+                  end loop;
+                  Prefix_Last := I;
+                  if I = Name'Last then
+                     Num := 0;
+                     return False;
+                  end if;
+                  Num := Natural'Value (Name (I + 1 .. Name'Last));
+                  return True;
+               exception
+                  when Constraint_Error =>
+                     Num := 0;
+                     return False;
+               end Split;
+
+               Lo_P, Hi_P : Natural;
+               Lo_N, Hi_N : Natural;
+            begin
+               if not Split (Lo_Name, Lo_P, Lo_N)
+                  or else not Split (Hi_Name, Hi_P, Hi_N)
+                  or else Lo_Name (Lo_Name'First .. Lo_P)
+                          /= Hi_Name (Hi_Name'First .. Hi_P)
+               then
+                  raise SData_Core.Script_Error with
+                     "invalid range " & Lo_Name & ":" & Hi_Name
+                     & " (names must share a prefix and end in a number)";
+               end if;
+               for N in Natural'Min (Lo_N, Hi_N) .. Natural'Max (Lo_N, Hi_N) loop
+                  declare
+                     Img : constant String := Natural'Image (N);
+                     E   : Expression_Access :=
+                        Parse_Expression
+                          (Lo_Name (Lo_Name'First .. Lo_P)
+                           & Img (Img'First + 1 .. Img'Last));
+                  begin
+                     All_Vals.Append (Evaluate (E));
+                     Free_Expression (E);
+                  exception
+                     when others =>
+                        Free_Expression (E);
+                        raise;
+                  end;
+               end loop;
+            end;
          elsif Current.Expr.Kind = Expr_Variable then
             declare
                VName : constant String :=
