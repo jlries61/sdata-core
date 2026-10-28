@@ -340,6 +340,16 @@ package body SData_Core.Statistics is
       if Alpha <= 0.0 or else Beta <= 0.0 then
          raise Constraint_Error with "Beta distribution: shape parameters must be positive";
       end if;
+      if P < 0.0 or else P > 1.0 then
+         raise Constraint_Error with "Probability must be in [0,1]";
+      end if;
+      --  The inverse-beta routine loses accuracy for vanishing shapes and
+      --  never terminates for denormal ones (1e-308), so refuse them.
+      if Alpha < 1.0e-10 or else Beta < 1.0e-10 then
+         raise Constraint_Error with
+            "Beta distribution: shape parameters below 1e-10 are not supported";
+      end if;
+      if P = 0.0 then return 0.0; elsif P = 1.0 then return 1.0; end if;
       return Real (Long_Beta.Inverse_Regularized_Beta (Long_Float (P), Long_Float (Alpha), Long_Float (Beta)));
    end Beta_IDF;
 
