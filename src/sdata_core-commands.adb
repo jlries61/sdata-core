@@ -15,6 +15,7 @@ with Ada.Strings.Fixed;
 with Ada.Strings.Hash;
 with Ada.Strings.Unbounded;          use Ada.Strings.Unbounded;
 with GNAT.OS_Lib;
+with SData_Core.Charset;
 with SData_Core.Config.Runtime;
 with SData_Core.Config.Runtime.Internal;
 with SData_Core.File_IO;
@@ -122,20 +123,15 @@ package body SData_Core.Commands is
    --  Windows, or otherwise), not hardcoded here. It's purely syntactic --
    --  no existence check on Full itself -- so it works fine on a
    --  not-yet-existing SAVE target.
-   --  Reject a character set the reader/writers cannot honour (F32): silently
+   --  Reject a character set the system cannot convert (F32/F46): silently
    --  treating an unknown name as raw bytes would corrupt data without a word.
    --  Empty and AUTO mean "the session default".
    procedure Check_Charset (Name : String; Category : String) is
-      UC : constant String :=
-         To_Upper (Ada.Strings.Fixed.Trim (Name, Ada.Strings.Both));
    begin
-      if not (UC = "" or else UC = "AUTO" or else UC = "UTF-8"
-              or else UC = "UTF8" or else UC = "UTF-16" or else UC = "UTF-16LE"
-              or else UC = "UTF-16BE" or else UC = "ASCII")
-      then
+      if not SData_Core.Charset.Is_Supported (Name) then
          raise SData_Core.Script_Error with
             Category & ": unsupported character set """ & Name
-            & """ (use AUTO, UTF-8, UTF-16, UTF-16LE, UTF-16BE or ASCII)";
+            & """ (see ""iconv -l"" for the names this system knows)";
       end if;
    end Check_Charset;
 

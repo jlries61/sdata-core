@@ -9,6 +9,7 @@
 
 with Ada.Text_IO;              use Ada.Text_IO;
 with SData_Core;
+with SData_Core.Charset;
 with SData_Core.Commands;
 with SData_Core.Config.Runtime;
 with SData_Core.Config.Runtime.Internal;
@@ -219,6 +220,64 @@ begin
    Assert (SData_Core.Config.Runtime.Save_Decimals = 2, "Save_Decimals set to 2");
    SData_Core.Config.Runtime.Internal.Set_Save_Decimals (-1);
    Assert (SData_Core.Config.Runtime.Save_Decimals = -1, "Save_Decimals reset to -1");
+
+   ---------------------------------------------------------------------
+   --  SData_Core.Charset (F46): iconv-backed conversion to and from UTF-8.
+   ---------------------------------------------------------------------
+   declare
+      package Cs renames SData_Core.Charset;
+      E_Acute_U8 : constant String :=
+         Character'Val (16#C3#) & Character'Val (16#A9#);
+      E_Acute_L1 : constant String := (1 => Character'Val (16#E9#));
+      Euro_U8    : constant String :=
+         Character'Val (16#E2#) & Character'Val (16#82#) & Character'Val (16#AC#);
+      Conv       : Cs.Converter;
+   begin
+      Assert (Cs.Is_UTF8 ("") and then Cs.Is_UTF8 ("auto")
+              and then Cs.Is_UTF8 (" utf-8 ") and then not Cs.Is_UTF8 ("LATIN1"),
+              "Is_UTF8 names");
+      Assert (Cs.Is_Supported ("LATIN1") and then Cs.Is_Supported ("windows-1252"),
+              "Is_Supported accepts system character sets");
+      Assert (not Cs.Is_Supported ("NO-SUCH-CHARSET"),
+              "Is_Supported rejects unknown names");
+      Assert (Cs.Valid_UTF8 ("caf" & E_Acute_U8) and then Cs.Valid_UTF8 (""),
+              "Valid_UTF8 accepts well-formed text");
+      Assert (not Cs.Valid_UTF8 ("a" & E_Acute_L1 & "b")
+              and then Cs.First_Invalid_UTF8 ("ab" & E_Acute_L1) = 3,
+              "Valid_UTF8 rejects a lone Latin-1 byte and locates it");
+      Assert (not Cs.Valid_UTF8 (Character'Val (16#C0#) & Character'Val (16#80#))
+              and then not Cs.Valid_UTF8 (Euro_U8 (1 .. 2)),
+              "Valid_UTF8 rejects overlong and truncated sequences");
+
+      Cs.Open (Conv, "ISO-8859-1");
+      Assert (Cs.From_UTF8 (Conv, "caf" & E_Acute_U8, "t") = "caf" & E_Acute_L1,
+              "From_UTF8 encodes to Latin-1");
+      Assert (Cs.To_UTF8 (Conv, "caf" & E_Acute_L1, "t") = "caf" & E_Acute_U8,
+              "To_UTF8 decodes from Latin-1");
+      Assert (Cs.From_UTF8 (Conv, "", "t") = "", "From_UTF8 of empty text");
+
+      Raised := False;
+      begin
+         declare
+            Dummy : constant String := Cs.From_UTF8 (Conv, "a" & Euro_U8, "t");
+         begin
+            null;
+         end;
+      exception
+         when SData_Core.Script_Error => Raised := True;
+      end;
+      Assert (Raised, "From_UTF8 strict raises for an unrepresentable character");
+      Assert (Cs.From_UTF8 (Conv, "a" & Euro_U8 & "b", "t", Strict => False)
+              = "a?b", "From_UTF8 non-strict substitutes '?'");
+
+      Raised := False;
+      begin
+         Cs.Open (Conv, "NO-SUCH-CHARSET");
+      exception
+         when SData_Core.Script_Error => Raised := True;
+      end;
+      Assert (Raised, "Open raises for an unknown character set");
+   end;
 
    Report_And_Exit;
 end Commands_Tests;

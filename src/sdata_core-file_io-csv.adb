@@ -7,6 +7,7 @@ with Ada.Streams;
 with Ada.Directories;
 with Ada.Strings.UTF_Encoding;             use Ada.Strings.UTF_Encoding;
 with Ada.Strings.UTF_Encoding.Conversions;
+with SData_Core.Charset;
 with SData_Core.Config.Runtime;
 with SData_Core.IO;                use SData_Core.IO;
 with Ada.Characters.Handling; use Ada.Characters.Handling;
@@ -231,12 +232,142 @@ package body SData_Core.File_IO.CSV is
          Is_Buffered := True;
       end;
    exception
+      when Constraint_Error | Ada.Strings.UTF_Encoding.Encoding_Error =>
+         if Ada.Streams.Stream_IO.Is_Open (F) then
+            Ada.Streams.Stream_IO.Close (F);
+         end if;
+         raise SData_Core.Script_Error with
+            """" & File_Name & """: not valid UTF-16 text (CHARSET=UTF-16)";
       when others =>
          if Ada.Streams.Stream_IO.Is_Open (F) then
             Ada.Streams.Stream_IO.Close (F);
          end if;
          raise;
    end Load_As_UTF16;
+
+   --  An explicit /CHARSET=UTF-8: the file must be well-formed (design.md
+   --  section 4.1 -- invalid characters fail).  Streamed, so a large file is
+   --  not held in memory just to be checked.
+   procedure Check_File_UTF8 (File_Name : String) is
+      use Ada.Streams;
+      F      : Ada.Streams.Stream_IO.File_Type;
+      Buf    : Stream_Element_Array (1 .. 65_536);
+      Last   : Stream_Element_Offset;
+      Carry  : Unbounded_String;
+      Done   : Natural := 0;   --  bytes already checked
+   begin
+      Ada.Streams.Stream_IO.Open (F, Ada.Streams.Stream_IO.In_File, File_Name);
+      while not Ada.Streams.Stream_IO.End_Of_File (F) loop
+         Ada.Streams.Stream_IO.Read (F, Buf, Last);
+         declare
+            Chunk : String (1 .. Natural (Last));
+         begin
+            for I in Chunk'Range loop
+               Chunk (I) := Character'Val (Buf (Stream_Element_Offset (I)));
+            end loop;
+            Append (Carry, Chunk);
+         end;
+         declare
+            All_Bytes : constant String := To_String (Carry);
+            Cut       : Natural := All_Bytes'Last;
+         begin
+            --  Hold back a trailing, possibly incomplete, character.
+            for Back in 0 .. Natural'Min (2, All_Bytes'Length - 1) loop
+               declare
+                  B : constant Natural :=
+                     Character'Pos (All_Bytes (All_Bytes'Last - Back));
+               begin
+                  if B >= 16#C0# then
+                     if (B >= 16#F0# and then Back < 3)
+                       or else (B >= 16#E0# and then B < 16#F0# and then Back < 2)
+                       or else (B < 16#E0# and then Back < 1)
+                     then
+                        Cut := All_Bytes'Last - Back - 1;
+                     end if;
+                     exit;
+                  elsif B < 16#80# then
+                     exit;
+                  end if;
+               end;
+            end loop;
+            if Cut >= All_Bytes'First then
+               declare
+                  Bad : constant Natural :=
+                     SData_Core.Charset.First_Invalid_UTF8
+                        (All_Bytes (All_Bytes'First .. Cut));
+               begin
+                  if Bad /= 0 then
+                     raise SData_Core.Script_Error with
+                        """" & File_Name & """: not valid UTF-8 text at byte"
+                        & Integer'Image (Done + Bad) & " (CHARSET=UTF-8)";
+                  end if;
+               end;
+               Done := Done + Cut - All_Bytes'First + 1;
+               Carry := To_Unbounded_String (All_Bytes (Cut + 1 .. All_Bytes'Last));
+            end if;
+         end;
+      end loop;
+      Ada.Streams.Stream_IO.Close (F);
+      if Length (Carry) > 0 then
+         raise SData_Core.Script_Error with
+            """" & File_Name & """: not valid UTF-8 text at byte"
+            & Integer'Image (Done + 1) & " (CHARSET=UTF-8)";
+      end if;
+   exception
+      when others =>
+         if Ada.Streams.Stream_IO.Is_Open (F) then
+            Ada.Streams.Stream_IO.Close (F);
+         end if;
+         raise;
+   end Check_File_UTF8;
+
+   --  Any other character set the system can convert: the file is read whole
+   --  and translated to UTF-8 (as the UTF-16 path above does).
+   procedure Load_Via_Charset
+      (File_Name   : String;
+       Charset     : String;
+       All_Lines   : in out Line_Vecs.Vector;
+       Is_Buffered : out Boolean;
+       Delimiter   : String := ",")
+   is
+      F    : Ada.Streams.Stream_IO.File_Type;
+      Sz   : constant Ada.Directories.File_Size :=
+         Ada.Directories.Size (File_Name);
+      Buf  : Ada.Streams.Stream_Element_Array
+         (1 .. Ada.Streams.Stream_Element_Offset (Sz));
+      Last : Ada.Streams.Stream_Element_Offset;
+      Raw  : String (1 .. Natural (Sz));
+      Conv : SData_Core.Charset.Converter;
+   begin
+      Is_Buffered := False;
+      SData_Core.Charset.Open (Conv, Charset);
+      Ada.Streams.Stream_IO.Open (F, Ada.Streams.Stream_IO.In_File, File_Name);
+      Ada.Streams.Stream_IO.Read (F, Buf, Last);
+      Ada.Streams.Stream_IO.Close (F);
+      for I in 1 .. Natural (Last) loop
+         Raw (I) := Character'Val (Buf (Ada.Streams.Stream_Element_Offset (I)));
+      end loop;
+      declare
+         UTF8     : constant String :=
+            SData_Core.Charset.To_UTF8
+               (Conv, Raw (1 .. Natural (Last)), """" & File_Name & """");
+         Start_At : Natural := UTF8'First;
+      begin
+         if UTF8'Length >= 3
+            and then UTF8 (UTF8'First .. UTF8'First + 2) = BOM_8
+         then
+            Start_At := UTF8'First + 3;
+         end if;
+         Split_Into_Lines (UTF8 (Start_At .. UTF8'Last), All_Lines, Delimiter);
+         Is_Buffered := True;
+      end;
+   exception
+      when others =>
+         if Ada.Streams.Stream_IO.Is_Open (F) then
+            Ada.Streams.Stream_IO.Close (F);
+         end if;
+         raise;
+   end Load_Via_Charset;
 
    procedure Detect_And_Load
       (File_Name   : String;
@@ -780,6 +911,10 @@ package body SData_Core.File_IO.CSV is
             Detect_And_Load (File_Name, All_Lines, Is_Buffered, Delimiter);
          elsif UC = "ASCII" then
             Needs_ASCII_Chk := True;
+         elsif SData_Core.Charset.Is_UTF8 (UC) then
+            Check_File_UTF8 (File_Name);
+         else
+            Load_Via_Charset (File_Name, UC, All_Lines, Is_Buffered, Delimiter);
          end if;
       end;
 
@@ -904,6 +1039,11 @@ package body SData_Core.File_IO.CSV is
          Eff_Charset = "UTF-16BE";
       Is_UTF16BE_W : constant Boolean := Eff_Charset = "UTF-16BE";
       Is_ASCII_Chk : constant Boolean := Eff_Charset = "ASCII";
+      --  Any other character set goes through the system's iconv.
+      Use_Conv     : constant Boolean :=
+         not (Is_UTF16 or else Is_ASCII_Chk
+              or else SData_Core.Charset.Is_UTF8 (Eff_Charset));
+      Conv         : SData_Core.Charset.Converter;
       Out_Scheme   : constant Ada.Strings.UTF_Encoding.Encoding_Scheme :=
          (if Is_UTF16BE_W
           then Ada.Strings.UTF_Encoding.UTF_16BE
@@ -923,6 +1063,10 @@ package body SData_Core.File_IO.CSV is
             String'Write (Strm,
                Ada.Strings.UTF_Encoding.Conversions.Convert
                   (S, Ada.Strings.UTF_Encoding.UTF_8, Out_Scheme));
+         elsif Use_Conv then
+            String'Write (Strm,
+               SData_Core.Charset.From_UTF8
+                  (Conv, S, """" & File_Name & """"));
          else
             if Is_ASCII_Chk then
                --  ADR-0021 (PD-8): raise on the first offending byte rather
@@ -988,6 +1132,9 @@ package body SData_Core.File_IO.CSV is
             ("Error: SAVE aborted -- file already exists: " & File_Name &
              " (use OPTIONS SAVEOVERWRT YES to allow overwriting)");
          raise SData_Core.File_IO.Save_Refused;
+      end if;
+      if Use_Conv then
+         SData_Core.Charset.Open (Conv, Eff_Charset);
       end if;
       Ada.Streams.Stream_IO.Create (File, Ada.Streams.Stream_IO.Out_File, File_Name);
       Strm := Ada.Streams.Stream_IO.Stream (File);
@@ -1060,8 +1207,10 @@ package body SData_Core.File_IO.CSV is
       Ada.Streams.Stream_IO.Close (File);
    exception
       when others =>
+         --  A failed SAVE leaves no half-written file behind.
          if Ada.Streams.Stream_IO.Is_Open (File) then
             Ada.Streams.Stream_IO.Close (File);
+            Ada.Directories.Delete_File (File_Name);
          end if;
          raise;
    end Write_CSV;

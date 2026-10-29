@@ -47,6 +47,22 @@ library project SData_Core is
    --               deliberately and pervasively (~313 sites).
    Style_Switches := ("-gnaty-m", "-gnaty-S");
 
+   --  Character-set conversion (SData_Core.Charset) calls iconv(3).  glibc
+   --  has it in libc; macOS and Windows (GNU libiconv) need -liconv.  Alire
+   --  sets SDATA_CORE_OS from the build host (see alire.toml); builds that
+   --  bypass Alire default to "unix".
+   type OS_Kind is ("unix", "macos", "windows");
+   OS : OS_Kind := external ("SDATA_CORE_OS", "unix");
+
+   package Linker is
+      case OS is
+         when "macos" | "windows" =>
+            for Linker_Options use ("-liconv");
+         when "unix" =>
+            null;
+      end case;
+   end Linker;
+
    package Compiler is
       for Default_Switches ("Ada") use
          Sdata_Core_Config.Ada_Compiler_Switches
