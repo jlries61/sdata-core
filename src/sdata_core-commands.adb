@@ -122,6 +122,23 @@ package body SData_Core.Commands is
    --  Windows, or otherwise), not hardcoded here. It's purely syntactic --
    --  no existence check on Full itself -- so it works fine on a
    --  not-yet-existing SAVE target.
+   --  Reject a character set the reader/writers cannot honour (F32): silently
+   --  treating an unknown name as raw bytes would corrupt data without a word.
+   --  Empty and AUTO mean "the session default".
+   procedure Check_Charset (Name : String; Category : String) is
+      UC : constant String :=
+         To_Upper (Ada.Strings.Fixed.Trim (Name, Ada.Strings.Both));
+   begin
+      if not (UC = "" or else UC = "AUTO" or else UC = "UTF-8"
+              or else UC = "UTF8" or else UC = "UTF-16" or else UC = "UTF-16LE"
+              or else UC = "UTF-16BE" or else UC = "ASCII")
+      then
+         raise SData_Core.Script_Error with
+            Category & ": unsupported character set """ & Name
+            & """ (use AUTO, UTF-8, UTF-16, UTF-16LE, UTF-16BE or ASCII)";
+      end if;
+   end Check_Charset;
+
    procedure Validate_Output_Dir (Full : String; Category : String) is
       Dir : constant String := Ada.Directories.Containing_Directory (Full);
    begin
@@ -444,6 +461,7 @@ package body SData_Core.Commands is
          raise SData_Core.Script_Error
            with "USE charset name too long: " & Eff_Charset;
       end if;
+      Check_Charset (Eff_Charset, "USE");
 
       Result.Delimiter (1 .. Eff_DLM'Length) := Eff_DLM;
       Result.Delimiter_Len := Eff_DLM'Length;
@@ -489,6 +507,7 @@ package body SData_Core.Commands is
                    when SData_Core.Config.ODF   => ".ODS",
                    when SData_Core.Config.OOXML => ".XLSX"));
    begin
+      Check_Charset (Charset, "SAVE");
       if File_Name'Length = 0 then
          SData_Core.Config.Runtime.Clear_Pending_Save;
          SData_Core.Config.Runtime.Internal.Clear_Save_File_Path;
@@ -1280,7 +1299,17 @@ package body SData_Core.Commands is
             "OPTIONS TXTFMT value too long (max" &
             Natural'Image (Max_Delimiter_Len) & " chars)";
       end if;
-      SData_Core.Config.Runtime.Internal.Set_Options_TXTFMT (Value);
+      declare
+         UV : constant String := To_Upper (Value);
+      begin
+         if UV /= "AUTO" and then UV /= "LF" and then UV /= "CRLF"
+           and then UV /= "CR"
+         then
+            raise SData_Core.Script_Error with
+               "OPTIONS TXTFMT must be AUTO, LF, CRLF or CR";
+         end if;
+         SData_Core.Config.Runtime.Internal.Set_Options_TXTFMT (UV);
+      end;
    end Execute_OPTIONS_TXTFMT;
 
    --------------------------------------------------------------------
@@ -1293,6 +1322,7 @@ package body SData_Core.Commands is
             "OPTIONS CHARSET value too long (max" &
             Natural'Image (Max_Charset_Len) & " chars)";
       end if;
+      Check_Charset (Value, "OPTIONS CHARSET");
       SData_Core.Config.Runtime.Internal.Set_Options_CHARSET (Value);
    end Execute_OPTIONS_CHARSET;
 

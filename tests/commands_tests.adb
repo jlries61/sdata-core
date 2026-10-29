@@ -74,8 +74,17 @@ begin
    ---------------------------------------------------------------------
    --  OPTIONS TXTFMT: valid set, empty rejected, too-long rejected.
    ---------------------------------------------------------------------
-   Cmd.Execute_OPTIONS_TXTFMT ("FIXED");
-   Assert (TXTFMT = "FIXED", "OPTIONS TXTFMT sets value");
+   Cmd.Execute_OPTIONS_TXTFMT ("crlf");
+   Assert (TXTFMT = "CRLF", "OPTIONS TXTFMT sets (upper-cased) value");
+
+   Raised := False;
+   begin
+      Cmd.Execute_OPTIONS_TXTFMT ("FIXED");
+   exception
+      when SData_Core.Script_Error => Raised := True;
+   end;
+   Assert (Raised, "OPTIONS TXTFMT unknown value raises Script_Error");
+   Assert (TXTFMT = "CRLF", "rejected TXTFMT leaves prior value intact");
 
    Raised := False;
    begin
@@ -102,6 +111,15 @@ begin
 
    Cmd.Execute_OPTIONS_CHARSET ("");
    Assert (CHARSET = "", "OPTIONS CHARSET empty is allowed (autodetect)");
+
+   Raised := False;
+   begin
+      Cmd.Execute_OPTIONS_CHARSET ("BOGUS");
+   exception
+      when SData_Core.Script_Error => Raised := True;
+   end;
+   Assert (Raised, "OPTIONS CHARSET unsupported name raises Script_Error");
+   Assert (CHARSET = "", "rejected CHARSET leaves prior value intact");
 
    Raised := False;
    begin
@@ -146,7 +164,7 @@ begin
    ---------------------------------------------------------------------
    Cmd.Execute_OPTIONS_CSVDLM ("~");
    Cmd.Execute_OPTIONS_Header (False);
-   Cmd.Execute_OPTIONS_CHARSET ("L1");
+   Cmd.Execute_OPTIONS_CHARSET ("ASCII");
    declare
       R : constant Cmd.Use_Defaults := Cmd.Resolve_Use_Defaults;
    begin
@@ -154,7 +172,7 @@ begin
               "Resolve_Use_Defaults falls back to OPTIONS delimiter");
       Assert (not R.Read_Header,
               "Resolve_Use_Defaults falls back to OPTIONS header");
-      Assert (R.Charset (1 .. R.Charset_Len) = "L1",
+      Assert (R.Charset (1 .. R.Charset_Len) = "ASCII",
               "Resolve_Use_Defaults falls back to OPTIONS charset");
    end;
    declare
@@ -164,14 +182,14 @@ begin
            Delimiter_Specified => True,
            Read_Header         => True,
            Header_Specified    => True,
-           Charset             => "U8",
+           Charset             => "UTF-16BE",
            Charset_Specified   => True);
    begin
       Assert (R.Delimiter (1 .. R.Delimiter_Len) = ";",
               "Resolve_Use_Defaults passes specified delimiter through");
       Assert (R.Read_Header,
               "Resolve_Use_Defaults passes specified header through");
-      Assert (R.Charset (1 .. R.Charset_Len) = "U8",
+      Assert (R.Charset (1 .. R.Charset_Len) = "UTF-16BE",
               "Resolve_Use_Defaults passes specified charset through");
    end;
 
