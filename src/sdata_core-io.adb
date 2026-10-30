@@ -68,6 +68,26 @@ package body SData_Core.IO is
             Append (Buf, C);
          end if;
       end loop;
+      --  Text that is not UTF-8 cannot be converted to UTF-16.
+      if Redirect_Mode in Charset_UTF16LE | Charset_UTF16BE
+         and then not SData_Core.Charset.Valid_UTF8 (To_String (Buf))
+      then
+         if Strict then
+            raise SData_Core.Script_Error with
+               "OUTPUT: text is not valid UTF-8 and cannot be written as UTF-16";
+         end if;
+         declare
+            Fixed : String := To_String (Buf);
+            Bad   : Natural;
+         begin
+            loop
+               Bad := SData_Core.Charset.First_Invalid_UTF8 (Fixed);
+               exit when Bad = 0;
+               Fixed (Bad) := '?';
+            end loop;
+            Buf := To_Unbounded_String (Fixed);
+         end;
+      end if;
       case Redirect_Mode is
          when Charset_UTF16LE =>
             String'Write (Strm,

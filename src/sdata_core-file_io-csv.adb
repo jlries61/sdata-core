@@ -251,6 +251,12 @@ package body SData_Core.File_IO.CSV is
          Start_At : Natural := UTF8'First;
       begin
          GNAT.Strings.Free (Raw);
+         --  Text that is not really UTF-16 (e.g. an 8-bit file read with
+         --  CHARSET=UTF-16) can decode to lone surrogates, which are not
+         --  UTF-8; reject it here rather than let it reach later output.
+         if not SData_Core.Charset.Valid_UTF8 (UTF8) then
+            raise Ada.Strings.UTF_Encoding.Encoding_Error;
+         end if;
          if UTF8'Length >= 3
             and then UTF8 (UTF8'First .. UTF8'First + 2) = BOM_8
          then
