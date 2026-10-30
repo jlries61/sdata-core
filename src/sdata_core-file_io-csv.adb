@@ -61,7 +61,8 @@ package body SData_Core.File_IO.CSV is
    procedure Open_Memory (R : in out Record_Reader; S : String) is
    begin
       R.Is_File := False;
-      R.Chunk   := new String'(S);
+      R.Chunk   := new String (1 .. S'Length);   --  S may start past 1
+      R.Chunk.all := S;
       R.Pos     := 1;
       R.Last    := S'Length;
    end Open_Memory;
@@ -233,6 +234,13 @@ package body SData_Core.File_IO.CSV is
          raise;
    end Read_Whole_File;
 
+   procedure Load_Via_Charset
+      (File_Name   : String;
+       Charset     : String;
+       All_Lines   : in out Line_Vecs.Vector;
+       Is_Buffered : out Boolean;
+       Delimiter   : String := ",");
+
    procedure Load_As_UTF16
       (File_Name   : String;
        Scheme      : Ada.Strings.UTF_Encoding.Encoding_Scheme;
@@ -240,57 +248,43 @@ package body SData_Core.File_IO.CSV is
        Is_Buffered : out Boolean;
        Delimiter   : String := ",")
    is
+      Not_UTF16 : constant String :=
+         """" & File_Name & """: not valid UTF-16 text (CHARSET=UTF-16)";
       Raw : GNAT.Strings.String_Access;
    begin
       Is_Buffered := False;
-      Raw := Read_Whole_File (File_Name);
       --  Every UTF-16 CSV has NUL bytes (the delimiters and line ends are
       --  ASCII); a file without any is 8-bit or UTF-8 text, and decoding it
       --  would only produce garbage.
-      if Raw'Length > 0 then
-         declare
-            Has_NUL : Boolean := False;
-         begin
-            for C of Raw.all loop
-               if C = ASCII.NUL then
-                  Has_NUL := True;
-                  exit;
-               end if;
-            end loop;
-            if not Has_NUL then
-               raise Ada.Strings.UTF_Encoding.Encoding_Error;
-            end if;
-         end;
-      end if;
+      Raw := Read_Whole_File (File_Name);
       declare
-         UTF8     : constant String :=
-            Ada.Strings.UTF_Encoding.Conversions.Convert
-               (Raw.all, Scheme, Ada.Strings.UTF_Encoding.UTF_8);
-         Start_At : Natural := UTF8'First;
+         Has_NUL : Boolean := False;
       begin
+         for C of Raw.all loop
+            if C = ASCII.NUL then
+               Has_NUL := True;
+               exit;
+            end if;
+         end loop;
          GNAT.Strings.Free (Raw);
-         --  Text that is not really UTF-16 (e.g. an 8-bit file read with
-         --  CHARSET=UTF-16) can decode to lone surrogates, which are not
-         --  UTF-8; reject it here rather than let it reach later output.
-         if not SData_Core.Charset.Valid_UTF8 (UTF8) then
-            raise Ada.Strings.UTF_Encoding.Encoding_Error;
+         if not Has_NUL then
+            raise SData_Core.Script_Error with Not_UTF16;
          end if;
-         if UTF8'Length >= 3
-            and then UTF8 (UTF8'First .. UTF8'First + 2) = BOM_8
-         then
-            Start_At := UTF8'First + 3;
-         end if;
-         Split_Into_Lines (UTF8 (Start_At .. UTF8'Last), All_Lines, Delimiter);
-         Is_Buffered := True;
       end;
+      --  The conversion itself is iconv's, on the heap: a large file must
+      --  not be built on the stack.
+      Load_Via_Charset
+         (File_Name,
+          (if Scheme = Ada.Strings.UTF_Encoding.UTF_16BE
+           then "UTF-16BE" else "UTF-16LE"),
+          All_Lines, Is_Buffered, Delimiter);
    exception
-      when Constraint_Error | Ada.Strings.UTF_Encoding.Encoding_Error =>
-         GNAT.Strings.Free (Raw);
-         raise SData_Core.Script_Error with
-            """" & File_Name & """: not valid UTF-16 text (CHARSET=UTF-16)";
-      when others =>
+      when SData_Core.Script_Error =>
          GNAT.Strings.Free (Raw);
          raise;
+      when others =>
+         GNAT.Strings.Free (Raw);
+         raise SData_Core.Script_Error with Not_UTF16;
    end Load_As_UTF16;
 
    --  An explicit /CHARSET=UTF-8: the file must be well-formed (design.md
