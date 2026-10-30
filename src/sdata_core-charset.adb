@@ -148,32 +148,36 @@ package body SData_Core.Charset is
 
    --  One whole-buffer conversion.  Status as documented in sdata_iconv.c;
    --  Out receives the bytes produced so far (also on status 1 and 2).
+   --  Out_Str is allocated on the heap (the input may be a whole file) and
+   --  holds exactly the bytes produced; the caller frees it.
    procedure Convert_Buffer
      (CD      : System.Address;
       Input   : String;
-      Out_Str : out Unbounded_String;
+      Out_Str : out GNAT.Strings.String_Access;
       In_Used : out Natural;
       Status  : out Integer)
    is
-      Capacity : Natural := 4 * Input'Length + 16;
+      Capacity : Natural := 2 * Input'Length + 16;
+      Buf      : GNAT.Strings.String_Access;
    begin
       loop
+         Buf := new String (1 .. Capacity);
          declare
-            Buf      : aliased String (1 .. Capacity);
             Out_Len  : aliased Interfaces.C.size_t := 0;
             Used     : aliased Interfaces.C.size_t := 0;
-            Dummy_In : aliased String := (if Input'Length = 0 then " " else Input);
             Rc       : constant Interfaces.C.int :=
-               C_Convert (CD, Dummy_In'Address,
+               C_Convert (CD, Input'Address,
                           Interfaces.C.size_t (Input'Length),
-                          Buf'Address, Interfaces.C.size_t (Capacity),
+                          Buf.all'Address, Interfaces.C.size_t (Capacity),
                           Out_Len'Access, Used'Access);
          begin
             Status := Integer (Rc);
             if Status = 3 then
+               GNAT.Strings.Free (Buf);
                Capacity := Capacity * 2;
             else
-               Out_Str := To_Unbounded_String (Buf (1 .. Natural (Out_Len)));
+               Out_Str := new String'(Buf (1 .. Natural (Out_Len)));
+               GNAT.Strings.Free (Buf);
                In_Used := Natural (Used);
                return;
             end if;
@@ -184,25 +188,43 @@ package body SData_Core.Charset is
    function Describe (Name : Unbounded_String) return String is
      (To_String (Name));
 
-   function To_UTF8
-     (Conv : Converter; Raw : String; Context : String) return String
+   procedure To_UTF8
+     (Conv    : Converter;
+      Raw     : String;
+      Context : String;
+      Result  : out GNAT.Strings.String_Access)
    is
-      Result  : Unbounded_String;
       Used    : Natural;
       Status  : Integer;
    begin
       Convert_Buffer (Conv.To_UTF8_CD, Raw, Result, Used, Status);
       case Status is
          when 0 =>
-            return To_String (Result);
+            return;
          when 1 | 2 =>
+            GNAT.Strings.Free (Result);
             raise SData_Core.Script_Error with
                Context & ": byte" & Integer'Image (Raw'First + Used)
                & " is not valid " & Describe (Conv.Name) & " text";
          when others =>
+            GNAT.Strings.Free (Result);
             raise SData_Core.Script_Error with
                Context & ": cannot convert from " & Describe (Conv.Name);
       end case;
+   end To_UTF8;
+
+   function To_UTF8
+     (Conv : Converter; Raw : String; Context : String) return String
+   is
+      Result : GNAT.Strings.String_Access;
+   begin
+      To_UTF8 (Conv, Raw, Context, Result);
+      declare
+         S : constant String := Result.all;
+      begin
+         GNAT.Strings.Free (Result);
+         return S;
+      end;
    end To_UTF8;
 
    --  "U+20AC" for the UTF-8 character starting at Text (At).
@@ -239,13 +261,14 @@ package body SData_Core.Charset is
    begin
       while Pos <= Text'Last loop
          declare
-            Piece  : Unbounded_String;
+            Piece  : GNAT.Strings.String_Access;
             Used   : Natural;
             Status : Integer;
          begin
             Convert_Buffer (Conv.From_UTF8_CD, Text (Pos .. Text'Last),
                             Piece, Used, Status);
-            Append (Result, Piece);
+            Append (Result, Piece.all);
+            GNAT.Strings.Free (Piece);
             case Status is
                when 0 =>
                   return To_String (Result);

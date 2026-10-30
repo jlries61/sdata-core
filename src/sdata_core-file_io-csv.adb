@@ -192,6 +192,47 @@ package body SData_Core.File_IO.CSV is
          raise;
    end Split_Into_Lines;
 
+   --  The whole file as one heap string (a file can be far larger than the
+   --  stack); the caller frees it.
+   function Read_Whole_File (File_Name : String) return GNAT.Strings.String_Access
+   is
+      use Ada.Streams;
+      F      : Ada.Streams.Stream_IO.File_Type;
+      Sz     : constant Natural := Natural (Ada.Directories.Size (File_Name));
+      Result : GNAT.Strings.String_Access := new String (1 .. Sz);
+      Chunk  : Stream_Element_Array (1 .. 65_536);
+      Last   : Stream_Element_Offset;
+      Filled : Natural := 0;
+   begin
+      Ada.Streams.Stream_IO.Open (F, Ada.Streams.Stream_IO.In_File, File_Name);
+      while Filled < Sz and then not Ada.Streams.Stream_IO.End_Of_File (F) loop
+         Ada.Streams.Stream_IO.Read (F, Chunk, Last);
+         for I in 1 .. Natural (Last) loop
+            exit when Filled = Sz;
+            Filled := Filled + 1;
+            Result (Filled) := Character'Val (Chunk (Stream_Element_Offset (I)));
+         end loop;
+      end loop;
+      Ada.Streams.Stream_IO.Close (F);
+      if Filled < Sz then
+         declare
+            Short : constant GNAT.Strings.String_Access :=
+               new String'(Result (1 .. Filled));
+         begin
+            GNAT.Strings.Free (Result);
+            return Short;
+         end;
+      end if;
+      return Result;
+   exception
+      when others =>
+         if Ada.Streams.Stream_IO.Is_Open (F) then
+            Ada.Streams.Stream_IO.Close (F);
+         end if;
+         GNAT.Strings.Free (Result);
+         raise;
+   end Read_Whole_File;
+
    procedure Load_As_UTF16
       (File_Name   : String;
        Scheme      : Ada.Strings.UTF_Encoding.Encoding_Scheme;
@@ -199,30 +240,17 @@ package body SData_Core.File_IO.CSV is
        Is_Buffered : out Boolean;
        Delimiter   : String := ",")
    is
-      F    : Ada.Streams.Stream_IO.File_Type;
-      Sz   : constant Ada.Directories.File_Size :=
-         Ada.Directories.Size (File_Name);
-      Buf  : Ada.Streams.Stream_Element_Array
-         (1 .. Ada.Streams.Stream_Element_Offset (Sz));
-      Last : Ada.Streams.Stream_Element_Offset;
-      Raw  : String (1 .. Natural (Sz));
+      Raw : GNAT.Strings.String_Access;
    begin
       Is_Buffered := False;
-      Ada.Streams.Stream_IO.Open
-         (F, Ada.Streams.Stream_IO.In_File, File_Name);
-      Ada.Streams.Stream_IO.Read (F, Buf, Last);
-      Ada.Streams.Stream_IO.Close (F);
-      for I in 1 .. Natural (Last) loop
-         Raw (I) :=
-            Character'Val (Buf (Ada.Streams.Stream_Element_Offset (I)));
-      end loop;
+      Raw := Read_Whole_File (File_Name);
       declare
          UTF8     : constant String :=
             Ada.Strings.UTF_Encoding.Conversions.Convert
-               (Raw (1 .. Natural (Last)), Scheme,
-                Ada.Strings.UTF_Encoding.UTF_8);
+               (Raw.all, Scheme, Ada.Strings.UTF_Encoding.UTF_8);
          Start_At : Natural := UTF8'First;
       begin
+         GNAT.Strings.Free (Raw);
          if UTF8'Length >= 3
             and then UTF8 (UTF8'First .. UTF8'First + 2) = BOM_8
          then
@@ -233,15 +261,11 @@ package body SData_Core.File_IO.CSV is
       end;
    exception
       when Constraint_Error | Ada.Strings.UTF_Encoding.Encoding_Error =>
-         if Ada.Streams.Stream_IO.Is_Open (F) then
-            Ada.Streams.Stream_IO.Close (F);
-         end if;
+         GNAT.Strings.Free (Raw);
          raise SData_Core.Script_Error with
             """" & File_Name & """: not valid UTF-16 text (CHARSET=UTF-16)";
       when others =>
-         if Ada.Streams.Stream_IO.Is_Open (F) then
-            Ada.Streams.Stream_IO.Close (F);
-         end if;
+         GNAT.Strings.Free (Raw);
          raise;
    end Load_As_UTF16;
 
@@ -330,27 +354,16 @@ package body SData_Core.File_IO.CSV is
        Is_Buffered : out Boolean;
        Delimiter   : String := ",")
    is
-      F    : Ada.Streams.Stream_IO.File_Type;
-      Sz   : constant Ada.Directories.File_Size :=
-         Ada.Directories.Size (File_Name);
-      Buf  : Ada.Streams.Stream_Element_Array
-         (1 .. Ada.Streams.Stream_Element_Offset (Sz));
-      Last : Ada.Streams.Stream_Element_Offset;
-      Raw  : String (1 .. Natural (Sz));
       Conv : SData_Core.Charset.Converter;
+      Raw  : GNAT.Strings.String_Access;
+      UTF8 : GNAT.Strings.String_Access;
    begin
       Is_Buffered := False;
       SData_Core.Charset.Open (Conv, Charset);
-      Ada.Streams.Stream_IO.Open (F, Ada.Streams.Stream_IO.In_File, File_Name);
-      Ada.Streams.Stream_IO.Read (F, Buf, Last);
-      Ada.Streams.Stream_IO.Close (F);
-      for I in 1 .. Natural (Last) loop
-         Raw (I) := Character'Val (Buf (Ada.Streams.Stream_Element_Offset (I)));
-      end loop;
+      Raw := Read_Whole_File (File_Name);
+      SData_Core.Charset.To_UTF8 (Conv, Raw.all, """" & File_Name & """", UTF8);
+      GNAT.Strings.Free (Raw);
       declare
-         UTF8     : constant String :=
-            SData_Core.Charset.To_UTF8
-               (Conv, Raw (1 .. Natural (Last)), """" & File_Name & """");
          Start_At : Natural := UTF8'First;
       begin
          if UTF8'Length >= 3
@@ -361,11 +374,11 @@ package body SData_Core.File_IO.CSV is
          Split_Into_Lines (UTF8 (Start_At .. UTF8'Last), All_Lines, Delimiter);
          Is_Buffered := True;
       end;
+      GNAT.Strings.Free (UTF8);
    exception
       when others =>
-         if Ada.Streams.Stream_IO.Is_Open (F) then
-            Ada.Streams.Stream_IO.Close (F);
-         end if;
+         GNAT.Strings.Free (Raw);
+         GNAT.Strings.Free (UTF8);
          raise;
    end Load_Via_Charset;
 

@@ -9,6 +9,7 @@
 
 with Ada.Finalization;
 with Ada.Strings.Unbounded;
+with GNAT.Strings;
 with System;
 
 package SData_Core.Charset is
@@ -37,6 +38,14 @@ package SData_Core.Charset is
    --  character set when Raw contains a byte sequence invalid in it.
    function To_UTF8
      (Conv : Converter; Raw : String; Context : String) return String;
+
+   --  The same, for text too large to return on the stack (whole files): the
+   --  result is allocated on the heap and the caller frees it.
+   procedure To_UTF8
+     (Conv    : Converter;
+      Raw     : String;
+      Context : String;
+      Result  : out GNAT.Strings.String_Access);
 
    --  UTF-8 -> external bytes.  Raises Script_Error naming Context when Text
    --  has a character the character set cannot represent (Strict), or
