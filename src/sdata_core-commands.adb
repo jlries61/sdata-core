@@ -443,10 +443,10 @@ package body SData_Core.Commands is
         (if Delimiter_Specified then Delimiter
          else SData_Core.Config.Runtime.Options_CSVDLM
                 (1 .. SData_Core.Config.Runtime.Options_CSVDLM_Len));
+      --  OPTIONS CHARSET is the default for output only (design.md 4.1); a
+      --  file being read is auto-detected unless USE names its own CHARSET.
       Eff_Charset : constant String :=
-        (if Charset_Specified then Charset
-         else SData_Core.Config.Runtime.Options_CHARSET
-                (1 .. SData_Core.Config.Runtime.Options_CHARSET_Len));
+        (if Charset_Specified then Charset else "");
       Result : Use_Defaults;
    begin
       if Eff_DLM'Length > Max_Delimiter_Len then

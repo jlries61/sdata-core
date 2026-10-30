@@ -244,6 +244,24 @@ package body SData_Core.File_IO.CSV is
    begin
       Is_Buffered := False;
       Raw := Read_Whole_File (File_Name);
+      --  Every UTF-16 CSV has NUL bytes (the delimiters and line ends are
+      --  ASCII); a file without any is 8-bit or UTF-8 text, and decoding it
+      --  would only produce garbage.
+      if Raw'Length > 0 then
+         declare
+            Has_NUL : Boolean := False;
+         begin
+            for C of Raw.all loop
+               if C = ASCII.NUL then
+                  Has_NUL := True;
+                  exit;
+               end if;
+            end loop;
+            if not Has_NUL then
+               raise Ada.Strings.UTF_Encoding.Encoding_Error;
+            end if;
+         end;
+      end if;
       declare
          UTF8     : constant String :=
             Ada.Strings.UTF_Encoding.Conversions.Convert

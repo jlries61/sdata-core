@@ -173,8 +173,8 @@ begin
               "Resolve_Use_Defaults falls back to OPTIONS delimiter");
       Assert (not R.Read_Header,
               "Resolve_Use_Defaults falls back to OPTIONS header");
-      Assert (R.Charset (1 .. R.Charset_Len) = "ASCII",
-              "Resolve_Use_Defaults falls back to OPTIONS charset");
+      Assert (R.Charset_Len = 0,
+              "Resolve_Use_Defaults ignores OPTIONS charset (output only)");
    end;
    declare
       R : constant Cmd.Use_Defaults :=
