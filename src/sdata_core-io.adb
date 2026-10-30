@@ -427,6 +427,9 @@ package body SData_Core.IO is
          when Charset_UTF16BE =>
             String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
                           "" & Character'Val (16#FE#) & Character'Val (16#FF#));
+         when Charset_Iconv =>
+            String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
+                          SData_Core.Charset.Preamble (Redirect_Conv));
          when others => null;
       end case;
    end Open_Output;

@@ -117,6 +117,13 @@ package body SData_Core.Charset is
    function Valid_UTF8 (S : String) return Boolean is
      (First_Invalid_UTF8 (S) = 0);
 
+   procedure Convert_Buffer
+     (CD      : System.Address;
+      Input   : String;
+      Out_Str : out GNAT.Strings.String_Access;
+      In_Used : out Natural;
+      Status  : out Integer);
+
    procedure Open (Conv : in out Converter; Name : String) is
       Ext : constant String := Canonical (Name);
    begin
@@ -132,7 +139,37 @@ package body SData_Core.Charset is
             & """ (see ""iconv -l"" for the names this system knows)";
       end if;
       Conv.Name := To_Unbounded_String (Ext);
+      Conv.Pre  := Null_Unbounded_String;
+      --  Probe for a byte-order mark emitted on every conversion: it is
+      --  what "A" yields beyond one character's worth of bytes.
+      declare
+         One, Two : GNAT.Strings.String_Access;
+         Used     : Natural;
+         S1, S2   : Integer;
+      begin
+         Convert_Buffer (Conv.From_UTF8_CD, "A",  One, Used, S1);
+         Convert_Buffer (Conv.From_UTF8_CD, "AB", Two, Used, S2);
+         if S1 = 0 and then S2 = 0 then
+            declare
+               Unit : constant Integer := Two'Length - One'Length;
+               Pre  : constant Integer := One'Length - Unit;
+            begin
+               if Unit > 0 and then Pre > 0
+                 and then Two (Two'First .. Two'First + Pre - 1)
+                          = One (One'First .. One'First + Pre - 1)
+               then
+                  Conv.Pre := To_Unbounded_String
+                     (One (One'First .. One'First + Pre - 1));
+               end if;
+            end;
+         end if;
+         GNAT.Strings.Free (One);
+         GNAT.Strings.Free (Two);
+      end;
    end Open;
+
+   function Preamble (Conv : Converter) return String is
+     (To_String (Conv.Pre));
 
    overriding procedure Finalize (Conv : in out Converter) is
    begin
@@ -267,7 +304,17 @@ package body SData_Core.Charset is
          begin
             Convert_Buffer (Conv.From_UTF8_CD, Text (Pos .. Text'Last),
                             Piece, Used, Status);
-            Append (Result, Piece.all);
+            declare
+               Pre : constant String := To_String (Conv.Pre);
+            begin
+               if Pre'Length > 0 and then Piece'Length >= Pre'Length
+                 and then Piece (Piece'First .. Piece'First + Pre'Length - 1) = Pre
+               then
+                  Append (Result, Piece (Piece'First + Pre'Length .. Piece'Last));
+               else
+                  Append (Result, Piece.all);
+               end if;
+            end;
             GNAT.Strings.Free (Piece);
             case Status is
                when 0 =>

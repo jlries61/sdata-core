@@ -416,7 +416,16 @@ package body SData_Core.File_IO.CSV is
          (F, Ada.Streams.Stream_IO.In_File, File_Name);
       Ada.Streams.Stream_IO.Read (F, Detect, Last);
       Ada.Streams.Stream_IO.Close (F);
-      if Last >= 2
+      if Last >= 4
+         and then ((Detect (1) = 16#FF# and then Detect (2) = 16#FE#
+                    and then Detect (3) = 0 and then Detect (4) = 0)
+                   or else (Detect (1) = 0 and then Detect (2) = 0
+                            and then Detect (3) = 16#FE#
+                            and then Detect (4) = 16#FF#))
+      then
+         --  UTF-32 with a byte-order mark (iconv reads the mark itself).
+         Load_Via_Charset (File_Name, "UTF-32", All_Lines, Is_Buffered, Delimiter);
+      elsif Last >= 2
          and then Detect (1) = 16#FF# and then Detect (2) = 16#FE#
       then
          Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16LE,
@@ -1171,6 +1180,8 @@ package body SData_Core.File_IO.CSV is
       Strm := Ada.Streams.Stream_IO.Stream (File);
       if Is_UTF16 then
          String'Write (Strm, Out_BOM);
+      elsif Use_Conv then
+         String'Write (Strm, SData_Core.Charset.Preamble (Conv));
       end if;
       if N > 0 then
          if Write_Header then

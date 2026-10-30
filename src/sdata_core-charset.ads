@@ -56,12 +56,19 @@ package SData_Core.Charset is
       Context : String;
       Strict  : Boolean := True) return String;
 
+   --  Bytes (a byte-order mark) that this character set puts at the start of
+   --  every conversion -- UTF-32, UCS-2 and the like -- or "".  From_UTF8
+   --  omits them so that a file made of many pieces does not repeat the
+   --  mark; the writer emits Preamble once, at the start of the file.
+   function Preamble (Conv : Converter) return String;
+
 private
 
    type Converter is new Ada.Finalization.Limited_Controlled with record
       To_UTF8_CD   : System.Address := System.Null_Address;
       From_UTF8_CD : System.Address := System.Null_Address;
       Name         : Ada.Strings.Unbounded.Unbounded_String;
+      Pre          : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
    overriding procedure Finalize (Conv : in out Converter);
