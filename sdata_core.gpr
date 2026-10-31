@@ -56,8 +56,15 @@ library project SData_Core is
 
    package Linker is
       case OS is
-         when "macos" | "windows" =>
+         when "macos" =>
             for Linker_Options use ("-liconv");
+         when "windows" =>
+            --  Statically, so the executable needs no libiconv DLL (the MSI
+            --  then bundles nothing extra).  MSYS2's libiconv ships both
+            --  libiconv.a and the DLL's import library; plain -liconv would
+            --  pick the latter.
+            for Linker_Options use
+               ("-Wl,-Bstatic", "-liconv", "-Wl,-Bdynamic");
          when "unix" =>
             null;
       end case;
@@ -69,5 +76,12 @@ library project SData_Core is
          & ("-gnat2012", "-gnatVn") & Assert_Switches & Style_Switches;
          --  -gnatVn disables validity checks: the code predates -gnatVa and
          --  legitimately stores IEEE 754 infinities in float variables.
+      case OS is
+         when "windows" =>
+            --  Static libiconv: its header must not declare dllimport.
+            for Default_Switches ("C") use ("-DLIBICONV_STATIC");
+         when others =>
+            null;
+      end case;
    end Compiler;
 end SData_Core;
