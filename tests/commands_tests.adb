@@ -245,6 +245,19 @@ begin
       Assert (not Cs.Valid_UTF8 ("a" & E_Acute_L1 & "b")
               and then Cs.First_Invalid_UTF8 ("ab" & E_Acute_L1) = 3,
               "Valid_UTF8 rejects a lone Latin-1 byte and locates it");
+      --  Incomplete_Tail: a character cut off at the end of a block.
+      Assert (Cs.Incomplete_Tail ("abc") = 0
+              and then Cs.Incomplete_Tail ("caf" & E_Acute_U8) = 0
+              and then Cs.Incomplete_Tail ("caf" & E_Acute_U8 (1 .. 1)) = 1,
+              "Incomplete_Tail: complete text has none, a cut 2-byte char has 1");
+      declare
+         Euro : constant String :=
+            Character'Val (16#E2#) & Character'Val (16#82#) & Character'Val (16#AC#);
+      begin
+         Assert (Cs.Incomplete_Tail ("x" & Euro (1 .. 2)) = 2
+                 and then Cs.Incomplete_Tail ("x" & Euro) = 0,
+                 "Incomplete_Tail: a cut 3-byte char has 2, a whole one 0");
+      end;
       Assert (not Cs.Valid_UTF8 (Character'Val (16#C0#) & Character'Val (16#80#))
               and then not Cs.Valid_UTF8 (Euro_U8 (1 .. 2)),
               "Valid_UTF8 rejects overlong and truncated sequences");

@@ -234,59 +234,6 @@ package body SData_Core.File_IO.CSV is
          raise;
    end Read_Whole_File;
 
-   procedure Load_Via_Charset
-      (File_Name   : String;
-       Charset     : String;
-       All_Lines   : in out Line_Vecs.Vector;
-       Is_Buffered : out Boolean;
-       Delimiter   : String := ",");
-
-   procedure Load_As_UTF16
-      (File_Name   : String;
-       Scheme      : Ada.Strings.UTF_Encoding.Encoding_Scheme;
-       All_Lines   : in out Line_Vecs.Vector;
-       Is_Buffered : out Boolean;
-       Delimiter   : String := ",")
-   is
-      Not_UTF16 : constant String :=
-         """" & File_Name & """: not valid UTF-16 text (CHARSET=UTF-16)";
-      Raw : GNAT.Strings.String_Access;
-   begin
-      Is_Buffered := False;
-      --  Every UTF-16 CSV has NUL bytes (the delimiters and line ends are
-      --  ASCII); a file without any is 8-bit or UTF-8 text, and decoding it
-      --  would only produce garbage.
-      Raw := Read_Whole_File (File_Name);
-      declare
-         Has_NUL : Boolean := False;
-      begin
-         for C of Raw.all loop
-            if C = ASCII.NUL then
-               Has_NUL := True;
-               exit;
-            end if;
-         end loop;
-         GNAT.Strings.Free (Raw);
-         if not Has_NUL then
-            raise SData_Core.Script_Error with Not_UTF16;
-         end if;
-      end;
-      --  The conversion itself is iconv's, on the heap: a large file must
-      --  not be built on the stack.
-      Load_Via_Charset
-         (File_Name,
-          (if Scheme = Ada.Strings.UTF_Encoding.UTF_16BE
-           then "UTF-16BE" else "UTF-16LE"),
-          All_Lines, Is_Buffered, Delimiter);
-   exception
-      when SData_Core.Script_Error =>
-         GNAT.Strings.Free (Raw);
-         raise;
-      when others =>
-         GNAT.Strings.Free (Raw);
-         raise SData_Core.Script_Error with Not_UTF16;
-   end Load_As_UTF16;
-
    --  An explicit /CHARSET=UTF-8: the file must be well-formed (design.md
    --  section 4.1 -- invalid characters fail).  Streamed, so a large file is
    --  not held in memory just to be checked.
@@ -311,27 +258,11 @@ package body SData_Core.File_IO.CSV is
          end;
          declare
             All_Bytes : constant String := To_String (Carry);
-            Cut       : Natural := All_Bytes'Last;
+            --  Hold back a trailing, possibly incomplete, character until
+            --  the next block supplies the rest of it.
+            Cut       : constant Natural :=
+               All_Bytes'Last - SData_Core.Charset.Incomplete_Tail (All_Bytes);
          begin
-            --  Hold back a trailing, possibly incomplete, character.
-            for Back in 0 .. Natural'Min (2, All_Bytes'Length - 1) loop
-               declare
-                  B : constant Natural :=
-                     Character'Pos (All_Bytes (All_Bytes'Last - Back));
-               begin
-                  if B >= 16#C0# then
-                     if (B >= 16#F0# and then Back < 3)
-                       or else (B >= 16#E0# and then B < 16#F0# and then Back < 2)
-                       or else (B < 16#E0# and then Back < 1)
-                     then
-                        Cut := All_Bytes'Last - Back - 1;
-                     end if;
-                     exit;
-                  elsif B < 16#80# then
-                     exit;
-                  end if;
-               end;
-            end loop;
             if Cut >= All_Bytes'First then
                declare
                   Bad : constant Natural :=
@@ -363,8 +294,16 @@ package body SData_Core.File_IO.CSV is
          raise;
    end Check_File_UTF8;
 
-   --  Any other character set the system can convert: the file is read whole
-   --  and translated to UTF-8 (as the UTF-16 path above does).
+   --  Any character set the system can convert (design.md 4.1).  The whole
+   --  file is read onto the heap -- a file can be far larger than the stack --
+   --  translated to UTF-8 by iconv, and split into records as if it had been
+   --  UTF-8 all along.  A byte-order mark, which iconv leaves as U+FEFF, is
+   --  dropped.
+   --
+   --  UTF-16 gets one extra check.  Every UTF-16 CSV contains NUL bytes (its
+   --  delimiters and line ends are ASCII); a file with none is 8-bit or UTF-8
+   --  text, and decoding it would only yield garbage that nothing could tell
+   --  from data -- so it is refused.
    procedure Load_Via_Charset
       (File_Name   : String;
        Charset     : String;
@@ -379,6 +318,13 @@ package body SData_Core.File_IO.CSV is
       Is_Buffered := False;
       SData_Core.Charset.Open (Conv, Charset);
       Raw := Read_Whole_File (File_Name);
+      if Charset'Length >= 6 and then Charset (Charset'First .. Charset'First + 5) = "UTF-16"
+        and then Raw'Length > 0
+        and then (for all C of Raw.all => C /= ASCII.NUL)
+      then
+         raise SData_Core.Script_Error with
+            """" & File_Name & """: not valid UTF-16 text (CHARSET=UTF-16)";
+      end if;
       SData_Core.Charset.To_UTF8 (Conv, Raw.all, """" & File_Name & """", UTF8);
       GNAT.Strings.Free (Raw);
       declare
@@ -416,26 +362,25 @@ package body SData_Core.File_IO.CSV is
          (F, Ada.Streams.Stream_IO.In_File, File_Name);
       Ada.Streams.Stream_IO.Read (F, Detect, Last);
       Ada.Streams.Stream_IO.Close (F);
-      if Last >= 4
-         and then ((Detect (1) = 16#FF# and then Detect (2) = 16#FE#
-                    and then Detect (3) = 0 and then Detect (4) = 0)
-                   or else (Detect (1) = 0 and then Detect (2) = 0
-                            and then Detect (3) = 16#FE#
-                            and then Detect (4) = 16#FF#))
-      then
-         --  UTF-32 with a byte-order mark (iconv reads the mark itself).
-         Load_Via_Charset (File_Name, "UTF-32", All_Lines, Is_Buffered, Delimiter);
-      elsif Last >= 2
-         and then Detect (1) = 16#FF# and then Detect (2) = 16#FE#
-      then
-         Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16LE,
-                        All_Lines, Is_Buffered, Delimiter);
-      elsif Last >= 2
-         and then Detect (1) = 16#FE# and then Detect (2) = 16#FF#
-      then
-         Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16BE,
-                        All_Lines, Is_Buffered, Delimiter);
-      end if;
+      declare
+         Head : String (1 .. Natural (Last));
+      begin
+         for I in Head'Range loop
+            Head (I) := Character'Val (Detect (Stream_Element_Offset (I)));
+         end loop;
+         --  The UTF-32LE mark begins with the UTF-16LE one, so test it first.
+         if Head'Length >= 4
+           and then (Head (1 .. 4) = SData_Core.Charset.BOM_UTF32LE
+                     or else Head (1 .. 4) = SData_Core.Charset.BOM_UTF32BE)
+         then
+            --  iconv reads the mark itself and picks the byte order.
+            Load_Via_Charset (File_Name, "UTF-32", All_Lines, Is_Buffered, Delimiter);
+         elsif Head'Length >= 2 and then Head (1 .. 2) = BOM_16LE then
+            Load_Via_Charset (File_Name, "UTF-16LE", All_Lines, Is_Buffered, Delimiter);
+         elsif Head'Length >= 2 and then Head (1 .. 2) = BOM_16BE then
+            Load_Via_Charset (File_Name, "UTF-16BE", All_Lines, Is_Buffered, Delimiter);
+         end if;
+      end;
    exception
       when others =>
          if Ada.Streams.Stream_IO.Is_Open (F) then
@@ -941,12 +886,9 @@ package body SData_Core.File_IO.CSV is
       declare
          UC : constant String := To_Upper (Trim (Charset, Ada.Strings.Both));
       begin
-         if UC = "UTF-16" or else UC = "UTF-16LE" then
-            Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16LE,
-                           All_Lines, Is_Buffered, Delimiter);
-         elsif UC = "UTF-16BE" then
-            Load_As_UTF16 (File_Name, Ada.Strings.UTF_Encoding.UTF_16BE,
-                           All_Lines, Is_Buffered, Delimiter);
+         if UC = "UTF-16" then
+            --  Without a mark, UTF-16 means little-endian (as it always has).
+            Load_Via_Charset (File_Name, "UTF-16LE", All_Lines, Is_Buffered, Delimiter);
          elsif UC = "" or else UC = "AUTO" then
             Detect_And_Load (File_Name, All_Lines, Is_Buffered, Delimiter);
          elsif UC = "ASCII" then

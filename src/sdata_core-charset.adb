@@ -13,6 +13,15 @@ package body SData_Core.Charset is
 
    use type Interfaces.C.size_t;
 
+   Initial_Output_Factor : constant := 2;    --  first output buffer: 2 x input
+   Output_Slack          : constant := 16;   --  ... plus room for a shift sequence
+
+   --  Status codes returned by sdata_iconv_convert (see sdata_iconv.c).
+   Conv_OK         : constant := 0;   --  converted; the output is complete
+   Conv_Invalid    : constant := 1;   --  invalid or unrepresentable input
+   Conv_Incomplete : constant := 2;   --  input ends inside a character
+   Conv_No_Room    : constant := 3;   --  output buffer too small: retry bigger
+
    function C_Open (To_Code, From_Code : Interfaces.C.Strings.chars_ptr)
       return System.Address
    with Import, Convention => C, External_Name => "sdata_iconv_open";
@@ -68,13 +77,36 @@ package body SData_Core.Charset is
       end;
    end Is_Supported;
 
+   --  UTF-8 byte classes (RFC 3629).  A character is a lead byte followed by
+   --  continuation bytes; the lead byte's range gives the length.
+   Last_ASCII         : constant := 16#7F#;   --  one-byte characters: 0 .. 7F
+   First_Continuation : constant := 16#80#;   --  10xxxxxx
+   Last_Continuation  : constant := 16#BF#;
+   First_Lead_2       : constant := 16#C2#;   --  C0 and C1 would be overlong
+   Last_Lead_2        : constant := 16#DF#;
+   First_Lead_3       : constant := 16#E0#;
+   Last_Lead_3        : constant := 16#EF#;
+   First_Lead_4       : constant := 16#F0#;
+   Last_Lead_4        : constant := 16#F4#;   --  F5 and up exceed U+10FFFF
+
+   --  The second byte is narrower after some lead bytes, to rule out
+   --  overlong forms (E0, F0), surrogates (ED) and values above U+10FFFF (F4).
+   Lead_No_Overlong_3 : constant := 16#E0#;   --  second byte >= A0
+   Min_Second_After_E0 : constant := 16#A0#;
+   Lead_Surrogates    : constant := 16#ED#;   --  second byte <= 9F
+   Max_Second_After_ED : constant := 16#9F#;
+   Lead_No_Overlong_4 : constant := 16#F0#;   --  second byte >= 90
+   Min_Second_After_F0 : constant := 16#90#;
+   Lead_Max_Plane     : constant := 16#F4#;   --  second byte <= 8F
+   Max_Second_After_F4 : constant := 16#8F#;
+
    --  Length of the UTF-8 sequence introduced by lead byte B, or 0 if B
    --  cannot start one.
    function Seq_Length (B : Natural) return Natural is
-     (if B < 16#80# then 1
-      elsif B in 16#C2# .. 16#DF# then 2
-      elsif B in 16#E0# .. 16#EF# then 3
-      elsif B in 16#F0# .. 16#F4# then 4
+     (if B <= Last_ASCII then 1
+      elsif B in First_Lead_2 .. Last_Lead_2 then 2
+      elsif B in First_Lead_3 .. Last_Lead_3 then 3
+      elsif B in First_Lead_4 .. Last_Lead_4 then 4
       else 0);
 
    --  Offset (1-based) of the first invalid byte of S, or 0 when S is
@@ -91,7 +123,9 @@ package body SData_Core.Charset is
                return I;
             end if;
             for K in 1 .. N - 1 loop
-               if Character'Pos (S (I + K)) not in 16#80# .. 16#BF# then
+               if Character'Pos (S (I + K))
+                  not in First_Continuation .. Last_Continuation
+               then
                   return I;
                end if;
             end loop;
@@ -99,10 +133,10 @@ package body SData_Core.Charset is
                declare
                   B1 : constant Natural := Character'Pos (S (I + 1));
                begin
-                  if (B0 = 16#E0# and then B1 < 16#A0#)
-                    or else (B0 = 16#ED# and then B1 > 16#9F#)
-                    or else (B0 = 16#F0# and then B1 < 16#90#)
-                    or else (B0 = 16#F4# and then B1 > 16#8F#)
+                  if (B0 = Lead_No_Overlong_3 and then B1 < Min_Second_After_E0)
+                    or else (B0 = Lead_Surrogates and then B1 > Max_Second_After_ED)
+                    or else (B0 = Lead_No_Overlong_4 and then B1 < Min_Second_After_F0)
+                    or else (B0 = Lead_Max_Plane and then B1 > Max_Second_After_F4)
                   then
                      return I;
                   end if;
@@ -113,6 +147,25 @@ package body SData_Core.Charset is
       end loop;
       return 0;
    end First_Invalid_UTF8;
+
+   function Incomplete_Tail (S : String) return Natural is
+   begin
+      --  Look back over at most the last three bytes for a lead byte whose
+      --  character does not fit in what remains.
+      for Back in 0 .. Natural'Min (2, S'Length - 1) loop
+         declare
+            B : constant Natural := Character'Pos (S (S'Last - Back));
+            N : constant Natural := Seq_Length (B);
+         begin
+            if N >= 2 then
+               return (if Back + 1 < N then Back + 1 else 0);
+            elsif N = 1 then
+               return 0;         --  an ASCII byte ends any earlier character
+            end if;               --  otherwise a continuation byte: keep going
+         end;
+      end loop;
+      return 0;
+   end Incomplete_Tail;
 
    function Valid_UTF8 (S : String) return Boolean is
      (First_Invalid_UTF8 (S) = 0);
@@ -149,7 +202,7 @@ package body SData_Core.Charset is
       begin
          Convert_Buffer (Conv.From_UTF8_CD, "A",  One, Used, S1);
          Convert_Buffer (Conv.From_UTF8_CD, "AB", Two, Used, S2);
-         if S1 = 0 and then S2 = 0 then
+         if S1 = Conv_OK and then S2 = Conv_OK then
             declare
                Unit : constant Integer := Two'Length - One'Length;
                Pre  : constant Integer := One'Length - Unit;
@@ -194,7 +247,10 @@ package body SData_Core.Charset is
       In_Used : out Natural;
       Status  : out Integer)
    is
-      Capacity : Natural := 2 * Input'Length + 16;
+      --  A first guess; sdata_iconv_convert reports Conv_No_Room when the
+      --  output (UTF-32 is four bytes per ASCII byte) does not fit, and the
+      --  buffer is doubled.
+      Capacity : Natural := Initial_Output_Factor * Input'Length + Output_Slack;
       Buf      : GNAT.Strings.String_Access;
    begin
       loop
@@ -209,7 +265,7 @@ package body SData_Core.Charset is
                           Out_Len'Access, Used'Access);
          begin
             Status := Integer (Rc);
-            if Status = 3 then
+            if Status = Conv_No_Room then
                GNAT.Strings.Free (Buf);
                Capacity := Capacity * 2;
             else
@@ -236,9 +292,9 @@ package body SData_Core.Charset is
    begin
       Convert_Buffer (Conv.To_UTF8_CD, Raw, Result, Used, Status);
       case Status is
-         when 0 =>
+         when Conv_OK =>
             return;
-         when 1 | 2 =>
+         when Conv_Invalid | Conv_Incomplete =>
             GNAT.Strings.Free (Result);
             raise SData_Core.Script_Error with
                Context & ": byte" & Integer'Image (Raw'First + Used)
@@ -317,9 +373,9 @@ package body SData_Core.Charset is
             end;
             GNAT.Strings.Free (Piece);
             case Status is
-               when 0 =>
+               when Conv_OK =>
                   return To_String (Result);
-               when 1 | 2 =>
+               when Conv_Invalid | Conv_Incomplete =>
                   if Strict then
                      raise SData_Core.Script_Error with
                         Context & ": character " & Code_Point_Image (Text, Pos + Used)

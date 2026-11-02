@@ -127,7 +127,13 @@ jobs:
           # v0.37.4 is the first release to include F38/F28 (REPEAT 0 means
           # zero records); the temporary SHA pins used by PRs #166/#167 are
           # replaced by this tag.
-          ref: v0.37.14
+          #
+          # TEMPORARY: F46 changed the charset error wording and USE's
+          # handling of OPTIONS CHARSET, which v0.37.14's expected outputs
+          # (invalid_options, invalid_flags_runtime) pin; this is the sdata
+          # F46 branch head (0.37.15).  Replace with the v0.37.15 tag once
+          # that is released.
+          ref: f96d8393f57beb180d3a6ddf47544e420a9c2126
           path: sdata
 
       - name: Set up Alire

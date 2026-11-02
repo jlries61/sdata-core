@@ -423,10 +423,10 @@ package body SData_Core.IO is
       case Redirect_Mode is
          when Charset_UTF16LE =>
             String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
-                          "" & Character'Val (16#FF#) & Character'Val (16#FE#));
+                          Ada.Strings.UTF_Encoding.BOM_16LE);
          when Charset_UTF16BE =>
             String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
-                          "" & Character'Val (16#FE#) & Character'Val (16#FF#));
+                          Ada.Strings.UTF_Encoding.BOM_16BE);
          when Charset_Iconv =>
             String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
                           SData_Core.Charset.Preamble (Redirect_Conv));
