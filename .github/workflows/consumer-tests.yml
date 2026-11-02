@@ -128,12 +128,11 @@ jobs:
           # zero records); the temporary SHA pins used by PRs #166/#167 are
           # replaced by this tag.
           #
-          # TEMPORARY: F46 changed the charset error wording and USE's
-          # handling of OPTIONS CHARSET, which v0.37.14's expected outputs
-          # (invalid_options, invalid_flags_runtime) pin; this is the sdata
-          # F46 branch head (0.37.15).  Replace with the v0.37.15 tag once
-          # that is released.
-          ref: f96d8393f57beb180d3a6ddf47544e420a9c2126
+          # v0.37.15 is the first release with F46 (iconv charsets): it changed
+          # the charset error wording and USE's handling of OPTIONS CHARSET,
+          # which v0.37.14's expected outputs pin.  It replaces the temporary
+          # SHA pin used by PR #177.
+          ref: v0.37.15
           path: sdata
 
       - name: Set up Alire
