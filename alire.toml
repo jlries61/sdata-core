@@ -1,6 +1,6 @@
 name = "sdata_core"
 description = "Shared data-layer and evaluator library for sdata and data-vandal"
-version = "0.16.14"
+version = "0.16.15"
 
 authors = ["John L. Ries"]
 maintainers = ["John L. Ries <john@theyarnbard.com>"]
@@ -25,6 +25,11 @@ mathpaqs = "^20260205.0.0"
 # src/sdata_core-table.adb (Backing_Store.Finalize).
 [[depends-on]]
 ada_sqlite3 = "^0.1.1"
+
+# Selects -liconv on the hosts whose iconv is a separate library (sdata_core.gpr).
+[gpr-set-externals.'case(os)']
+macos = { SDATA_CORE_OS = "macos" }
+windows = { SDATA_CORE_OS = "windows" }
 
 [[actions]]
 type = "pre-build"

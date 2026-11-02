@@ -10,6 +10,7 @@ with Ada.Strings.UTF_Encoding;
 with Ada.Strings.UTF_Encoding.Conversions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with GNAT.OS_Lib; use GNAT.OS_Lib;
+with SData_Core.Charset;
 with SData_Core.Config;
 
 package body SData_Core.IO is
@@ -18,11 +19,13 @@ package body SData_Core.IO is
    --  byte stream so that the line ending (OPTIONS TXTFMT / OUTPUT /FMT=) and
    --  the character set (OPTIONS CHARSET / OUTPUT /CHARSET=) chosen when the
    --  file was opened apply to everything written to it.
-   type Redirect_Charset is (Charset_Raw, Charset_ASCII, Charset_UTF16LE, Charset_UTF16BE);
+   type Redirect_Charset is
+     (Charset_Raw, Charset_ASCII, Charset_UTF16LE, Charset_UTF16BE, Charset_Iconv);
 
    Redirect_File    : Ada.Streams.Stream_IO.File_Type;
    Redirect_EOL     : Unbounded_String := To_Unbounded_String ("" & ASCII.LF);
    Redirect_Mode    : Redirect_Charset := Charset_Raw;
+   Redirect_Conv    : SData_Core.Charset.Converter;   --  Charset_Iconv only
    Redirected       : Boolean := False;
    Local_Echo       : Boolean := True;
    Interactive_Mode : Boolean := False;
@@ -65,6 +68,26 @@ package body SData_Core.IO is
             Append (Buf, C);
          end if;
       end loop;
+      --  Text that is not UTF-8 cannot be converted to UTF-16.
+      if Redirect_Mode in Charset_UTF16LE | Charset_UTF16BE
+         and then not SData_Core.Charset.Valid_UTF8 (To_String (Buf))
+      then
+         if Strict then
+            raise SData_Core.Script_Error with
+               "OUTPUT: text is not valid UTF-8 and cannot be written as UTF-16";
+         end if;
+         declare
+            Fixed : String := To_String (Buf);
+            Bad   : Natural;
+         begin
+            loop
+               Bad := SData_Core.Charset.First_Invalid_UTF8 (Fixed);
+               exit when Bad = 0;
+               Fixed (Bad) := '?';
+            end loop;
+            Buf := To_Unbounded_String (Fixed);
+         end;
+      end if;
       case Redirect_Mode is
          when Charset_UTF16LE =>
             String'Write (Strm,
@@ -76,6 +99,10 @@ package body SData_Core.IO is
                Ada.Strings.UTF_Encoding.Conversions.Convert
                   (To_String (Buf), Ada.Strings.UTF_Encoding.UTF_8,
                    Ada.Strings.UTF_Encoding.UTF_16BE));
+         when Charset_Iconv =>
+            String'Write (Strm,
+               SData_Core.Charset.From_UTF8
+                  (Redirect_Conv, To_String (Buf), "OUTPUT", Strict));
          when Charset_Raw | Charset_ASCII =>
             String'Write (Strm, To_String (Buf));
       end case;
@@ -365,6 +392,12 @@ package body SData_Core.IO is
       if Redirected then
          Close_Output;
       end if;
+      --  Fail on an unsupported character set before the file is created.
+      if not (UC = "ASCII" or else UC = "UTF-16" or else UC = "UTF-16LE"
+              or else UC = "UTF-16BE" or else SData_Core.Charset.Is_UTF8 (UC))
+      then
+         SData_Core.Charset.Open (Redirect_Conv, UC);
+      end if;
       begin
          Ada.Streams.Stream_IO.Create
            (Redirect_File, Ada.Streams.Stream_IO.Out_File, Filename);
@@ -383,16 +416,20 @@ package body SData_Core.IO is
         (if    UC = "ASCII"                        then Charset_ASCII
          elsif UC = "UTF-16" or else UC = "UTF-16LE" then Charset_UTF16LE
          elsif UC = "UTF-16BE"                     then Charset_UTF16BE
-         else                                           Charset_Raw);
+         elsif SData_Core.Charset.Is_UTF8 (UC)       then Charset_Raw
+         else                                           Charset_Iconv);
       Redirected := True;
       --  UTF-16 output starts with a byte-order mark, as SAVE's does.
       case Redirect_Mode is
          when Charset_UTF16LE =>
             String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
-                          "" & Character'Val (16#FF#) & Character'Val (16#FE#));
+                          Ada.Strings.UTF_Encoding.BOM_16LE);
          when Charset_UTF16BE =>
             String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
-                          "" & Character'Val (16#FE#) & Character'Val (16#FF#));
+                          Ada.Strings.UTF_Encoding.BOM_16BE);
+         when Charset_Iconv =>
+            String'Write (Ada.Streams.Stream_IO.Stream (Redirect_File),
+                          SData_Core.Charset.Preamble (Redirect_Conv));
          when others => null;
       end case;
    end Open_Output;

@@ -304,6 +304,18 @@ package body SData_Core.File_IO.Helpers is
 
    function Safe_Name (S : String; Default : String) return String is
       T : constant String := Trim (S, Ada.Strings.Both);
+
+      --  Last index <= First + N - 1 that does not split a UTF-8 character.
+      function Cut (N : Positive) return Positive is
+         E : Positive := T'First + N - 1;
+      begin
+         while E > T'First
+           and then Character'Pos (T (E + 1)) in 16#80# .. 16#BF#
+         loop
+            E := E - 1;
+         end loop;
+         return E;
+      end Cut;
    begin
       if T = "" then return Default; end if;
       if T'Length > Max_Name_Len then
@@ -311,10 +323,10 @@ package body SData_Core.File_IO.Helpers is
          --  names that differ only after the cut then collide and one column
          --  is lost.
          SData_Core.IO.Put_Line_Error
-            ("Warning: column name """ & T (T'First .. T'First + 19)
+            ("Warning: column name """ & T (T'First .. Cut (20))
              & "..."" is" & Natural'Image (T'Length)
              & " characters long; truncated to" & Natural'Image (Max_Name_Len));
-         return T (T'First .. T'First + Max_Name_Len - 1);
+         return T (T'First .. Cut (Max_Name_Len));
       end if;
       return T;
    end Safe_Name;
