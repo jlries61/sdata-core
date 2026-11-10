@@ -228,6 +228,14 @@ package body SData_Core.Table is
    --  The "_Upper" suffix is historical: To_Column_Name canonicalizes the key
    --  internally now, so callers need not pre-upper-case Upper_Name.  Kept for
    --  signature compatibility (rename is low value, out of M4 scope).
+   procedure Prefetch_Column (Column_Name : String) is
+   begin
+      if Store.Is_Active then
+         Store.Load_Column
+           (Ada.Characters.Handling.To_Upper (Column_Name), Table_Row_Count);
+      end if;
+   end Prefetch_Column;
+
    function Get_Value_Upper
      (Row : Positive; Upper_Name : String; View : Table_View := Default_View)
       return Value
