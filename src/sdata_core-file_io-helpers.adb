@@ -368,11 +368,33 @@ package body SData_Core.File_IO.Helpers is
       return Res (Idx + 1 .. 10);
    end Col_To_Letters;
 
+   Dropped_Controls : Natural := 0;
+
+   procedure Reset_Dropped_Controls is
+   begin
+      Dropped_Controls := 0;
+   end Reset_Dropped_Controls;
+
+   procedure Report_Dropped_Controls (Fmt : String) is
+   begin
+      if Dropped_Controls > 0 then
+         SData_Core.IO.Put_Line_Error
+            ("Warning: SAVE: removed"
+             & Natural'Image (Dropped_Controls)
+             & " control character(s) that " & Fmt & " cannot hold");
+         Dropped_Controls := 0;
+      end if;
+   end Report_Dropped_Controls;
+
    function Escape_XML (S : String) return String is
       Res : Unbounded_String := Null_Unbounded_String;
    begin
       for I in S'Range loop
          case S (I) is
+            when Character'Val (1) .. Character'Val (8)
+               | Character'Val (11) | Character'Val (12)
+               | Character'Val (14) .. Character'Val (31) =>
+               Dropped_Controls := Dropped_Controls + 1;
             when '&'  => Append (Res, "&amp;");
             when '<'  => Append (Res, "&lt;");
             when '>'  => Append (Res, "&gt;");

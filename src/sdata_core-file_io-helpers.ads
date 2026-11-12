@@ -109,7 +109,15 @@ private package SData_Core.File_IO.Helpers is
    --  header row) will not fit.  Fmt names the format for the message.
    procedure Check_Sheet_Limits
      (Fmt : String; Cols : Natural; Data_Rows : Natural);
+   --  F10: XML 1.0 cannot carry the control characters U+0001..U+001F other
+   --  than TAB, LF and CR, even escaped (&#1; is also ill-formed), so
+   --  Escape_XML drops them -- an XLSX/ODS with one is refused by Excel and
+   --  LibreOffice.  Drops are counted: a writer calls Reset_Dropped_Controls
+   --  before it starts and Report_Dropped_Controls (Fmt) after, which prints
+   --  one warning if anything was dropped (and resets the count).
    function Escape_XML (S : String) return String;
+   procedure Reset_Dropped_Controls;
+   procedure Report_Dropped_Controls (Fmt : String);
    function Has_Formulas_XML (Temp_File : String; Is_ODF : Boolean) return Boolean;
    function Convert_Via_LibreOffice (File_Name : String; Fmt : Format_Type) return String;
 
