@@ -120,6 +120,14 @@ package SData_Core.Table is
    function Get_Value
      (Row : Positive; Column_Name : String; View : Table_View := Default_View)
       return Value;
+   --  F41: hint that the caller is about to read down one column of a
+   --  spilled table (every row, or a large share of them).  Loads that
+   --  column's spilled cells in one pass so Get_Value / Get_Value_Upper for
+   --  it need no row-segment load; see Backing_Store.Load_Column.  Pure
+   --  optimisation: results are identical without it.  No-op when nothing
+   --  is spilled or Column_Name is unknown.
+   procedure Prefetch_Column (Column_Name : String);
+
    function Get_Value_Upper
      (Row : Positive; Upper_Name : String; View : Table_View := Default_View)
       return Value;

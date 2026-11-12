@@ -900,6 +900,14 @@ package body SData_Core.Commands is
    begin
       Free_VA (G.Ptr);
       G.Ptr := new Eval.Value_Array (1 .. Integer (Rows.Length));
+      --  F41: a spilled table caches one row-segment of ALL columns, so
+      --  walking one column across many segments reloads a segment per
+      --  boundary.  When the group covers a good share of the table, read
+      --  the whole column in one pass instead.  (Many small BY groups keep
+      --  the segment path: a column pass per group would cost more.)
+      if Natural (Rows.Length) * 4 >= Tbl.Row_Count then
+         Tbl.Prefetch_Column (Col);
+      end if;
       for P of Rows loop
          G.Ptr (I) := Tbl.Get_Value (P, Col);
          I := I + 1;

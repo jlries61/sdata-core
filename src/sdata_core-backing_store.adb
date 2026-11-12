@@ -2,9 +2,12 @@
 --  License: GNU General Public License v3 or later, with GCC Runtime Library Exception 3.1
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
+with Ada.Calendar;
 with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Containers.Vectors;
+with Ada.Directories;
+with Ada.Environment_Variables;
 with Ada.Exceptions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada_Sqlite3.Wide;
@@ -98,6 +101,8 @@ package body SData_Core.Backing_Store is
       Self.Seg_Cache.Clear;
       Self.Seg_Start := 0;
       Self.Seg_End   := 0;
+      Self.Col_Cache_Name := Null_Unbounded_String;
+      Self.Col_Cache.Clear;
    end Clear_Cache;
 
    procedure Execute (Self : in out Backing_Store; SQL : String) is
@@ -121,13 +126,56 @@ package body SData_Core.Backing_Store is
       Self.Output_Next_Id := 1;
    end Reset_Col_Ids;
 
+   --  F41: GNAT.OS_Lib.Create_Temp_File always creates GNAT-TEMP-*.TMP in the
+   --  current directory, where a multi-hundred-MB spill file is unexpected
+   --  and is left behind if the process dies uncleanly.  Put it in the
+   --  system temp directory instead: $TMPDIR, then $TEMP / $TMP (Windows),
+   --  then /tmp, then the current directory as a last resort.  The name is
+   --  made unique with Create_New_File, which fails if the file exists.
+   procedure Create_Spill_File
+     (FD   : out GNAT.OS_Lib.File_Descriptor;
+      Name : out GNAT.Strings.String_Access)
+   is
+      use type GNAT.OS_Lib.File_Descriptor;
+      package Env renames Ada.Environment_Variables;
+      Dir : constant String :=
+        (if Env.Exists ("TMPDIR") and then Env.Value ("TMPDIR") /= ""
+         then Env.Value ("TMPDIR")
+         elsif Env.Exists ("TEMP") and then Env.Value ("TEMP") /= ""
+         then Env.Value ("TEMP")
+         elsif Env.Exists ("TMP") and then Env.Value ("TMP") /= ""
+         then Env.Value ("TMP")
+         elsif Ada.Directories.Exists ("/tmp") then "/tmp"
+         else ".");
+      Seed : constant Natural :=
+        Natural (Ada.Calendar.Seconds (Ada.Calendar.Clock) * 1000.0) mod 1_000_000;
+   begin
+      FD := GNAT.OS_Lib.Invalid_FD;
+      for Attempt in 0 .. 999 loop
+         declare
+            N : constant String := Natural'Image ((Seed + Attempt) mod 1_000_000);
+            Candidate : constant String :=
+               Dir & "/sdata-spill-" & N (N'First + 1 .. N'Last) & ".tmp";
+         begin
+            FD := GNAT.OS_Lib.Create_New_File (Candidate, GNAT.OS_Lib.Binary);
+            if FD /= GNAT.OS_Lib.Invalid_FD then
+               Name := new String'(Candidate);
+               return;
+            end if;
+         end;
+      end loop;
+      raise Script_Error with
+         "could not create disk backing store for dataset"
+         & " [temp directory " & Dir & " is not writable]";
+   end Create_Spill_File;
+
    procedure Open (Self : in out Backing_Store) is
       FD : GNAT.OS_Lib.File_Descriptor;
       Temp_Name : GNAT.Strings.String_Access;
    begin
       if Self.Is_Active then return; end if;
 
-      GNAT.OS_Lib.Create_Temp_File (FD, Temp_Name);
+      Create_Spill_File (FD, Temp_Name);
       GNAT.OS_Lib.Close (FD);
       Self.Temp_Path := To_Unbounded_String (Temp_Name.all);
       Self.DB := new Ada_Sqlite3.Database'(Ada_Sqlite3.Open (Temp_Name.all));
@@ -384,6 +432,12 @@ package body SData_Core.Backing_Store is
                        Row_Count : Natural) return SData_Core.Values.Value is
       U_Col : constant String := Ada.Characters.Handling.To_Upper (Col);
    begin
+      if Self.Col_Cache_Name = U_Col
+        and then Row <= Natural (Self.Col_Cache.Length)
+      then
+         return Self.Col_Cache.Element (Row);
+      end if;
+
       if Self.Seg_Start = 0 or else Row < Self.Seg_Start or else Row > Self.Seg_End then
          declare
             Col_Count : constant Positive := Positive'Max (1, Natural (T.Length));
@@ -497,6 +551,76 @@ package body SData_Core.Backing_Store is
             & ", column=" & U_Col & "]: "
             & Ada.Exceptions.Exception_Message (E);
    end Fetch_EAV;
+
+   procedure Load_Column (Self      : in out Backing_Store;
+                          Col       : String;
+                          Row_Count : Natural) is
+      U_Col : constant String := Ada.Characters.Handling.To_Upper (Col);
+      Id    : constant Natural := Self.Col_Id ("data", U_Col);
+   begin
+      if not Self.Is_Active or else Id = 0 then return; end if;
+      if Self.Col_Cache_Name = U_Col
+        and then Natural (Self.Col_Cache.Length) = Row_Count
+      then
+         return;
+      end if;
+
+      Self.Col_Cache_Name := Null_Unbounded_String;
+      Self.Col_Cache.Clear;
+      Self.Col_Cache.Reserve_Capacity (Ada.Containers.Count_Type (Row_Count));
+      for I in 1 .. Row_Count loop
+         Self.Col_Cache.Append ((Kind => Val_Missing));
+      end loop;
+
+      --  Building the index sorts every spilled cell; with temp_store=MEMORY
+      --  (the Open default) that sort would hold the whole index in RAM and
+      --  defeat the point of spilling, so let SQLite use temp files for it.
+      Self.DB.Execute ("PRAGMA temp_store = FILE");
+      Self.DB.Execute
+        ("CREATE INDEX IF NOT EXISTS data_col_idx ON data (col_id, record_id)");
+      Self.DB.Execute ("PRAGMA temp_store = MEMORY");
+      declare
+         Stmt : Ada_Sqlite3.Statement := Self.DB.Prepare
+            ("SELECT record_id, val_num, val_int, val_txt FROM data " &
+             "WHERE col_id = ? ORDER BY record_id");
+      begin
+         Stmt.Bind_Int (1, Id);
+         while Stmt.Step = Ada_Sqlite3.ROW loop
+            declare
+               Rec_Id : constant Natural := Natural (Stmt.Column_Int (0));
+            begin
+               if Rec_Id in 1 .. Row_Count then
+                  if not Stmt.Column_Is_Null (1) then
+                     Self.Col_Cache.Replace_Element
+                       (Rec_Id, (Kind => Val_Numeric,
+                                 Num_Val => Real
+                                   (Ada_Sqlite3.Wide.Column_Double64 (Stmt, 1))));
+                  elsif not Stmt.Column_Is_Null (2) then
+                     Self.Col_Cache.Replace_Element
+                       (Rec_Id, (Kind => Val_Integer,
+                                 Int_Val => Int
+                                   (Ada_Sqlite3.Wide.Column_Int64 (Stmt, 2))));
+                  elsif not Stmt.Column_Is_Null (3) then
+                     Self.Col_Cache.Replace_Element
+                       (Rec_Id, (Kind => Val_String,
+                                 Str_Val => To_Unbounded_String
+                                   (Stmt.Column_Text (3))));
+                  end if;
+               end if;
+            end;
+         end loop;
+      end;
+      Self.Col_Cache_Name := To_Unbounded_String (U_Col);
+   exception
+      when E : SQLite_Error =>
+         Self.Col_Cache_Name := Null_Unbounded_String;
+         Self.Col_Cache.Clear;
+         raise Script_Error with
+            "could not read dataset from disk "
+            & "(backing store corrupted or missing?)"
+            & " [column=" & U_Col & "]: "
+            & Ada.Exceptions.Exception_Message (E);
+   end Load_Column;
 
    function Fetch (Self      : in out Backing_Store;
                    Row       : Positive;

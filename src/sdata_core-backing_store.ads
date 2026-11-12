@@ -86,7 +86,27 @@ package SData_Core.Backing_Store is
                    T         : Columns.Column_Maps.Map;
                    Row_Count : Natural) return SData_Core.Values.Value;
 
-   --  Clear the segment prefetch cache (call before mutating a cached table).
+   --  Whole-column read path (F41).  Fetch's segment cache is row-oriented:
+   --  one segment holds every column of a block of rows, so a scan down one
+   --  column of a wide spilled table reloads a segment (all columns) at
+   --  every segment boundary -- hours on a 15,000 x 1,300 table.  Load_Column
+   --  reads one column's spilled cells for rows 1 .. Row_Count in a single
+   --  range query over a (col_id, record_id) index and keeps them as a
+   --  one-column cache that Fetch consults first, so a subsequent
+   --  Fetch (Row, Col, ...) for that column is O(1) with no segment load.
+   --  Only one column is cached at a time; loading another replaces it.
+   --  Rows still resident in the live in-memory segment have nothing on disk
+   --  and read as missing here, exactly as Fetch is never asked for them.
+   --  The index is created on first use (IF NOT EXISTS, so it survives or is
+   --  rebuilt across the table swaps Sort / Commit_Output_Table perform) and
+   --  is then maintained by later Spill calls.  Does nothing for an unknown
+   --  column or an inactive store.
+   procedure Load_Column (Self      : in out Backing_Store;
+                          Col       : String;
+                          Row_Count : Natural);
+
+   --  Clear the segment and column prefetch caches (call before mutating a
+   --  cached table).
    procedure Clear_Cache (Self : in out Backing_Store);
 
    --  Raw SQL escape hatch used by the Sort ORDER BY rebuild and the
@@ -145,6 +165,11 @@ private
       Seg_Cache  : Seg_Data_Maps.Map;
       Seg_Start  : Natural := 0;  --  0 = empty; first logical row of cached segment
       Seg_End    : Natural := 0;  --  last logical row of cached segment
+
+      --  Whole-column cache (Load_Column): Col_Cache_Name is the upper-cased
+      --  column ("" = none); Col_Cache holds rows 1 .. Row_Count.
+      Col_Cache_Name : Ada.Strings.Unbounded.Unbounded_String;
+      Col_Cache      : Columns.Value_Vectors.Vector;
 
       Data_Col_Ids     : Col_Id_Maps.Map;
       Data_Next_Id     : Positive := 1;
