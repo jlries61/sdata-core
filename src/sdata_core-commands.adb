@@ -1153,7 +1153,7 @@ package body SData_Core.Commands is
             U : constant String := Stat_Display_Name (S);
          begin
             Tbl.Add_Output_Column
-              (U, (if U = "N" or else U = "NMISS"
+              (U, (if U = "N" or else U = "NMISS" or else U = "NDISTINCT"
                    then Tbl.Col_Integer else Tbl.Col_Numeric));
          end;
       end loop;

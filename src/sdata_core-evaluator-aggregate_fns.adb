@@ -131,6 +131,52 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       return (Kind => Val_Integer, Int_Val => Int (Count));
    end Handle_N_Fn;
 
+   --  NDISTINCT: the number of distinct non-missing values (same notion of
+   --  present as N: missing and the empty string are skipped).  Numbers
+   --  compare exactly, an Integer and a Numeric by value (1 = 1.0); numbers
+   --  sort before strings and strings compare case-sensitively.  Sort-and-
+   --  count: O(n log n), one copy of the present values.
+   function Distinct_Less (A, B : Value) return Boolean is
+   begin
+      if A.Kind = Val_String or else B.Kind = Val_String then
+         if A.Kind = Val_String and then B.Kind = Val_String then
+            return A.Str_Val < B.Str_Val;
+         end if;
+         return A.Kind /= Val_String;   --  numbers before strings
+      elsif A.Kind = Val_Integer and then B.Kind = Val_Integer then
+         return A.Int_Val < B.Int_Val;
+      else
+         return Convert_To_Real (A) < Convert_To_Real (B);
+      end if;
+   end Distinct_Less;
+
+   package Distinct_Sorting is new Value_Vectors.Generic_Sorting (Distinct_Less);
+
+   function Handle_Ndistinct_Fn
+     (Name : String; Vals : Value_Vectors.Vector) return Value
+   is
+      pragma Unreferenced (Name);
+      Present : Value_Vectors.Vector;
+      Count   : Integer := 0;
+   begin
+      for V of Vals loop
+         if not (V.Kind = Val_Missing
+                 or else (V.Kind = Val_String and then Length (V.Str_Val) = 0))
+         then
+            Present.Append (V);
+         end if;
+      end loop;
+      Distinct_Sorting.Sort (Present);
+      for I in 1 .. Natural (Present.Length) loop
+         if I = 1
+           or else Distinct_Less (Present.Element (I - 1), Present.Element (I))
+         then
+            Count := Count + 1;
+         end if;
+      end loop;
+      return (Kind => Val_Integer, Int_Val => Int (Count));
+   end Handle_Ndistinct_Fn;
+
    function Handle_Nmiss_Fn (Name : String; Vals : Value_Vectors.Vector) return Value is
       pragma Unreferenced (Name);
       Count : Integer := 0;
@@ -304,6 +350,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Dispatch_Table.Insert ("MAX",    Handle_Max_Fn'Access);
       Dispatch_Table.Insert ("N",      Handle_N_Fn'Access);
       Dispatch_Table.Insert ("NMISS",  Handle_Nmiss_Fn'Access);
+      Dispatch_Table.Insert ("NDISTINCT", Handle_Ndistinct_Fn'Access);
       Dispatch_Table.Insert ("GMEAN",  Handle_Gmean'Access);
       Dispatch_Table.Insert ("HMEAN",  Handle_Hmean'Access);
       Dispatch_Table.Insert ("MEDIAN", Handle_Median'Access);
@@ -318,6 +365,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Aggregate_Meta_Table.Insert ("MAX",    Num);
       Aggregate_Meta_Table.Insert ("N",      Both);
       Aggregate_Meta_Table.Insert ("NMISS",  Both);
+      Aggregate_Meta_Table.Insert ("NDISTINCT", Both);
       Aggregate_Meta_Table.Insert ("GMEAN",  Num);
       Aggregate_Meta_Table.Insert ("HMEAN",  Num);
       Aggregate_Meta_Table.Insert ("MEDIAN", Num);
@@ -335,6 +383,7 @@ package body SData_Core.Evaluator.Aggregate_Fns is
       Register_Arity ("MAX",    1, Natural'Last);
       Register_Arity ("N",      0, Natural'Last);
       Register_Arity ("NMISS",  0, Natural'Last);
+      Register_Arity ("NDISTINCT", 1, Natural'Last);
       Register_Arity ("GMEAN",  1, Natural'Last);
       Register_Arity ("HMEAN",  1, Natural'Last);
       Register_Arity ("MEDIAN", 1, Natural'Last);
