@@ -618,6 +618,7 @@ package body SData_Core.File_IO.ODF is
          (if Sheet_Name = "" then "Sheet1" else Sheet_Name);
    begin
       if N = 0 then return; end if;
+      Check_Sheet_Limits ("ODS", N, Logical_Row_Count (View));
 
       Create_Archive (Info, Z_File_Stream'Unchecked_Access, File_Name);
 

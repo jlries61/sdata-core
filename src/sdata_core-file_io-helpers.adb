@@ -331,6 +331,26 @@ package body SData_Core.File_IO.Helpers is
       return T;
    end Safe_Name;
 
+   procedure Check_Sheet_Limits
+     (Fmt : String; Cols : Natural; Data_Rows : Natural)
+   is
+      Max_Cols : constant := 16_384;
+      Max_Rows : constant := 1_048_576;
+   begin
+      if Cols > Max_Cols then
+         raise SData_Core.Script_Error with
+            "SAVE: " & Fmt & " sheets are limited to 16384 columns (this table has "
+            & Ada.Strings.Fixed.Trim (Natural'Image (Cols), Ada.Strings.Both)
+            & "); use CSV";
+      elsif Data_Rows + 1 > Max_Rows then
+         raise SData_Core.Script_Error with
+            "SAVE: " & Fmt & " sheets are limited to 1048576 rows including the header"
+            & " (this table has "
+            & Ada.Strings.Fixed.Trim (Natural'Image (Data_Rows), Ada.Strings.Both)
+            & " data rows); use CSV";
+      end if;
+   end Check_Sheet_Limits;
+
    function Col_To_Letters (Col : Positive) return String is
       C   : Natural := Col;
       Res : String (1 .. 10);

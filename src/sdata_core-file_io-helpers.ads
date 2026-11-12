@@ -101,6 +101,14 @@ private package SData_Core.File_IO.Helpers is
        Col_Types    : in out Column_Type_Array);
    function Safe_Name (S : String; Default : String) return String;
    function Col_To_Letters (Col : Positive) return String;
+
+   --  F35: Excel's grid is 16,384 columns x 1,048,576 rows (cell references
+   --  run out at XFD), LibreOffice's the same; a larger sheet is refused (or
+   --  truncated) by the reader that opens it.  Raise Script_Error before
+   --  anything is written if Cols columns or Data_Rows data rows (plus the
+   --  header row) will not fit.  Fmt names the format for the message.
+   procedure Check_Sheet_Limits
+     (Fmt : String; Cols : Natural; Data_Rows : Natural);
    function Escape_XML (S : String) return String;
    function Has_Formulas_XML (Temp_File : String; Is_ODF : Boolean) return Boolean;
    function Convert_Via_LibreOffice (File_Name : String; Fmt : Format_Type) return String;
