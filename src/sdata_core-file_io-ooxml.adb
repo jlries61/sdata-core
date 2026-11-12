@@ -708,6 +708,18 @@ package body SData_Core.File_IO.OOXML is
    -----------------
    -- Write_OOXML --
    -----------------
+   --  F10: a <t> whose text begins or ends with whitespace needs
+   --  xml:space="preserve", or a consumer is free to trim it.
+   function T_Open (S : String) return String is
+      function Is_WS (C : Character) return Boolean is
+        (C = ' ' or else C = ASCII.HT or else C = ASCII.LF or else C = ASCII.CR);
+   begin
+      if S'Length > 0 and then (Is_WS (S (S'First)) or else Is_WS (S (S'Last))) then
+         return "<t xml:space=""preserve"">";
+      end if;
+      return "<t>";
+   end T_Open;
+
    procedure Write_OOXML (File_Name     : String; Sheet_Name : String := "Sheet1";
                           Decimals      : Integer := -1;
                           Missing_Token : String  := "";
@@ -722,6 +734,7 @@ package body SData_Core.File_IO.OOXML is
    begin
       if N = 0 then return; end if;
       Check_Sheet_Limits ("XLSX", N, Logical_Row_Count (View));
+      Reset_Dropped_Controls;
 
       Create_Archive (Info, Z_File_Stream'Unchecked_Access, File_Name);
 
@@ -816,7 +829,8 @@ package body SData_Core.File_IO.OOXML is
                Val : constant String := Escape_XML (Column_Name (C, View));
             begin
                Append (S1,
-                  "<c r=""" & Ref & """ t=""inlineStr""><is><t>" &
+                  "<c r=""" & Ref & """ t=""inlineStr""><is>" &
+                  T_Open (Column_Name (C, View)) &
                   Val & "</t></is></c>");
             end;
          end loop;
@@ -869,7 +883,8 @@ package body SData_Core.File_IO.OOXML is
                      when Val_String =>
                         Append (S1,
                            "<c r=""" & Ref &
-                           """ t=""inlineStr""><is><t>" &
+                           """ t=""inlineStr""><is>" &
+                           T_Open (SData_Core.Values.To_String (V)) &
                            Escape_XML (SData_Core.Values.To_String (V)) &
                            "</t></is></c>");
                      when Val_Missing =>
@@ -898,6 +913,7 @@ package body SData_Core.File_IO.OOXML is
       end;
 
       Finish (Info);
+      Report_Dropped_Controls ("XLSX");
    end Write_OOXML;
 
 end SData_Core.File_IO.OOXML;

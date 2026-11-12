@@ -619,6 +619,7 @@ package body SData_Core.File_IO.ODF is
    begin
       if N = 0 then return; end if;
       Check_Sheet_Limits ("ODS", N, Logical_Row_Count (View));
+      Reset_Dropped_Controls;
 
       Create_Archive (Info, Z_File_Stream'Unchecked_Access, File_Name);
 
@@ -755,6 +756,7 @@ package body SData_Core.File_IO.ODF is
       end;
 
       Finish (Info);
+      Report_Dropped_Controls ("ODS");
    end Write_ODF;
 
 end SData_Core.File_IO.ODF;
