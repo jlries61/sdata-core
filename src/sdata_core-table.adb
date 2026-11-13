@@ -350,25 +350,55 @@ package body SData_Core.Table is
       return Val;
    end Coerce_Value;
 
+   --  Shared tail of Set_Value_Upper / Set_Value_By_Col: store Val in the
+   --  column Cur designates (Name is used only in coercion errors).
+   procedure Store_Value
+     (Row : Positive; Cur : Column_Maps.Cursor; Name : String; Val : Value)
+   is
+      Ref : constant Column_Maps.Reference_Type := Data_Table.Reference (Cur);
+      Col : Column renames Ref.Element.all;
+   begin
+      if Row > Table_Row_Count then
+         for I in Positive (Col.Data.Length) + 1 .. Row loop
+            Col.Data.Append ((Kind => Val_Missing));
+         end loop;
+      end if;
+      --  Name "" means "derive it from the column if coercion fails" -- the
+      --  per-cell By_Col path must not build a String for every cell just
+      --  to have it ignored on success.
+      if Name'Length > 0 then
+         Col.Data.Replace_Element
+           (Row - Current_Segment_Start + 1, Coerce_Value (Val, Col.Typ, Name));
+      else
+         begin
+            Col.Data.Replace_Element
+              (Row - Current_Segment_Start + 1, Coerce_Value (Val, Col.Typ, ""));
+         exception
+            when Type_Mismatch_Error =>
+               --  Re-run with the real name so the message is unchanged.
+               Col.Data.Replace_Element
+                 (Row - Current_Segment_Start + 1,
+                  Coerce_Value (Val, Col.Typ, Image (Col.Name)));
+         end;
+      end if;
+   end Store_Value;
+
    procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value) is
       Cur : constant Column_Maps.Cursor :=
          Data_Table.Find (To_Column_Name (Upper_Name));
    begin
-      if not Column_Maps.Has_Element (Cur) then
-         return;
+      if Column_Maps.Has_Element (Cur) then
+         Store_Value (Row, Cur, Upper_Name, Val);
       end if;
-      declare
-         Ref : constant Column_Maps.Reference_Type := Data_Table.Reference (Cur);
-         Col : Column renames Ref.Element.all;
-      begin
-         if Row > Table_Row_Count then
-            for I in Positive (Col.Data.Length) + 1 .. Row loop
-               Col.Data.Append ((Kind => Val_Missing));
-            end loop;
-         end if;
-         Col.Data.Replace_Element (Row - Current_Segment_Start + 1, Coerce_Value (Val, Col.Typ, Upper_Name));
-      end;
    end Set_Value_Upper;
+
+   procedure Set_Value_By_Col (Row : Positive; Col_Pos : Positive; Val : Value) is
+      Cur : constant Column_Maps.Cursor := Column_Cursor_Cache.Element (Col_Pos);
+   begin
+      if Column_Maps.Has_Element (Cur) then
+         Store_Value (Row, Cur, "", Val);
+      end if;
+   end Set_Value_By_Col;
 
    -------------------
    -- Rename_Column --

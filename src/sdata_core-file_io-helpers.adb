@@ -49,6 +49,12 @@ package body SData_Core.File_IO.Helpers is
        F      : String) return Boolean
    is
    begin
+      --  Per-cell call on the CSV load path: skip the container iterator
+      --  (a controlled object with tasking-master finalisation) when no
+      --  MISSING= tokens were declared, the common case.
+      if Tokens.Is_Empty then
+         return False;
+      end if;
       for Tok of Tokens loop
          if F = To_String (Tok) then
             return True;

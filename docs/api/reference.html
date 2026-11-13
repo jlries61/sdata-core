@@ -1681,6 +1681,14 @@ Raises Type_Mismatch_Error if the value kind doesn&#x27;t match the column type.
 </div>
 <div class='decl'>
 <div class='kind'>routine</div>
+<pre>   procedure Set_Value_By_Col (Row : Positive; Col_Pos : Positive; Val : Value);</pre>
+<div class='doc'>Same as Set_Value_Upper for the column at 1-based position Col_Pos
+(matching Column_Name / Column_Order), via the pre-resolved cursor
+cache: no name canonicalisation or hash lookup per call.  Bulk loaders
+(CSV USE) call this once per cell.  Same coercion and padding rules.</div>
+</div>
+<div class='decl'>
+<div class='kind'>routine</div>
 <pre>   procedure Rename_Column (Old_Name, New_Name : String);</pre>
 <div class='doc'>Renames an existing column.</div>
 </div>
