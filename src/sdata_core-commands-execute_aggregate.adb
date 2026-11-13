@@ -57,11 +57,11 @@ procedure Execute_AGGREGATE (Specs : Aggregate_Spec_Vectors.Vector) is
       end case;
    end First_Input_Column;
 
-   --  True when Fn returns an integer scalar (N / NMISS); else numeric.
+   --  True when Fn returns an integer scalar (N / NMISS / NDISTINCT); else numeric.
    function Returns_Integer (Fn : String) return Boolean is
       U : constant String := To_Upper (Fn);
    begin
-      return U = "N" or else U = "NMISS";
+      return U = "N" or else U = "NMISS" or else U = "NDISTINCT";
    end Returns_Integer;
 
    --  Output-column descriptor, flattened across BY vars + spec columns.
