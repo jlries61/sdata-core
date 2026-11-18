@@ -158,7 +158,16 @@ function Parse_Expression (Text : String) return Expression_Access is
                      Tok_Len := Tok_Len + 1;
                      if Tok_Len <= Max_Tok then Current.Text (Tok_Len) := D; end if;
                      Pos := Pos + 1;
-                  elsif (D = 'E' or else D = 'e') and then not Has_Exp then
+                  elsif (D = 'E' or else D = 'e') and then not Has_Exp
+                    and then Pos + 1 <= Text'Last
+                    and then (Is_Digit (Text (Pos + 1))
+                              or else ((Text (Pos + 1) = '+' or else Text (Pos + 1) = '-')
+                                       and then Pos + 2 <= Text'Last
+                                       and then Is_Digit (Text (Pos + 2))))
+                  then
+                     --  Only an E followed by [sign]digit starts an exponent;
+                     --  otherwise "1e" is the literal 1 then an identifier, as
+                     --  in the sdata lexer (no raw Constraint_Error, F49).
                      Has_Exp := True;
                      Has_Dot := True; -- treat as float
                      Tok_Len := Tok_Len + 1;
