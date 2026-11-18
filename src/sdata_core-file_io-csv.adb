@@ -438,6 +438,12 @@ package body SData_Core.File_IO.CSV is
       end Validate_ASCII;
 
       Col_Names : Col_Name_Vecs.Vector;
+
+      --  Table column position of each CSV field (0 = no own column: a
+      --  duplicate name that Add_Column folded into an earlier one).  Lets
+      --  the per-cell store skip the name hash lookup (F47).
+      package Pos_Vecs is new Ada.Containers.Vectors (Positive, Natural);
+      Col_Pos : Pos_Vecs.Vector;
       Col_Types : Col_Type_Vecs.Vector;
 
       --  sdata ADR-083 / sdata-core ADR-0026: user-declared MISSING= tokens
@@ -628,8 +634,13 @@ package body SData_Core.File_IO.CSV is
                         end if;
                      end if;
                      begin
-                        Set_Value_Upper
-                           (Row_Count, Col_Names (Field_Count).all, Val);
+                        if Col_Pos (Field_Count) > 0 then
+                           Set_Value_By_Col
+                              (Row_Count, Col_Pos (Field_Count), Val);
+                        else
+                           Set_Value_Upper
+                              (Row_Count, Col_Names (Field_Count).all, Val);
+                        end if;
                      exception
                         when Constraint_Error =>
                            --  Out-of-range value for a % (integer) column:
@@ -825,7 +836,12 @@ package body SData_Core.File_IO.CSV is
       begin
          Clear;
          for I in 1 .. N loop
-            Add_Column (Col_Names (I).all, Col_Types (I));
+            declare
+               Before : constant Natural := Column_Count;
+            begin
+               Add_Column (Col_Names (I).all, Col_Types (I));
+               Col_Pos.Append (if Column_Count > Before then Column_Count else 0);
+            end;
          end loop;
 
          if Has_File_Header and then Scan_Count = 0 then

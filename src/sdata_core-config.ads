@@ -34,7 +34,7 @@ package SData_Core.Config is
    Print_Digits  : Natural := 5;
 
    --  Constraint limits
-   Max_Table_Cells : Natural := 50_000_000;  -- ~1.5 GB at 32 bytes/cell; 0 = unlimited
+   Max_Table_Cells : Natural := 20_000_000;  -- ~1.1 GB at ~55 bytes/cell (measured, F47); 0 = unlimited
    Max_String_Len  : Natural := 256;    -- design.md sec2.2 default; --clen overrides,
                                          -- --clen 0 is an explicit "no limit" override
    Max_Temp_Vars   : Natural := 0;      -- 0 means no limit

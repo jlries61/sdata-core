@@ -5,7 +5,6 @@
 with Ada.Characters.Handling;
 with Ada.Strings;
 with Ada.Strings.Fixed;     use Ada.Strings.Fixed;
-with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 
 package body SData_Core.CSV is
 
@@ -118,8 +117,12 @@ package body SData_Core.CSV is
    function CSV_Unquote (Raw : String) return String is
       T : constant String := Trim (Raw, Ada.Strings.Both);
       Q : Character;
-      R : Unbounded_String;
-      I : Positive;
+      --  The result is never longer than the quoted interior, so a fixed
+      --  buffer replaces the per-character Unbounded_String append this
+      --  loop used (hot: runs once per quoted cell on every CSV load).
+      Buf : String (1 .. Integer'Max (T'Length - 2, 0));
+      N   : Natural := 0;
+      I   : Positive;
    begin
       if T'Length >= 2
          and then (T (T'First) = '"' or else T (T'First) = ''')
@@ -128,15 +131,16 @@ package body SData_Core.CSV is
          Q := T (T'First);
          I := T'First + 1;
          while I <= T'Last - 1 loop
+            N := N + 1;
             if T (I) = Q and then I < T'Last - 1 and then T (I + 1) = Q then
-               Append (R, Q);
+               Buf (N) := Q;
                I := I + 2;
             else
-               Append (R, T (I));
+               Buf (N) := T (I);
                I := I + 1;
             end if;
          end loop;
-         return To_String (R);
+         return Buf (1 .. N);
       end if;
       return T;
    end CSV_Unquote;

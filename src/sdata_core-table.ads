@@ -137,6 +137,12 @@ package SData_Core.Table is
    procedure Set_Value (Row : Positive; Column_Name : String; Val : Value);
    procedure Set_Value_Upper (Row : Positive; Upper_Name : String; Val : Value);
 
+   --  Same as Set_Value_Upper for the column at 1-based position Col_Pos
+   --  (matching Column_Name / Column_Order), via the pre-resolved cursor
+   --  cache: no name canonicalisation or hash lookup per call.  Bulk loaders
+   --  (CSV USE) call this once per cell.  Same coercion and padding rules.
+   procedure Set_Value_By_Col (Row : Positive; Col_Pos : Positive; Val : Value);
+
    --  Renames an existing column.
    procedure Rename_Column (Old_Name, New_Name : String);
 
