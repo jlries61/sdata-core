@@ -132,7 +132,11 @@ jobs:
           # the charset error wording and USE's handling of OPTIONS CHARSET,
           # which v0.37.14's expected outputs pin.  It replaces the temporary
           # SHA pin used by PR #177.
-          ref: v0.37.15
+          #
+          # TEMPORARY SHA pin (PR #183): the MAXINTAB default changed to
+          # 20,000,000, which five sdata OPTIONS-display tests pin.  Replaced
+          # by the v0.37.20 tag once sdata PR for 0.37.20 is merged.
+          ref: e658c93b99518f6c109cb1c02b57978a376fa99b
           path: sdata
 
       - name: Set up Alire
