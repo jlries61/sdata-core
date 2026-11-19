@@ -38,6 +38,10 @@ package SData_Core.Config is
    Max_String_Len  : Natural := 256;    -- design.md sec2.2 default; --clen overrides,
                                          -- --clen 0 is an explicit "no limit" override
    Max_Temp_Vars   : Natural := 0;      -- 0 means no limit
+   Max_Nesting_Depth : Positive := 250; -- parser nesting limit (parentheses,
+                                         -- blocks); sized for the default 8 MB
+                                         -- stack (~500 blocks / ~950 parens fit);
+                                         -- sdata --max-nesting overrides
    Disable_Shell      : Boolean := False;
    Disable_Submit     : Boolean := False;
    Continue_On_Error  : Boolean := False;
