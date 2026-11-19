@@ -289,6 +289,12 @@ package body SData_Core.Evaluator is
    --  text) leak straight to the user.
    function Real_Pow (Base, Exponent : Real) return Value is
    begin
+      --  0 ** negative is 1/0: same rule as the "/" operator (F06).
+      if Base = 0.0 and then Exponent < 0.0
+        and then not SData_Core.Config.Runtime.IEEE_Divide
+      then
+         raise SData_Core.Script_Error with "Division by zero.";
+      end if;
       if Real'Truncation (Exponent) = Exponent
         and then abs Exponent <= Real (Integer'Last)
       then
