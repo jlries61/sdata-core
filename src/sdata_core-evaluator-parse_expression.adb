@@ -499,16 +499,15 @@ function Parse_Expression (Text : String) return Expression_Access is
    --  stack exhaustion, whose recovery in the GNAT runtime is racy.  Depth
    --  is local to this Parse_Expression call; an exception ends the parse,
    --  so it needs no unwinding.
-   Max_Nesting_Depth : constant := 250;
    Depth             : Natural := 0;
 
    function Parse_Primary return Expression_Access is
       Result : Expression_Access;
    begin
-      if Depth >= Max_Nesting_Depth then
+      if Depth >= SData_Core.Config.Max_Nesting_Depth then
          raise SData_Core.Script_Error with
            "expression nested too deeply (limit"
-           & Integer'Image (Max_Nesting_Depth) & " levels)";
+           & Integer'Image (SData_Core.Config.Max_Nesting_Depth) & " levels)";
       end if;
       Depth  := Depth + 1;
       Result := Parse_Primary_1;
