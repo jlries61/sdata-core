@@ -317,6 +317,20 @@ package body SData_Core.Statistics is
          Real'Image (Alpha) & ", b=" & Real'Image (Beta) & ")";
       end if;
       if X < 0.0 or else X > 1.0 then return 0.0; end if;
+      if X = 0.0 or else X = 1.0 then
+         --  Boundary density (F23).  At x=0 the exponent is Alpha-1, at x=1
+         --  it is Beta-1: +Inf if below 1, the reciprocal beta function
+         --  value (= the other shape parameter) if exactly 1, 0 if above.
+         declare
+            Shape : constant Real := (if X = 0.0 then Alpha else Beta);
+            Other : constant Real := (if X = 0.0 then Beta else Alpha);
+         begin
+            if Shape < 1.0 then return SData_Core.Values.Pos_Inf;
+            elsif Shape = 1.0 then return Other;
+            else return 0.0;
+            end if;
+         end;
+      end if;
       return Real ((Long_Float (X)**(Long_Float (Alpha) - 1.0) * (1.0 - Long_Float (X))**(Long_Float (Beta) - 1.0)) / Long_Beta.Beta (Long_Float (Alpha), Long_Float (Beta)));
    end Beta_PDF;
 
@@ -374,7 +388,7 @@ package body SData_Core.Statistics is
       KI : constant Long_Float := Long_Float (Real'Floor (K));
    begin
       if Mean <= 0.0 then raise Constraint_Error with "Mean must be positive"; end if;
-      if K < 0.0 then return 0.0; end if;
+      if K < 0.0 or else Real'Floor (K) /= K then return 0.0; end if;   --  F23
       return Real (Exp (-Long_Float (Mean) + KI * Log (Long_Float (Mean)) - Long_Gamma.Log_Gamma (KI + 1.0)));
    end Poisson_PMF;
 
@@ -418,7 +432,15 @@ package body SData_Core.Statistics is
          "Gamma distribution: shape and rate must be positive (shape=" &
          Real'Image (Alpha) & ", rate=" & Real'Image (Beta) & ")";
       end if;
-      if X <= 0.0 then return 0.0; end if;
+      if X < 0.0 then return 0.0; end if;
+      if X = 0.0 then
+         --  Boundary density (F23): +Inf for shape < 1, the rate for
+         --  shape = 1 (exponential), 0 for shape > 1.
+         if Alpha < 1.0 then return SData_Core.Values.Pos_Inf;
+         elsif Alpha = 1.0 then return Beta;
+         else return 0.0;
+         end if;
+      end if;
       return Real (Exp (Long_Float (Alpha) * Log (Long_Float (Beta)) + (Long_Float (Alpha) - 1.0) * Log (Long_Float (X)) - Long_Float (Beta) * Long_Float (X) - Long_Gamma.Log_Gamma (Long_Float (Alpha))));
    end Gamma_PDF;
 
@@ -490,11 +512,29 @@ package body SData_Core.Statistics is
    function Student_T_PDF (T, DF : Real) return Real is
       V : constant Long_Float := Long_Float (DF);
       X : constant Long_Float := Long_Float (T);
+      Z : constant Long_Float := V / 2.0;
+      --  ln Gamma(Z + 1/2) - ln Gamma(Z).  For large Z the two Log_Gamma
+      --  values (~Z ln Z) cancel catastrophically, so use the asymptotic
+      --  series  1/2 ln Z - 1/(8Z) + 1/(192 Z^3) - 1/(640 Z^5)  (error
+      --  < 1e-15 for Z >= 100); [A&S] 6.1.47.
+      Log_Ratio : constant Long_Float :=
+         (if Z >= 100.0
+          then 0.5 * Log (Z) - 1.0 / (8.0 * Z) + 1.0 / (192.0 * Z**3)
+               - 1.0 / (640.0 * Z**5)
+          else Long_Gamma.Log_Gamma (Z + 0.5) - Long_Gamma.Log_Gamma (Z));
+      U : constant Long_Float := (X * X) / V;
+      --  ln(1 + U) accurate for tiny U (Kahan's log1p identity): the
+      --  rounded sum W = 1 + U is off by a known amount, which the
+      --  U / (W - 1) factor corrects.
+      W : constant Long_Float := 1.0 + U;
+      Log1p_U : constant Long_Float :=
+         (if W = 1.0 then U else Log (W) * U / (W - 1.0));
    begin
       if DF <= 0.0 then
          raise Constraint_Error with "Student t distribution: degrees of freedom must be positive";
       end if;
-      return Real (Exp (Long_Gamma.Log_Gamma ((V + 1.0) / 2.0) - Long_Gamma.Log_Gamma (V / 2.0)) / (Sqrt (V * Ada.Numerics.Pi) * (1.0 + (X**2) / V)**((V + 1.0) / 2.0)));
+      return Real (Exp (Log_Ratio - 0.5 * Log (V * Ada.Numerics.Pi)
+                        - ((V + 1.0) / 2.0) * Log1p_U));
    end Student_T_PDF;
 
    -------------------
@@ -569,7 +609,9 @@ package body SData_Core.Statistics is
          "Binomial PMF: n must be non-negative and prob must be in [0,1] (n=" &
          Real'Image (N) & ", prob=" & Real'Image (P) & ")";
       end if;
-      if KI < 0.0 or else KI > NI then return 0.0; end if;
+      if KI < 0.0 or else KI > NI or else Real'Floor (K) /= K then
+         return 0.0;   --  a discrete distribution has no mass between integers (F23)
+      end if;
       if PF = 0.0 then return (if KI = 0.0 then 1.0 else 0.0); end if;
       if PF = 1.0 then return (if KI = NI then 1.0 else 0.0); end if;
 
