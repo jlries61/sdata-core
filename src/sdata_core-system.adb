@@ -3,6 +3,7 @@
 --  See LICENSE or <https://www.gnu.org/licenses/gpl-3.0.html>
 
 with Ada.Environment_Variables;
+with Ada.Strings.Unbounded;
 with GNAT.OS_Lib; use GNAT.OS_Lib;
 with Interfaces.C; use type Interfaces.C.int;
 with SData_Core.Config.Runtime;
@@ -125,6 +126,22 @@ package body SData_Core.System is
       return "";
    end Resolve_Timeout_Cmd;
 
+   --  Single-quote S for a POSIX shell (a ' becomes '\'').
+   function Sh_Quote (S : String) return String is
+      Result : Ada.Strings.Unbounded.Unbounded_String :=
+         Ada.Strings.Unbounded.To_Unbounded_String ("'");
+   begin
+      for C of S loop
+         if C = ''' then
+            Ada.Strings.Unbounded.Append (Result, "'\''");
+         else
+            Ada.Strings.Unbounded.Append (Result, C);
+         end if;
+      end loop;
+      Ada.Strings.Unbounded.Append (Result, "'");
+      return Ada.Strings.Unbounded.To_String (Result);
+   end Sh_Quote;
+
    procedure Shell_Execute (Command : String := ""; Success : out Boolean) is
    begin
       if Command = "" then
@@ -168,6 +185,12 @@ package body SData_Core.System is
             --  poll-loop implementation was effectively broken there as well,
             --  so this is no regression.
             --
+            --  The user's command runs as `sh -c '<command>'` under timeout
+            --  (F30), not as timeout's own argument vector: that way shell
+            --  builtins (cd, exit) and compound commands ("a; b") work, and
+            --  a timeout kills the whole group (timeout makes its own
+            --  process group), so nothing after the first ";" outlives it.
+            --
             --  The wrapped command ends with "; exit $?" so the shell runs
             --  `timeout` as a child and then exits *normally* with its status.
             --  Without it, a shell invoked as `sh -c "timeout ..."` with a
@@ -204,7 +227,8 @@ package body SData_Core.System is
                   Wrapped : constant String :=
                      (if Use_Timeout
                       then Timeout_Cmd & " " & T_Str & " "
-                           & Command & "; exit $?"
+                           & Sh_Quote (Path.all) & " -c "
+                           & Sh_Quote (Command) & "; exit $?"
                       else Command);
                   Args    : GNAT.OS_Lib.Argument_List :=
                      (new String'(Shell_Arg), new String'(Wrapped));
